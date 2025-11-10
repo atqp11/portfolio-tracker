@@ -1,0 +1,45 @@
+// lib/config.ts
+export const configs = [
+  {
+    id: 'energy',
+    name: 'Energy Portfolio',
+    initialCash: 14000,
+    initialMargin: 6000,
+    initialValue: 20000,
+    cashRatio: 0.7,
+    marginRatio: 0.3,
+    stopLossValue: 14000,
+    takeProfitValue: 30000,
+    enableDRIP: true,
+    stocks: [
+      { symbol: 'CNQ.TO', name: 'Canadian Natural', cashAllocation: 5000, useMargin: true },
+      { symbol: 'SU.TO', name: 'Suncor', cashAllocation: 5000, useMargin: true },
+      { symbol: 'TOU.TO', name: 'Tourmaline', cashAllocation: 4000, useMargin: true },
+      { symbol: 'ARX.TO', name: 'ARC Resources', cashAllocation: 3000, useMargin: true },
+      { symbol: 'TRP.TO', name: 'TC Energy', cashAllocation: 3000, useMargin: true },
+    ],
+    commodities: [
+      { symbol: 'CL=F', name: 'WTI Crude Oil', unit: 'per bbl' },
+      { symbol: 'NG=F', name: 'Henry Hub Natural Gas', unit: 'per MMBtu' },
+    ],
+  },
+  {
+    id: 'copper',
+    name: 'Copper Portfolio',
+    initialCash: 6000,
+    initialMargin: 3857,
+    initialValue: 9857,
+    cashRatio: 0.7,
+    marginRatio: 0.3,
+    stopLossValue: 7000,
+    takeProfitValue: 15000,
+    enableDRIP: true,
+    stocks: [
+      { symbol: 'FCX', name: 'Freeport-McMoRan', cashAllocation: 2500, useMargin: true },
+      { symbol: 'COPX', name: 'Global X Copper Miners ETF', cashAllocation: 1500, useMargin: true },
+      { symbol: 'ERO.TO', name: 'Ero Copper', cashAllocation: 1000, useMargin: true },
+      { symbol: 'HBM', name: 'Hudbay Minerals', cashAllocation: 1000, useMargin: true },
+    ],
+    commodities: [ { symbol: 'HG=F', name: 'Copper', unit: 'per lb' } ],
+  },
+] as const;
