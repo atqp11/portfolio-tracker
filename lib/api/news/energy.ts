@@ -1,5 +1,4 @@
 // lib/api/news/energy.ts
-import axios from 'axios';
 import { NewsItem } from '../shared/types';
 import { getCached, setCached } from '../shared/cache';
 
@@ -10,12 +9,19 @@ export const fetchEnergyNews = async (): Promise<NewsItem[]> => {
   if (cached) return cached;
 
   try {
-    const { data } = await axios.get(
+    console.log('Fetching energy news...');
+    const response = await fetch(
       `https://newsapi.org/v2/everything?q=oil+OR+natural+gas+OR+LNG+OR+OPEC&language=en&sortBy=publishedAt&pageSize=10`,
-      { headers: { 'X-Api-Key': NEWS_KEY }, timeout: 10000 }
+      { 
+        headers: { 'X-Api-Key': NEWS_KEY },
+        signal: AbortSignal.timeout(10000)
+      }
     );
 
-    const news = data.articles.slice(0, 5).map((a: any) => ({
+    const data = await response.json();
+    console.log('Energy news response:', data);
+
+    const news = data.articles?.slice(0, 5).map((a: any) => ({
       title: a.title.split(' - ')[0],
       description: a.description || 'No summary.',
       source: a.source.name,
