@@ -58,15 +58,20 @@ export default function Home() {
 
   useEffect(() => {
     // Set portfolio data
-    const immediatePortfolio = [
-      { symbol: 'CNQ.TO', name: 'Canadian Natural', shares: 50, price: 89.45, actualValue: 4472 },
-      { symbol: 'SU.TO', name: 'Suncor', shares: 45, price: 112.20, actualValue: 5049 },
-      { symbol: 'TOU.TO', name: 'Tourmaline', shares: 35, price: 78.90, actualValue: 2762 },
-      { symbol: 'ARX.TO', name: 'ARC Resources', shares: 40, price: 65.30, actualValue: 2612 },
-      { symbol: 'TRP.TO', name: 'TC Energy', shares: 30, price: 95.75, actualValue: 2873 }
+    const immediatePortfolio = active === 'energy' ? [
+      { symbol: 'CNQ', name: 'Canadian Natural', shares: 156, price: 31.99, actualValue: 4998.44 },
+      { symbol: 'SU', name: 'Suncor', shares: 118, price: 42.79, actualValue: 5049.22 },
+      { symbol: 'TRMKF', name: 'Tourmaline', shares: 95, price: 43.23, actualValue: 4106.85 },
+      { symbol: 'AETUF', name: 'ARC Resources', shares: 175, price: 17.20, actualValue: 3010 },
+      { symbol: 'TRP', name: 'TC Energy', shares: 58, price: 52.27, actualValue: 3020.66 }
+    ] : [
+      { symbol: 'FCX', name: 'Freeport-McMoRan', shares: 51, price: 40.58, actualValue: 2069.58 },
+      { symbol: 'COPX', name: 'Global X Copper Miners ETF', shares: 25, price: 52.34, actualValue: 1308.5 },
+      { symbol: 'ERO', name: 'Ero Copper', shares: 35, price: 22.39, actualValue: 783.65 },
+      { symbol: 'HBM', name: 'Hudbay Minerals', shares: 45, price: 16.81, actualValue: 756.45 }
     ];
-    
-    const immediateMarket = {
+
+    const immediateMarket = active === 'energy' ? {
       commodities: {
         oil: { price: 73.25, timestamp: 'Nov 10, 3:15 PM EST (Live)' },
         gas: { price: 2.89, timestamp: 'Nov 10, 3:15 PM EST (Live)' }
@@ -76,13 +81,32 @@ export default function Home() {
         { title: 'Canadian energy stocks gain on oil price stability', source: 'Reuters', date: 'Nov 10', url: '#' },
         { title: 'Suncor announces quarterly results', source: 'Bloomberg', date: 'Nov 10', url: '#' }
       ]
+    } : {
+      commodities: {
+        copper: { price: 4.25, timestamp: 'Nov 10, 3:15 PM EST (Live)' }
+      },
+      snapshot: 'Copper market remains steady with demand driven by EV boom and China tariffs.',
+      news: [
+        { title: 'Copper prices stabilize amid global demand', source: 'Reuters', date: 'Nov 10', url: '#' },
+        { title: 'Ero Copper reports quarterly earnings', source: 'Bloomberg', date: 'Nov 10', url: '#' }
+      ]
     };
-    
+
     setPortfolio(immediatePortfolio);
     setMarket(immediateMarket);
   }, [active]);
 
   const totalValue = portfolio.reduce((a, b) => a + b.actualValue, 0);
+
+  const calculatePL = () => {
+    const initialInvestment = portfolio.reduce((sum, stock) => sum + (stock.shares * stock.price), 0);
+    const currentValue = portfolio.reduce((sum, stock) => sum + stock.actualValue, 0);
+    const pl = currentValue - initialInvestment;
+    const plPercentage = (pl / initialInvestment) * 100;
+    return { pl, plPercentage };
+  };
+
+  const { pl, plPercentage } = calculatePL();
 
   return (
     <main className="min-h-screen bg-gray-50 p-4 sm:p-6">
@@ -161,6 +185,9 @@ export default function Home() {
           <p className="text-lg sm:text-xl font-bold">Total: ${totalValue.toFixed(0)}</p>
           <p className="text-xs sm:text-sm text-gray-600 mt-1">
             Stop-Loss: ${config.stopLossValue} | Take Profit: ${config.takeProfitValue}
+          </p>
+          <p className="text-xs sm:text-sm text-gray-600 mt-1">
+            P&L: ${pl.toFixed(2)} ({plPercentage.toFixed(2)}%)
           </p>
         </div>
 
