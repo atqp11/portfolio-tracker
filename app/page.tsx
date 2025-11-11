@@ -17,6 +17,8 @@ export default function Home() {
   const [portfolio, setPortfolio] = useState<any[]>([]);
   const [market, setMarket] = useState<any>({});
   const [alerts, setAlerts] = useState<any>(null);
+  const [sortKey, setSortKey] = useState<string>('symbol');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
 
   const config = configs.find(c => c.id === active)!;
 
@@ -98,15 +100,53 @@ export default function Home() {
 
   const totalValue = portfolio.reduce((a, b) => a + b.actualValue, 0);
 
-  const calculatePL = () => {
-    const initialInvestment = portfolio.reduce((sum, stock) => sum + (stock.shares * stock.price), 0);
-    const currentValue = portfolio.reduce((sum, stock) => sum + stock.actualValue, 0);
-    const pl = currentValue - initialInvestment;
-    const plPercentage = (pl / initialInvestment) * 100;
+  const calculatePL = (actualValue: number, costBasis: number) => {
+    const pl = actualValue - costBasis;
+    const plPercentage = (pl / costBasis) * 100;
     return { pl, plPercentage };
   };
 
-  const { pl, plPercentage } = calculatePL();
+  const sortedPortfolio = [...portfolio].sort((a, b) => {
+    const valueA = a[sortKey];
+    const valueB = b[sortKey];
+
+    if (typeof valueA === 'string' && typeof valueB === 'string') {
+      return sortOrder === 'asc' ? valueA.localeCompare(valueB) : valueB.localeCompare(valueA);
+    }
+
+    return sortOrder === 'asc' ? valueA - valueB : valueB - valueA;
+  });
+
+  const handleSort = (key: string) => {
+    if (sortKey === key) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortKey(key);
+      setSortOrder('asc');
+    }
+  };
+
+  const renderSortIcon = (key: string) => {
+    if (sortKey === key) {
+      return sortOrder === 'asc' ? '▲' : '▼';
+    }
+    return null;
+  };
+
+  const calculateDailyChange = (current: number, previous: number) => {
+    const change = ((current - previous) / previous) * 100;
+    return change;
+  };
+
+  const getChangeColor = (change: number) => {
+    if (change > 0.0001) return 'text-green-600';
+    if (change < -0.0001) return 'text-red-600';
+    return 'text-black';
+  };
+
+  const totalCostBasis = portfolio.reduce((sum, stock) => sum + (stock.shares * stock.price), 0);
+  const totalPL = totalValue - totalCostBasis;
+  const totalPLPercentage = (totalPL / totalCostBasis) * 100;
 
   return (
     <main className="min-h-screen bg-gray-50 p-4 sm:p-6">
@@ -164,20 +204,42 @@ export default function Home() {
 
         {/* Holdings */}
         <div className="space-y-3 mb-6">
-          {portfolio.map(p => (
-            <div
-              key={p.symbol}
-              className="bg-white p-4 rounded-lg shadow flex flex-col sm:flex-row sm:justify-between gap-2"
-            >
-              <div>
-                <p className="font-semibold text-base">{p.symbol}</p>
-                <p className="text-xs sm:text-sm text-gray-600">
-                  {p.shares} @ ${p.price.toFixed(2)}
-                </p>
+          <div className="bg-gray-100 p-4 rounded-lg shadow flex flex-row justify-between gap-2 font-bold text-center">
+            <div className="flex-1">Stock</div>
+            <div className="flex-1">Current Price</div>
+            <div className="flex-1">Value</div>
+            <div className="flex-1">P&L</div>
+          </div>
+          {portfolio.map(p => {
+            const valuePerShare = p.actualValue / p.shares;
+            const totalPL = p.actualValue - (p.shares * p.price);
+            const dailyPriceChange = calculateDailyChange(valuePerShare, p.price);
+            const dailyValueChange = calculateDailyChange(p.actualValue, p.price * p.shares);
+
+            return (
+              <div
+                key={p.symbol}
+                className="bg-white p-4 rounded-lg shadow flex flex-row justify-between gap-2 text-center"
+              >
+                <div className="flex-1">
+                  <p className="font-semibold text-base">{p.symbol}</p>
+                  <p className="text-xs sm:text-sm text-gray-600">{p.name}</p>
+                </div>
+                <div className="flex-1">
+                  ${valuePerShare.toFixed(2)}
+                  <span className={`ml-1 ${getChangeColor(dailyPriceChange)}`}>({dailyPriceChange.toFixed(2)}%)</span>
+                </div>
+                <div className="flex-1">
+                  ${p.actualValue.toFixed(0)}
+                  <span className={`ml-1 ${getChangeColor(dailyValueChange)}`}>({dailyValueChange.toFixed(2)}%)</span>
+                </div>
+                <div className={`flex-1 ${getChangeColor(totalPL)}`}>
+                  ${totalPL.toFixed(2)}
+                  <span className={`ml-1 ${getChangeColor(totalPL / (p.shares * p.price) * 100)}`}>({(totalPL / (p.shares * p.price) * 100).toFixed(2)}%)</span>
+                </div>
               </div>
-              <p className="font-bold text-lg">${p.actualValue.toFixed(0)}</p>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         {/* Summary */}
@@ -186,8 +248,9 @@ export default function Home() {
           <p className="text-xs sm:text-sm text-gray-600 mt-1">
             Stop-Loss: ${config.stopLossValue} | Take Profit: ${config.takeProfitValue}
           </p>
-          <p className="text-xs sm:text-sm text-gray-600 mt-1">
-            P&L: ${pl.toFixed(2)} ({plPercentage.toFixed(2)}%)
+          <p className={`text-xs sm:text-sm mt-1 ${getChangeColor(totalPL)}`}>
+            P&L: ${totalPL.toFixed(2)}
+            <span className={`ml-1 ${getChangeColor(totalPLPercentage)}`}>({totalPLPercentage.toFixed(2)}%)</span>
           </p>
         </div>
 
