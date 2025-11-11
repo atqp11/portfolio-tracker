@@ -1,10 +1,6 @@
 // lib/api/commodities/energy.ts
-import axios from 'axios';
 import { Commodity } from '../shared/types';
 import { getCached, setCached } from '../shared/cache';
-
-const API_KEY = process.env.NEXT_PUBLIC_POLYGON_API_KEY!;
-const SYMBOLS = 'CL=F,NG=F';
 
 export const fetchEnergyCommodities = async (): Promise<{
   oil?: Commodity;
@@ -13,31 +9,36 @@ export const fetchEnergyCommodities = async (): Promise<{
   const cached = await getCached<any>('energy_commodities');
   if (cached) return cached;
 
-  try {
-    const { data } = await axios.get(
-      `https://api.polygon.io/v2/last/nbbo/${SYMBOLS}?apiKey=${API_KEY}`,
-      { timeout: 8000 }
-    );
-
-    const result: any = {};
-    data.results?.forEach((r: any) => {
-      const price = r.p ?? r.a ?? r.b;
-      const ts = new Date(r.t).toLocaleString('en-US', {
+  console.log('Fetching energy commodities (using demo data)...');
+  
+  // Use realistic demo data since commodity futures aren't available on free APIs
+  const result = {
+    oil: { 
+      price: 72.50 + (Math.random() - 0.5) * 5, // $67.50 - $77.50 range
+      timestamp: new Date().toLocaleString('en-US', {
         timeZone: 'America/New_York',
         month: 'short',
         day: 'numeric',
         hour: 'numeric',
         minute: '2-digit',
         timeZoneName: 'short',
-      });
-      if (r.T === 'CL=F') result.oil = { price, timestamp: ts };
-      if (r.T === 'NG=F') result.gas = { price, timestamp: ts };
-    });
-
-    await setCached('energy_commodities', result);
-    return result;
-  } catch (e) {
-    console.warn('Energy commodities failed', e);
-    return cached || null;
-  }
+      }) + ' (Demo Data)'
+    },
+    gas: { 
+      price: 2.85 + (Math.random() - 0.5) * 0.5, // $2.60 - $3.10 range
+      timestamp: new Date().toLocaleString('en-US', {
+        timeZone: 'America/New_York',
+        month: 'short',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+        timeZoneName: 'short',
+      }) + ' (Demo Data)'
+    }
+  };
+  
+  console.log('Energy commodities result:', result);
+  
+  await setCached('energy_commodities', result);
+  return result;
 };
