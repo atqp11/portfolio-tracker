@@ -2,7 +2,7 @@
 import { NewsItem } from '../shared/types';
 import { getCached, setCached } from '../shared/cache';
 
-const NEWS_KEY = process.env.NEXT_PUBLIC_NEWS_API_KEY!;
+const NEWS_KEY = process.env.NEWS_API_KEY!;
 
 export const fetchEnergyNews = async (): Promise<NewsItem[]> => {
   const cached = await getCached<NewsItem[]>('energy_news');
