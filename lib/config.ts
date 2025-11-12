@@ -37,7 +37,7 @@ export const configs = [
     stocks: [
       { symbol: 'FCX', name: 'Freeport-McMoRan', cashAllocation: 2069.58, useMargin: true },
       { symbol: 'COPX', name: 'Global X Copper Miners ETF', cashAllocation: 1308.5, useMargin: true },
-      { symbol: 'ERO.TO', name: 'Ero Copper', cashAllocation: 783.65, useMargin: true },
+      { symbol: 'ERO', name: 'Ero Copper', cashAllocation: 783.65, useMargin: true },
       { symbol: 'HBM', name: 'Hudbay Minerals', cashAllocation: 756.45, useMargin: true },
     ],
     commodities: [ { symbol: 'HG=F', name: 'Copper', unit: 'per lb' } ],

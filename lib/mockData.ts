@@ -10,7 +10,7 @@ export const MOCK_PRICES = {
   // Copper stocks
   'FCX': 45.20,
   'COPX': 47.85,
-  'ERO.TO': 23.50,
+  'ERO': 23.50,
   'HBM': 11.25,
 };
 
@@ -22,7 +22,7 @@ export const MOCK_PRICE_CHANGES = {
   'TRP': 2.07,
   'FCX': -0.80,
   'COPX': 1.15,
-  'ERO.TO': 0.50,
+  'ERO': 0.50,
   'HBM': -0.15,
 };
 
