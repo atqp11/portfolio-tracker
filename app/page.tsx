@@ -9,6 +9,7 @@ import { fetchEnergyCommodities, fetchCopperCommodity } from '@/lib/api';
 import { generateEnergySnapshot, generateCopperSnapshot } from '@/lib/api/snapshot';
 import { fetchEnergyNews, fetchCopperNews } from '@/lib/api/news';
 import { saveToCache, loadFromCache, classifyApiError, formatCacheAge, getCacheAge, ApiError } from '@/lib/cache';
+import { USE_MOCK_DATA, MOCK_PRICES, MOCK_PRICE_CHANGES } from '@/lib/mockData';
 import AlertBanner from '@/components/AlertBanner';
 import CommodityCard from '@/components/CommodityCard';
 import PortfolioHeader from '@/components/PortfolioHeader';
@@ -159,6 +160,17 @@ export default function Home() {
   };
 
   const fetchPrices = async (symbols: string[], previousPrices: Record<string, number> = {}) => {
+    // Use mock data if enabled
+    if (USE_MOCK_DATA) {
+      console.log('Using mock data for testing');
+      const map: Record<string, number> = {};
+      symbols.forEach(symbol => {
+        map[symbol] = MOCK_PRICES[symbol as keyof typeof MOCK_PRICES] || 100;
+      });
+      setApiError(null);
+      return map;
+    }
+
     try {
       // Remove .TO suffix for Alpha Vantage (it doesn't use that format)
       const alphaSymbols = symbols.map(s => s.replace('.TO', ''));
