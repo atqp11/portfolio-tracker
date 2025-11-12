@@ -4,12 +4,20 @@ export const calculatePosition = (
   price: number,
   config: any
 ) => {
-  // Ensure price is a valid positive number
-  const validPrice = (!price || price <= 0 || isNaN(price)) ? 100.00 : price;
+  // If price is unavailable, don't calculate
+  if (!price || price <= 0 || isNaN(price)) {
+    return { 
+      shares: 0, 
+      actualValue: 0, 
+      cashUsed: 0, 
+      marginUsed: 0, 
+      price: 0 
+    };
+  }
   
   const totalTarget = stock.cashAllocation / config.cashRatio;
-  const shares = Math.floor(totalTarget / validPrice);
-  const actualValue = shares * validPrice;
+  const shares = Math.floor(totalTarget / price);
+  const actualValue = shares * price;
   const marginUsed = actualValue * config.marginRatio;
   const cashUsed = actualValue - marginUsed;
   
@@ -18,6 +26,6 @@ export const calculatePosition = (
     actualValue: actualValue || 0, 
     cashUsed: cashUsed || 0, 
     marginUsed: marginUsed || 0, 
-    price: validPrice 
+    price: price 
   };
 };
