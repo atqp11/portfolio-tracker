@@ -27,4 +27,4 @@ export const MOCK_PRICE_CHANGES = {
 };
 
 // Set to true to use mock data instead of real API calls
-export const USE_MOCK_DATA = false;
+export const USE_MOCK_DATA = true;
