@@ -64,6 +64,11 @@ jspm_packages/
 .env.test.local
 .env.production.local
 
+# Test files with potentially sensitive data
+*-test.js
+test-*.js
+debug-env.js
+
 # parcel-bundler cache (https://parceljs.org/)
 .cache
 .parcel-cache
@@ -178,4 +183,6 @@ storybook-static/
 
 # Temporary folders
 tmp/
-temp/
+temp/*-test.js
+test-*.js
+debug-env.js
