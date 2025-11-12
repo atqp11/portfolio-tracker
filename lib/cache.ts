@@ -20,26 +20,36 @@ export function saveToCache(key: string, data: any): void {
   }
 }
 
-export function loadFromCache(key: string): CacheData | null {
+export function loadFromCache<T = any>(key: string): T | null {
   if (typeof window === 'undefined') return null;
   
   try {
     const cached = localStorage.getItem(key);
     if (!cached) return null;
     
-    return JSON.parse(cached) as CacheData;
+    const cacheData = JSON.parse(cached) as CacheData;
+    return cacheData.data as T;
   } catch (error) {
     console.error('Failed to load from cache:', error);
     return null;
   }
 }
 
-export function getCacheAge(timestamp: number): number {
-  return Date.now() - timestamp;
+export function getCacheAge(key: string): number {
+  if (typeof window === 'undefined') return 0;
+  
+  try {
+    const cached = localStorage.getItem(key);
+    if (!cached) return 0;
+    
+    const cacheData = JSON.parse(cached) as CacheData;
+    return Date.now() - cacheData.timestamp;
+  } catch (error) {
+    return 0;
+  }
 }
 
-export function formatCacheAge(timestamp: number): string {
-  const ageMs = getCacheAge(timestamp);
+export function formatCacheAge(ageMs: number): string {
   const ageMinutes = Math.floor(ageMs / 60000);
   const ageHours = Math.floor(ageMinutes / 60);
   const ageDays = Math.floor(ageHours / 24);
@@ -52,7 +62,12 @@ export function formatCacheAge(timestamp: number): string {
 
 export type ApiErrorType = 'rate_limit' | 'auth' | 'network' | 'server' | 'unknown';
 
-export function classifyApiError(error: any): ApiErrorType {
+export interface ApiError {
+  type: ApiErrorType;
+  message: string;
+}
+
+export function classifyApiError(error: any): ApiError {
   const errorMessage = error?.message || error?.toString() || '';
   
   // Check for rate limit errors
@@ -62,7 +77,10 @@ export function classifyApiError(error: any): ApiErrorType {
     errorMessage.includes('Too Many Requests') ||
     errorMessage.includes('429')
   ) {
-    return 'rate_limit';
+    return {
+      type: 'rate_limit',
+      message: errorMessage,
+    };
   }
   
   // Check for authentication errors
@@ -73,7 +91,10 @@ export function classifyApiError(error: any): ApiErrorType {
     errorMessage.includes('401') ||
     errorMessage.includes('403')
   ) {
-    return 'auth';
+    return {
+      type: 'auth',
+      message: errorMessage,
+    };
   }
   
   // Check for network errors
@@ -83,7 +104,10 @@ export function classifyApiError(error: any): ApiErrorType {
     errorMessage.includes('ECONNREFUSED') ||
     errorMessage.includes('timeout')
   ) {
-    return 'network';
+    return {
+      type: 'network',
+      message: errorMessage,
+    };
   }
   
   // Check for server errors
@@ -93,8 +117,14 @@ export function classifyApiError(error: any): ApiErrorType {
     errorMessage.includes('503') ||
     errorMessage.includes('server error')
   ) {
-    return 'server';
+    return {
+      type: 'server',
+      message: errorMessage,
+    };
   }
   
-  return 'unknown';
+  return {
+    type: 'unknown',
+    message: errorMessage,
+  };
 }
