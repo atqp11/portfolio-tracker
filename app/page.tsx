@@ -447,7 +447,7 @@ export default function Home() {
         />
 
         {/* Holdings - Asset Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+        <div className="space-y-4 mb-6">
           {portfolio.map(p => {
             const isUnavailable = !p.price || isNaN(p.price);
             
