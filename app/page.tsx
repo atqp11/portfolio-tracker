@@ -342,7 +342,7 @@ export default function Home() {
               className={`flex-1 min-w-[120px] px-4 py-2 rounded-lg font-medium text-sm transition ${
                 active === c.id
                   ? 'bg-blue-600 text-white'
-                  : 'bg-white shadow hover:shadow-md'
+                  : 'bg-[#0E1114] text-[#E5E7EB] border border-neutral-800 hover:border-neutral-700'
               }`}
             >
               {c.name}
@@ -363,17 +363,17 @@ export default function Home() {
             {isLoading ? 'Updating...' : 'Refresh Data'}
           </button>
           {isLoading && (
-            <span className="text-sm text-blue-600 font-medium animate-pulse">
+            <span className="text-sm text-blue-400 font-medium animate-pulse">
               Fetching latest prices...
             </span>
           )}
           {!isLoading && lastCacheUpdate && (
-            <span className="text-sm text-gray-600">
+            <span className="text-sm text-[#9CA3AF]">
               Last updated: {lastCacheUpdate}
             </span>
           )}
           {!isLoading && !lastCacheUpdate && !apiError && (
-            <span className="text-sm text-orange-600">
+            <span className="text-sm text-orange-400">
               No cached data available
             </span>
           )}
@@ -405,8 +405,8 @@ export default function Home() {
         </div>
 
         {/* Snapshot */}
-        <div className="bg-white p-4 sm:p-6 rounded-xl shadow mb-6">
-          <div className="text-xs sm:text-sm whitespace-pre-wrap font-sans leading-relaxed">
+        <div className="bg-[#0E1114] border border-neutral-800 p-4 sm:p-6 rounded-lg mb-6">
+          <div className="text-xs sm:text-sm whitespace-pre-wrap font-sans leading-relaxed text-[#E5E7EB]">
             {market.snapshot && market.snapshot.split('\n').map((line: string, index: number) => {
               // Handle bold text (**text**)
               if (line.includes('**')) {
@@ -414,7 +414,7 @@ export default function Home() {
                 return (
                   <div key={index}>
                     {parts.map((part, i) => 
-                      i % 2 === 1 ? <strong key={i}>{part}</strong> : <span key={i}>{part}</span>
+                      i % 2 === 1 ? <strong key={i} className="text-[#E5E7EB]">{part}</strong> : <span key={i}>{part}</span>
                     )}
                   </div>
                 );
@@ -473,13 +473,13 @@ export default function Home() {
         </div>
 
         {/* Summary */}
-        <div className="bg-white p-4 sm:p-6 rounded-xl shadow text-center sm:text-left">
+        <div className="bg-[#0E1114] border border-neutral-800 p-4 sm:p-6 rounded-lg text-center sm:text-left">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <p className="text-lg sm:text-xl font-bold">
+              <p className="text-lg sm:text-xl font-bold text-[#E5E7EB]">
                 Portfolio Value: {totalValue > 0 ? `$${totalValue.toFixed(0)}` : 'N/A'}
               </p>
-              <p className="text-xs sm:text-sm text-gray-600 mt-1">
+              <p className="text-xs sm:text-sm text-[#9CA3AF] mt-1">
                 Cost Basis: ${config.stocks.reduce((sum, stock) => sum + stock.cashAllocation, 0).toFixed(0)}
               </p>
               {totalValue > 0 && (
@@ -492,14 +492,14 @@ export default function Home() {
               )}
             </div>
             <div>
-              <p className="text-xs sm:text-sm text-gray-600">
+              <p className="text-xs sm:text-sm text-[#9CA3AF]">
                 Stop-Loss: ${config.stopLossValue} | Take Profit: ${config.takeProfitValue}
               </p>
-              <p className="text-xs sm:text-sm text-gray-600 mt-1">
+              <p className="text-xs sm:text-sm text-[#9CA3AF] mt-1">
                 Cash: ${config.initialCash} | Margin: ${config.initialMargin}
               </p>
               {apiError && (
-                <p className="text-xs text-orange-600 mt-1">
+                <p className="text-xs text-orange-400 mt-1">
                   ⚠️ Some prices unavailable due to {apiError.type.replace('_', ' ')}
                 </p>
               )}
@@ -510,28 +510,28 @@ export default function Home() {
         {/* News */}
         <div className="mt-6 space-y-3 text-sm">
           {market.news?.map((n: any, index: number) => (
-            <div key={`news-${index}`} className="border-b pb-3 last:border-0">
+            <div key={`news-${index}`} className="border-b border-neutral-800 pb-3 last:border-0">
               <a
                 href={n.url}
                 target="_blank"
                 rel="noopener"
-                className="font-medium text-blue-600 hover:underline block mb-1"
+                className="font-medium text-blue-400 hover:underline block mb-1"
               >
                 {n.title}
               </a>
-              <p className="text-xs text-gray-600">{n.source} · {n.date}</p>
+              <p className="text-xs text-[#9CA3AF]">{n.source} · {n.date}</p>
             </div>
           ))}
         </div>
 
         {/* Error Message Footer */}
         {apiError && (
-          <div className={`mt-6 p-4 rounded-lg border-l-4 ${
-            apiError.type === 'rate_limit' ? 'bg-yellow-50 border-yellow-500' :
-            apiError.type === 'auth' ? 'bg-red-50 border-red-500' :
-            apiError.type === 'network' ? 'bg-blue-50 border-blue-500' :
-            apiError.type === 'server' ? 'bg-orange-50 border-orange-500' :
-            'bg-gray-50 border-gray-500'
+          <div className={`mt-6 p-4 rounded-lg border border-l-4 ${
+            apiError.type === 'rate_limit' ? 'bg-yellow-900/20 border-yellow-500' :
+            apiError.type === 'auth' ? 'bg-red-900/20 border-red-500' :
+            apiError.type === 'network' ? 'bg-blue-900/20 border-blue-500' :
+            apiError.type === 'server' ? 'bg-orange-900/20 border-orange-500' :
+            'bg-gray-900/20 border-gray-500'
           }`}>
             <div className="flex items-start">
               <div className="flex-shrink-0">
@@ -547,11 +547,11 @@ export default function Home() {
               </div>
               <div className="ml-3 flex-1">
                 <h3 className={`text-sm font-medium ${
-                  apiError.type === 'rate_limit' ? 'text-yellow-800' :
-                  apiError.type === 'auth' ? 'text-red-800' :
-                  apiError.type === 'network' ? 'text-blue-800' :
-                  apiError.type === 'server' ? 'text-orange-800' :
-                  'text-gray-800'
+                  apiError.type === 'rate_limit' ? 'text-yellow-400' :
+                  apiError.type === 'auth' ? 'text-red-400' :
+                  apiError.type === 'network' ? 'text-blue-400' :
+                  apiError.type === 'server' ? 'text-orange-400' :
+                  'text-gray-400'
                 }`}>
                   {apiError.type === 'rate_limit' ? 'API Rate Limit Reached' :
                    apiError.type === 'auth' ? 'Authentication Error' :
@@ -560,11 +560,11 @@ export default function Home() {
                    'Error'}
                 </h3>
                 <p className={`mt-1 text-sm ${
-                  apiError.type === 'rate_limit' ? 'text-yellow-700' :
-                  apiError.type === 'auth' ? 'text-red-700' :
-                  apiError.type === 'network' ? 'text-blue-700' :
-                  apiError.type === 'server' ? 'text-orange-700' :
-                  'text-gray-700'
+                  apiError.type === 'rate_limit' ? 'text-yellow-300' :
+                  apiError.type === 'auth' ? 'text-red-300' :
+                  apiError.type === 'network' ? 'text-blue-300' :
+                  apiError.type === 'server' ? 'text-orange-300' :
+                  'text-gray-300'
                 }`}>
                   {apiError.message}
                   {lastCacheUpdate && (
@@ -601,7 +601,7 @@ export default function Home() {
                 onClick={() => setApiError(null)}
                 className="ml-3 flex-shrink-0"
               >
-                <svg className="h-5 w-5 text-gray-400 hover:text-gray-600" fill="currentColor" viewBox="0 0 20 20">
+                <svg className="h-5 w-5 text-[#9CA3AF] hover:text-[#E5E7EB]" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd"/>
                 </svg>
               </button>
