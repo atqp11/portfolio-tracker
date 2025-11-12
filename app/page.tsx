@@ -11,6 +11,8 @@ import { fetchEnergyNews, fetchCopperNews } from '@/lib/api/news';
 import { saveToCache, loadFromCache, classifyApiError, formatCacheAge, getCacheAge, ApiError } from '@/lib/cache';
 import AlertBanner from '@/components/AlertBanner';
 import CommodityCard from '@/components/CommodityCard';
+import PortfolioHeader from '@/components/PortfolioHeader';
+import AssetCard from '@/components/AssetCard';
 
 export default function Home() {
   const [active, setActive] = useState<'energy' | 'copper'>('energy');
@@ -22,6 +24,7 @@ export default function Home() {
   const [apiError, setApiError] = useState<ApiError | null>(null);
   const [lastCacheUpdate, setLastCacheUpdate] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [previousDayPrices, setPreviousDayPrices] = useState<Record<string, number>>({});
 
   const config = configs.find(c => c.id === active)!;
 
@@ -45,11 +48,13 @@ export default function Home() {
       const livePortfolio = config.stocks.map(stock => {
         const price = prices[stock.symbol] || NaN;
         const position = calculatePosition(stock, price, config);
+        const previousPrice = previousDayPrices[stock.symbol] || price;
         return {
           symbol: stock.symbol,
           name: stock.name,
           shares: position.shares,
           price: position.price,
+          previousPrice: previousPrice,
           actualValue: position.actualValue,
           cashUsed: position.cashUsed,
           marginUsed: position.marginUsed,
@@ -62,6 +67,17 @@ export default function Home() {
         saveToCache(cacheKey, livePortfolio);
         setLastCacheUpdate(formatCacheAge(0));
         setApiError(null); // Clear error on success
+        
+        // Update previous day prices for day change tracking (only on first load of the day)
+        if (Object.keys(previousDayPrices).length === 0) {
+          const newPreviousPrices: Record<string, number> = {};
+          livePortfolio.forEach(p => {
+            if (p.price && !isNaN(p.price)) {
+              newPreviousPrices[p.symbol] = p.price;
+            }
+          });
+          setPreviousDayPrices(newPreviousPrices);
+        }
       }
 
       setPortfolio(livePortfolio);
@@ -87,6 +103,7 @@ export default function Home() {
             name: stock.name,
             shares: position.shares,
             price: NaN,
+            previousPrice: NaN,
             actualValue: 0,
             cashUsed: position.cashUsed,
             marginUsed: position.marginUsed,
@@ -219,6 +236,7 @@ export default function Home() {
           name: stock.name,
           shares: position.shares,
           price: NaN,
+          previousPrice: NaN,
           actualValue: 0,
           cashUsed: position.cashUsed,
           marginUsed: position.marginUsed,
@@ -294,12 +312,22 @@ export default function Home() {
     return 'text-black';
   };
 
-  const totalCostBasis = portfolio.reduce((sum, stock) => sum + (stock.shares * stock.price || 0), 0);
+  // Calculate total cost basis from config
+  const totalCostBasis = config.stocks.reduce((sum, stock) => sum + stock.cashAllocation, 0);
   const totalPL = totalValue - totalCostBasis;
   const totalPLPercentage = totalCostBasis > 0 ? (totalPL / totalCostBasis) * 100 : 0;
 
+  // Calculate day change based on previous prices
+  const totalPreviousValue = portfolio.reduce((sum, stock) => {
+    const prevPrice = stock.previousPrice || stock.price;
+    if (!prevPrice || isNaN(prevPrice)) return sum;
+    return sum + (stock.shares * prevPrice);
+  }, 0);
+  const dayChange = totalValue - totalPreviousValue;
+  const dayChangePercent = totalPreviousValue > 0 ? (dayChange / totalPreviousValue) * 100 : 0;
+
   return (
-    <main className="min-h-screen bg-gray-50 p-4 sm:p-6">
+    <main className="min-h-screen bg-[#0A0C0E] p-4 sm:p-6">
       <AlertBanner alerts={alerts} />
 
       <div className="max-w-5xl mx-auto">
@@ -397,89 +425,49 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Holdings */}
-        <div className="space-y-3 mb-6">
-          <div className="bg-gray-100 p-4 rounded-lg shadow flex flex-row justify-between gap-2 font-bold text-center">
-            <div className="flex-1">Stock</div>
-            <div className="flex-1">Cost Basis</div>
-            <div className="flex-1">Current Price</div>
-            <div className="flex-1">Value</div>
-            <div className="flex-1">P&L</div>
-          </div>
+        {/* Portfolio Header */}
+        <PortfolioHeader
+          accountValue={totalValue}
+          dayChange={dayChange}
+          dayChangePercent={dayChangePercent}
+          unrealizedGainLoss={totalPL}
+          unrealizedGainLossPercent={totalPLPercentage}
+        />
+
+        {/* Holdings - Asset Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
           {portfolio.map(p => {
             const isUnavailable = !p.price || isNaN(p.price);
-            const valuePerShare = isUnavailable ? 0 : p.actualValue / p.shares;
-            const totalPL = isUnavailable ? 0 : p.actualValue - (p.shares * p.price);
-            const dailyPriceChange = isUnavailable ? 0 : calculateDailyChange(valuePerShare, p.price);
-            const dailyValueChange = isUnavailable ? 0 : calculateDailyChange(p.actualValue, p.price * p.shares);
-
+            
             // Find the stock config to get cost basis
             const stockConfig = config.stocks.find(s => s.symbol === p.symbol);
             const costBasis = stockConfig ? stockConfig.cashAllocation : 0;
-            const costBasisPerShare = p.shares > 0 ? costBasis / p.shares : 0;
+            
+            // Calculate values
+            const currentPrice = isUnavailable ? 0 : p.price;
+            const previousPrice = p.previousPrice || currentPrice;
+            const priceChange = currentPrice - previousPrice;
+            const marketValue = p.actualValue;
+            const dayChangeValue = isUnavailable ? 0 : marketValue - (p.shares * previousPrice);
+            const dayChangePercent = isUnavailable || previousPrice === 0 ? 0 : (dayChangeValue / (p.shares * previousPrice)) * 100;
+            const gainLoss = isUnavailable ? 0 : marketValue - costBasis;
+            const gainLossPercent = costBasis > 0 ? (gainLoss / costBasis) * 100 : 0;
 
             return (
-              <div
+              <AssetCard
                 key={p.symbol}
-                className="bg-white p-4 rounded-lg shadow flex flex-row justify-between gap-2 text-center"
-              >
-                <div className="flex-1">
-                  <p className="font-semibold text-base">{p.symbol}</p>
-                  <p className="text-xs sm:text-sm text-gray-600">{p.name}</p>
-                  <p className="text-xs text-gray-500">{p.shares} shares</p>
-                </div>
-                <div className="flex-1">
-                  <p className="font-medium">${costBasis.toFixed(0)}</p>
-                  <p className="text-xs text-gray-500">${costBasisPerShare.toFixed(2)}/share</p>
-                </div>
-                <div className="flex-1">
-                  {isUnavailable ? (
-                    <div>
-                      <p className="text-gray-500">N/A</p>
-                      <p className="text-xs text-orange-600">API Error</p>
-                    </div>
-                  ) : (
-                    <>
-                      <p className="font-medium">${valuePerShare.toFixed(2)}</p>
-                      <span className={`text-sm ${getChangeColor(dailyPriceChange)}`}>
-                        {dailyPriceChange >= 0 ? '+' : ''}{dailyPriceChange.toFixed(2)}%
-                      </span>
-                    </>
-                  )}
-                </div>
-                <div className="flex-1">
-                  {isUnavailable ? (
-                    <div>
-                      <p className="text-gray-500">N/A</p>
-                      <p className="text-xs text-gray-500">Using ${costBasis.toFixed(0)} basis</p>
-                    </div>
-                  ) : (
-                    <>
-                      <p className="font-medium">${p.actualValue.toFixed(0)}</p>
-                      <span className={`text-sm ${getChangeColor(dailyValueChange)}`}>
-                        {dailyValueChange >= 0 ? '+' : ''}{dailyValueChange.toFixed(2)}%
-                      </span>
-                    </>
-                  )}
-                </div>
-                <div className={`flex-1 ${isUnavailable ? '' : getChangeColor(totalPL)}`}>
-                  {isUnavailable ? (
-                    <div>
-                      <p className="text-gray-500">N/A</p>
-                      <p className="text-xs text-gray-500">Price unavailable</p>
-                    </div>
-                  ) : (
-                    <>
-                      <p className="font-medium">
-                        {totalPL >= 0 ? '+' : ''}${totalPL.toFixed(2)}
-                      </p>
-                      <span className={`text-sm ${getChangeColor(totalPL / (p.shares * p.price) * 100)}`}>
-                        ({totalPL >= 0 ? '+' : ''}{(totalPL / (p.shares * p.price) * 100).toFixed(2)}%)
-                      </span>
-                    </>
-                  )}
-                </div>
-              </div>
+                symbol={p.symbol}
+                name={p.name}
+                type="Stock"
+                shares={p.shares}
+                price={currentPrice}
+                priceChange={priceChange}
+                marketValue={marketValue}
+                dayChange={dayChangeValue}
+                dayChangePercent={dayChangePercent}
+                gainLoss={gainLoss}
+                gainLossPercent={gainLossPercent}
+              />
             );
           })}
         </div>
