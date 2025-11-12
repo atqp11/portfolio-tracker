@@ -14,6 +14,7 @@ import AlertBanner from '@/components/AlertBanner';
 import CommodityCard from '@/components/CommodityCard';
 import PortfolioHeader from '@/components/PortfolioHeader';
 import AssetCard from '@/components/AssetCard';
+import StrategyAccordion from '@/components/StrategyAccordion';
 
 export default function Home() {
   const [active, setActive] = useState<'energy' | 'copper'>('energy');
@@ -324,8 +325,8 @@ export default function Home() {
     return 'text-black';
   };
 
-  // Calculate total cost basis from config
-  const totalCostBasis = config.stocks.reduce((sum, stock) => sum + stock.cashAllocation, 0);
+  // Calculate total cost basis from config (total investment including margin)
+  const totalCostBasis = config.initialValue; // Use total investment (cash + margin)
   const totalPL = totalValue - totalCostBasis;
   const totalPLPercentage = totalCostBasis > 0 ? (totalPL / totalCostBasis) * 100 : 0;
 
@@ -451,9 +452,9 @@ export default function Home() {
           {portfolio.map(p => {
             const isUnavailable = !p.price || isNaN(p.price);
             
-            // Find the stock config to get cost basis
+            // Find the stock config to get cost basis (total investment including margin)
             const stockConfig = config.stocks.find(s => s.symbol === p.symbol);
-            const costBasis = stockConfig ? stockConfig.cashAllocation : 0;
+            const costBasis = stockConfig ? (stockConfig.cashAllocation / config.cashRatio) : 0;
             
             // Calculate values
             const currentPrice = isUnavailable ? 0 : p.price;
@@ -492,7 +493,7 @@ export default function Home() {
                 Portfolio Value: {totalValue > 0 ? `$${totalValue.toFixed(0)}` : 'N/A'}
               </p>
               <p className="text-xs sm:text-sm text-[#9CA3AF] mt-1">
-                Cost Basis: ${config.stocks.reduce((sum, stock) => sum + stock.cashAllocation, 0).toFixed(0)}
+                Cost Basis: ${config.initialValue.toFixed(0)}
               </p>
               {totalValue > 0 && (
                 <p className={`text-xs sm:text-sm mt-1 ${getChangeColor(totalPL)}`}>
@@ -518,6 +519,18 @@ export default function Home() {
             </div>
           </div>
         </div>
+
+        {/* Strategy & Monitoring Guide */}
+        <StrategyAccordion
+          portfolioType={active}
+          currentValue={totalValue}
+          targetDeleverValue={config.takeProfitValue}
+          targetProfitValue={config.takeProfitValue}
+          wtiPrice={active === 'energy' ? market.WTI : undefined}
+          ngPrice={active === 'energy' ? market.NG : undefined}
+          copperPrice={active === 'copper' ? market.Copper : undefined}
+          marginPercent={totalValue > 0 ? (config.initialMargin / totalValue) * 100 : 30}
+        />
 
         {/* News */}
         <div className="mt-6 space-y-3 text-sm">
