@@ -144,9 +144,9 @@ export default function StrategyAccordion({
     },
     {
       frequency: 'Weekly',
-      task: 'Review 7-day trend, verify equity stays above 40% (margin call at 30%)',
-      urgency: portfolioType === 'energy' && energyEquityPercent < 30 ? 'red' : portfolioType === 'energy' && energyEquityPercent < 40 ? 'yellow' : 'green',
-      condition: portfolioType === 'energy' ? `Equity: ${energyEquityPercent.toFixed(1)}% (Safe zone: >40%)` : `Margin: ${marginPercent.toFixed(1)}%`,
+      task: 'Review 7-day trend, verify equity stays above 45% (margin call at 30%)',
+      urgency: portfolioType === 'energy' && energyEquityPercent < 35 ? 'red' : portfolioType === 'energy' && energyEquityPercent < 45 ? 'yellow' : 'green',
+      condition: portfolioType === 'energy' ? `Equity: ${energyEquityPercent.toFixed(1)}% (Safe zone: >45%)` : `Margin: ${marginPercent.toFixed(1)}%`,
     },
     {
       frequency: 'Weekly',
@@ -212,9 +212,9 @@ export default function StrategyAccordion({
     },
     {
       frequency: 'Weekly',
-      task: 'Verify equity stays above 40%, review junior miner news (ERO, HBM)',
-      urgency: portfolioType === 'copper' && copperEquityPercent < 30 ? 'red' : portfolioType === 'copper' && copperEquityPercent < 40 ? 'yellow' : 'green',
-      condition: portfolioType === 'copper' ? `Equity: ${copperEquityPercent.toFixed(1)}% (Safe zone: >40%)` : `Margin: ${marginPercent.toFixed(1)}%`,
+      task: 'Verify equity stays above 45%, review junior miner news (ERO, HBM)',
+      urgency: portfolioType === 'copper' && copperEquityPercent < 35 ? 'red' : portfolioType === 'copper' && copperEquityPercent < 45 ? 'yellow' : 'green',
+      condition: portfolioType === 'copper' ? `Equity: ${copperEquityPercent.toFixed(1)}% (Safe zone: >45%)` : `Margin: ${marginPercent.toFixed(1)}%`,
     },
     {
       frequency: 'Weekly',
@@ -370,17 +370,27 @@ export default function StrategyAccordion({
                         {decision.action === 'delever' && (
                           <button
                             onClick={handleExecuteDelever}
-                            className="text-xs px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded transition-colors"
+                            className={`text-xs sm:text-sm px-4 py-2 text-white font-bold rounded-lg shadow-lg transition-all border-2 ${
+                              decision.urgency === 'red' 
+                                ? 'bg-red-600 hover:bg-red-700 border-red-400 hover:shadow-red-500/50 animate-pulse hover:animate-none' 
+                                : decision.urgency === 'yellow'
+                                ? 'bg-yellow-600 hover:bg-yellow-700 border-yellow-400 hover:shadow-yellow-500/50'
+                                : 'bg-neutral-600 hover:bg-neutral-700 border-neutral-500 hover:shadow-neutral-500/50'
+                            }`}
                           >
-                            🚨 Execute Delever
+                            {decision.urgency === 'red' ? '🚨' : decision.urgency === 'yellow' ? '⚠️' : '📊'} Execute Delever
                           </button>
                         )}
                         {decision.action === 'profit' && (
                           <button
                             onClick={handleTakeProfit}
-                            className="text-xs px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded transition-colors"
+                            className={`text-xs sm:text-sm px-4 py-2 text-white font-bold rounded-lg shadow-lg transition-all border-2 ${
+                              decision.urgency === 'yellow'
+                                ? 'bg-green-600 hover:bg-green-700 border-green-400 hover:shadow-green-500/50'
+                                : 'bg-neutral-600 hover:bg-neutral-700 border-neutral-500 hover:shadow-neutral-500/50'
+                            }`}
                           >
-                            💰 Take Profit
+                            {decision.urgency === 'yellow' ? '💰' : '📊'} Take Profit
                           </button>
                         )}
                       </div>

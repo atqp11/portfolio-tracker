@@ -438,17 +438,21 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Portfolio Header */}
-        <PortfolioHeader
-          accountValue={totalValue}
-          dayChange={dayChange}
-          dayChangePercent={dayChangePercent}
-          unrealizedGainLoss={totalPL}
-          unrealizedGainLossPercent={totalPLPercentage}
-        />
+        {/* Main Content Layout - Side by Side on Desktop */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Left Section - Portfolio Data (2/3 width on desktop) */}
+          <div className="lg:col-span-2 space-y-6">
+            {/* Portfolio Header */}
+            <PortfolioHeader
+              accountValue={totalValue}
+              dayChange={dayChange}
+              dayChangePercent={dayChangePercent}
+              unrealizedGainLoss={totalPL}
+              unrealizedGainLossPercent={totalPLPercentage}
+            />
 
-        {/* Holdings - Asset Cards */}
-        <div className="space-y-4 mb-6">
+            {/* Holdings - Asset Cards */}
+            <div className="space-y-4">
           {portfolio.map(p => {
             const isUnavailable = !p.price || isNaN(p.price);
             
@@ -518,21 +522,25 @@ export default function Home() {
               )}
             </div>
           </div>
+            </div>
+          </div>
+
+          {/* Right Column: Strategy & Monitoring Guide */}
+          <div className="lg:col-span-1">
+            <StrategyAccordion 
+              portfolioType={active as 'energy' | 'copper'}
+              currentValue={totalValue}
+              targetDeleverValue={config.takeProfitValue}
+              targetProfitValue={config.takeProfitValue}
+              wtiPrice={active === 'energy' && market.commodities && 'oil' in market.commodities ? (market.commodities as any).oil?.price : undefined}
+              ngPrice={active === 'energy' && market.commodities && 'gas' in market.commodities ? (market.commodities as any).gas?.price : undefined}
+              copperPrice={active === 'copper' && market.commodities ? (market.commodities as any).price : undefined}
+              marginPercent={(config.initialMargin / config.initialValue) * 100}
+            />
+          </div>
         </div>
 
-        {/* Strategy & Monitoring Guide */}
-        <StrategyAccordion
-          portfolioType={active}
-          currentValue={totalValue}
-          targetDeleverValue={config.takeProfitValue}
-          targetProfitValue={config.takeProfitValue}
-          wtiPrice={active === 'energy' ? market.WTI : undefined}
-          ngPrice={active === 'energy' ? market.NG : undefined}
-          copperPrice={active === 'copper' ? market.Copper : undefined}
-          marginPercent={totalValue > 0 ? (config.initialMargin / totalValue) * 100 : 30}
-        />
-
-        {/* News */}
+        {/* News Section - Full Width Below Grid */}
         <div className="mt-6 space-y-3 text-sm">
           {market.news?.map((n: any, index: number) => (
             <div key={`news-${index}`} className="border-b border-neutral-800 pb-3 last:border-0">
