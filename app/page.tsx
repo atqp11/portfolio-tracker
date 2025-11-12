@@ -401,6 +401,7 @@ export default function Home() {
         <div className="space-y-3 mb-6">
           <div className="bg-gray-100 p-4 rounded-lg shadow flex flex-row justify-between gap-2 font-bold text-center">
             <div className="flex-1">Stock</div>
+            <div className="flex-1">Cost Basis</div>
             <div className="flex-1">Current Price</div>
             <div className="flex-1">Value</div>
             <div className="flex-1">P&L</div>
@@ -412,6 +413,11 @@ export default function Home() {
             const dailyPriceChange = isUnavailable ? 0 : calculateDailyChange(valuePerShare, p.price);
             const dailyValueChange = isUnavailable ? 0 : calculateDailyChange(p.actualValue, p.price * p.shares);
 
+            // Find the stock config to get cost basis
+            const stockConfig = config.stocks.find(s => s.symbol === p.symbol);
+            const costBasis = stockConfig ? stockConfig.cashAllocation : 0;
+            const costBasisPerShare = p.shares > 0 ? costBasis / p.shares : 0;
+
             return (
               <div
                 key={p.symbol}
@@ -420,28 +426,56 @@ export default function Home() {
                 <div className="flex-1">
                   <p className="font-semibold text-base">{p.symbol}</p>
                   <p className="text-xs sm:text-sm text-gray-600">{p.name}</p>
+                  <p className="text-xs text-gray-500">{p.shares} shares</p>
                 </div>
                 <div className="flex-1">
-                  {isUnavailable ? 'N/A' : (
+                  <p className="font-medium">${costBasis.toFixed(0)}</p>
+                  <p className="text-xs text-gray-500">${costBasisPerShare.toFixed(2)}/share</p>
+                </div>
+                <div className="flex-1">
+                  {isUnavailable ? (
+                    <div>
+                      <p className="text-gray-500">N/A</p>
+                      <p className="text-xs text-orange-600">API Error</p>
+                    </div>
+                  ) : (
                     <>
-                      ${valuePerShare.toFixed(2)}
-                      <span className={`ml-1 ${getChangeColor(dailyPriceChange)}`}>({dailyPriceChange.toFixed(2)}%)</span>
+                      <p className="font-medium">${valuePerShare.toFixed(2)}</p>
+                      <span className={`text-sm ${getChangeColor(dailyPriceChange)}`}>
+                        {dailyPriceChange >= 0 ? '+' : ''}{dailyPriceChange.toFixed(2)}%
+                      </span>
                     </>
                   )}
                 </div>
                 <div className="flex-1">
-                  {isUnavailable ? 'N/A' : (
+                  {isUnavailable ? (
+                    <div>
+                      <p className="text-gray-500">N/A</p>
+                      <p className="text-xs text-gray-500">Using ${costBasis.toFixed(0)} basis</p>
+                    </div>
+                  ) : (
                     <>
-                      ${p.actualValue.toFixed(0)}
-                      <span className={`ml-1 ${getChangeColor(dailyValueChange)}`}>({dailyValueChange.toFixed(2)}%)</span>
+                      <p className="font-medium">${p.actualValue.toFixed(0)}</p>
+                      <span className={`text-sm ${getChangeColor(dailyValueChange)}`}>
+                        {dailyValueChange >= 0 ? '+' : ''}{dailyValueChange.toFixed(2)}%
+                      </span>
                     </>
                   )}
                 </div>
                 <div className={`flex-1 ${isUnavailable ? '' : getChangeColor(totalPL)}`}>
-                  {isUnavailable ? 'N/A' : (
+                  {isUnavailable ? (
+                    <div>
+                      <p className="text-gray-500">N/A</p>
+                      <p className="text-xs text-gray-500">Price unavailable</p>
+                    </div>
+                  ) : (
                     <>
-                      ${totalPL.toFixed(2)}
-                      <span className={`ml-1 ${getChangeColor(totalPL / (p.shares * p.price) * 100)}`}>({(totalPL / (p.shares * p.price) * 100).toFixed(2)}%)</span>
+                      <p className="font-medium">
+                        {totalPL >= 0 ? '+' : ''}${totalPL.toFixed(2)}
+                      </p>
+                      <span className={`text-sm ${getChangeColor(totalPL / (p.shares * p.price) * 100)}`}>
+                        ({totalPL >= 0 ? '+' : ''}{(totalPL / (p.shares * p.price) * 100).toFixed(2)}%)
+                      </span>
                     </>
                   )}
                 </div>
@@ -452,14 +486,37 @@ export default function Home() {
 
         {/* Summary */}
         <div className="bg-white p-4 sm:p-6 rounded-xl shadow text-center sm:text-left">
-          <p className="text-lg sm:text-xl font-bold">Total: ${totalValue.toFixed(0)}</p>
-          <p className="text-xs sm:text-sm text-gray-600 mt-1">
-            Stop-Loss: ${config.stopLossValue} | Take Profit: ${config.takeProfitValue}
-          </p>
-          <p className={`text-xs sm:text-sm mt-1 ${getChangeColor(totalPL)}`}>
-            P&L: ${totalPL.toFixed(2)}
-            <span className={`ml-1 ${getChangeColor(totalPLPercentage)}`}>({totalPLPercentage.toFixed(2)}%)</span>
-          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <p className="text-lg sm:text-xl font-bold">
+                Portfolio Value: {totalValue > 0 ? `$${totalValue.toFixed(0)}` : 'N/A'}
+              </p>
+              <p className="text-xs sm:text-sm text-gray-600 mt-1">
+                Cost Basis: ${config.stocks.reduce((sum, stock) => sum + stock.cashAllocation, 0).toFixed(0)}
+              </p>
+              {totalValue > 0 && (
+                <p className={`text-xs sm:text-sm mt-1 ${getChangeColor(totalPL)}`}>
+                  Unrealized P&L: {totalPL >= 0 ? '+' : ''}${totalPL.toFixed(2)}
+                  <span className={`ml-1 ${getChangeColor(totalPLPercentage)}`}>
+                    ({totalPLPercentage >= 0 ? '+' : ''}{totalPLPercentage.toFixed(2)}%)
+                  </span>
+                </p>
+              )}
+            </div>
+            <div>
+              <p className="text-xs sm:text-sm text-gray-600">
+                Stop-Loss: ${config.stopLossValue} | Take Profit: ${config.takeProfitValue}
+              </p>
+              <p className="text-xs sm:text-sm text-gray-600 mt-1">
+                Cash: ${config.initialCash} | Margin: ${config.initialMargin}
+              </p>
+              {apiError && (
+                <p className="text-xs text-orange-600 mt-1">
+                  ⚠️ Some prices unavailable due to {apiError.type.replace('_', ' ')}
+                </p>
+              )}
+            </div>
+          </div>
         </div>
 
         {/* News */}
