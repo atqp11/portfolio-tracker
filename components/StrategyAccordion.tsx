@@ -40,7 +40,8 @@ export default function StrategyAccordion({
   copperPrice,
   marginPercent,
 }: StrategyAccordionProps) {
-  const [isOpen, setIsOpen] = useState(false);
+  const [isDecisionsOpen, setIsDecisionsOpen] = useState(false);
+  const [isMonitoringOpen, setIsMonitoringOpen] = useState(false);
   const [reviewedDecisions, setReviewedDecisions] = useState<Record<string, boolean>>({});
   const [reviewedTasks, setReviewedTasks] = useState<Record<string, boolean>>({});
 
@@ -259,47 +260,57 @@ export default function StrategyAccordion({
   };
 
   return (
-    <div className="mt-6 bg-[#0E1114] border border-neutral-800 rounded-lg overflow-hidden">
-      {/* Accordion Header */}
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="w-full px-4 sm:px-6 py-4 flex items-center justify-between hover:bg-neutral-900/50 transition-colors"
-      >
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <span className="text-2xl">📊</span>
           <h3 className="text-lg sm:text-xl font-bold text-[#E5E7EB]">
             Strategy & Monitoring Guide
           </h3>
         </div>
-        <svg
-          className={`w-6 h-6 text-[#9CA3AF] transition-transform ${isOpen ? 'rotate-180' : ''}`}
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
+        <button
+          onClick={handleResetAll}
+          className="text-xs sm:text-sm px-3 py-1.5 bg-neutral-800 hover:bg-neutral-700 text-[#9CA3AF] hover:text-[#E5E7EB] rounded transition-colors"
         >
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-        </svg>
-      </button>
+          Reset All Reviews
+        </button>
+      </div>
 
-      {/* Accordion Content */}
-      {isOpen && (
-        <div className="px-4 sm:px-6 pb-6 space-y-6">
-          {/* Reset Button */}
-          <div className="flex justify-end">
-            <button
-              onClick={handleResetAll}
-              className="text-xs sm:text-sm px-3 py-1.5 bg-neutral-800 hover:bg-neutral-700 text-[#9CA3AF] hover:text-[#E5E7EB] rounded transition-colors"
-            >
-              Reset All Reviews
-            </button>
-          </div>
+      {/* Pro Tip Card - Always Visible */}
+      <div className="bg-blue-900/20 border border-blue-500/30 rounded-lg p-4">
+        <p className="text-xs sm:text-sm text-blue-300">
+          <strong>💡 Pro Tip:</strong> Use this guide daily to stay disciplined. Leverage amplifies both
+          gains <span className="text-green-400">↑</span> and losses{' '}
+          <span className="text-red-400">↓</span>. Stick to your stops and take profits when targets
+          hit.
+        </p>
+      </div>
 
-          {/* Portfolio Decisions Section */}
-          <div>
-            <h4 className="text-lg sm:text-xl font-semibold text-[#E5E7EB] mb-4 flex items-center gap-2">
-              <span className="text-xl">🎯</span>
+      {/* Portfolio Decisions Accordion */}
+      <div className="bg-[#0E1114] border border-neutral-800 rounded-lg overflow-hidden">
+        <button
+          onClick={() => setIsDecisionsOpen(!isDecisionsOpen)}
+          className="w-full px-4 sm:px-6 py-4 flex items-center justify-between hover:bg-neutral-900/50 transition-colors"
+        >
+          <div className="flex items-center gap-3">
+            <span className="text-xl">🎯</span>
+            <h4 className="text-lg sm:text-xl font-semibold text-[#E5E7EB]">
               Portfolio Decisions
             </h4>
+          </div>
+          <svg
+            className={`w-6 h-6 text-[#9CA3AF] transition-transform ${isDecisionsOpen ? 'rotate-180' : ''}`}
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+
+        {isDecisionsOpen && (
+          <div className="px-4 sm:px-6 pb-6">
             <div className="grid grid-cols-1 gap-4">
               {decisions.map((decision, idx) => {
                 const key = `decision_${idx}`;
@@ -400,13 +411,33 @@ export default function StrategyAccordion({
               })}
             </div>
           </div>
+        )}
+      </div>
 
-          {/* Monitoring Checklist Section */}
-          <div>
-            <h4 className="text-lg sm:text-xl font-semibold text-[#E5E7EB] mb-4 flex items-center gap-2">
-              <span className="text-xl">📋</span>
+      {/* Monitoring Checklist Accordion */}
+      <div className="bg-[#0E1114] border border-neutral-800 rounded-lg overflow-hidden">
+        <button
+          onClick={() => setIsMonitoringOpen(!isMonitoringOpen)}
+          className="w-full px-4 sm:px-6 py-4 flex items-center justify-between hover:bg-neutral-900/50 transition-colors"
+        >
+          <div className="flex items-center gap-3">
+            <span className="text-xl">📋</span>
+            <h4 className="text-lg sm:text-xl font-semibold text-[#E5E7EB]">
               Monitoring Checklist
             </h4>
+          </div>
+          <svg
+            className={`w-6 h-6 text-[#9CA3AF] transition-transform ${isMonitoringOpen ? 'rotate-180' : ''}`}
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+
+        {isMonitoringOpen && (
+          <div className="px-4 sm:px-6 pb-6">
             <div className="space-y-3">
               {['Daily', 'Weekly', 'Monthly'].map((freq) => {
                 const tasks = monitoring.filter((t) => t.frequency === freq);
@@ -459,18 +490,8 @@ export default function StrategyAccordion({
               })}
             </div>
           </div>
-
-          {/* Educational Footer */}
-          <div className="mt-6 p-4 bg-blue-900/20 border border-blue-500/30 rounded-lg">
-            <p className="text-xs sm:text-sm text-blue-300">
-              <strong>💡 Pro Tip:</strong> Use this guide daily to stay disciplined. Leverage amplifies both
-              gains <span className="text-green-400">↑</span> and losses{' '}
-              <span className="text-red-400">↓</span>. Stick to your stops and take profits when targets
-              hit.
-            </p>
-          </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }
