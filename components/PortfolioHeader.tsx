@@ -27,23 +27,29 @@ export default function PortfolioHeader({
         <div>
           <div className="text-[#9CA3AF] text-sm mb-1">Account Value</div>
           <div className="text-[#E5E7EB] text-3xl font-bold">
-            ${accountValue.toFixed(2)}
+            {accountValue > 0 ? `$${accountValue.toFixed(2)}` : 'No data available'}
           </div>
         </div>
 
         {/* Day Change */}
         <div>
           <div className="text-[#9CA3AF] text-sm mb-1">Day Change</div>
-          <div className={`text-2xl font-bold ${getChangeColor(dayChange)}`}>
-            {dayChange >= 0 ? '+' : ''}${dayChange.toFixed(2)} ({dayChangePercent >= 0 ? '+' : ''}{dayChangePercent.toFixed(2)}%)
+          <div className={`text-2xl font-bold ${accountValue > 0 ? getChangeColor(dayChange) : 'text-[#9CA3AF]'}`}>
+            {accountValue > 0 
+              ? `${dayChange >= 0 ? '+' : ''}$${dayChange.toFixed(2)} (${dayChangePercent >= 0 ? '+' : ''}${dayChangePercent.toFixed(2)}%)`
+              : 'N/A'
+            }
           </div>
         </div>
 
         {/* Unrealized Gain/Loss */}
         <div>
           <div className="text-[#9CA3AF] text-sm mb-1">Unrealized Gain/Loss</div>
-          <div className={`text-2xl font-bold ${getChangeColor(unrealizedGainLoss)}`}>
-            {unrealizedGainLoss >= 0 ? '+' : ''}${unrealizedGainLoss.toFixed(2)} ({unrealizedGainLossPercent >= 0 ? '+' : ''}{unrealizedGainLossPercent.toFixed(2)}%)
+          <div className={`text-2xl font-bold ${accountValue > 0 ? getChangeColor(unrealizedGainLoss) : 'text-[#9CA3AF]'}`}>
+            {accountValue > 0 
+              ? `${unrealizedGainLoss >= 0 ? '+' : ''}$${unrealizedGainLoss.toFixed(2)} (${unrealizedGainLossPercent >= 0 ? '+' : ''}${unrealizedGainLossPercent.toFixed(2)}%)`
+              : 'N/A'
+            }
           </div>
         </div>
       </div>

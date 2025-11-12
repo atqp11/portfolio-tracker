@@ -462,8 +462,8 @@ export default function Home() {
             const marketValue = p.actualValue;
             const dayChangeValue = isUnavailable ? 0 : marketValue - (p.shares * previousPrice);
             const dayChangePercent = isUnavailable || previousPrice === 0 ? 0 : (dayChangeValue / (p.shares * previousPrice)) * 100;
-            const gainLoss = isUnavailable ? 0 : marketValue - costBasis;
-            const gainLossPercent = costBasis > 0 ? (gainLoss / costBasis) * 100 : 0;
+            const gainLoss = isUnavailable ? NaN : marketValue - costBasis;
+            const gainLossPercent = isUnavailable || costBasis <= 0 ? NaN : (gainLoss / costBasis) * 100;
 
             return (
               <AssetCard

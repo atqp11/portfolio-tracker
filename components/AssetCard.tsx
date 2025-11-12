@@ -93,7 +93,7 @@ export default function AssetCard({
         </div>
         <div className="flex justify-between items-center">
           <span className="text-[#9CA3AF] text-sm">Gain/Loss</span>
-          {isUnavailable ? (
+          {isUnavailable || isNaN(gainLoss) ? (
             <span className="text-[#9CA3AF] text-base">N/A</span>
           ) : (
             <span className={`text-base font-medium ${getChangeColor(gainLoss)}`}>

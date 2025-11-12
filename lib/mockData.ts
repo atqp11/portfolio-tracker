@@ -2,16 +2,16 @@
 export const MOCK_PRICES = {
   // Energy stocks
   'CNQ': 38.45,
-  'SU': 52.30,
+  'SU': NaN, // Test unavailable price
   'TRMKF': 68.20,
-  'AETUF': 15.80,
+  'AETUF': NaN, // Test unavailable price
   'TRP': 55.75,
   
   // Copper stocks
-  'FCX': 45.20,
+  'FCX': NaN, // Test unavailable price
   'COPX': 47.85,
   'ERO': 23.50,
-  'HBM': 11.25,
+  'HBM': NaN, // Test unavailable price
 };
 
 export const MOCK_PRICE_CHANGES = {
