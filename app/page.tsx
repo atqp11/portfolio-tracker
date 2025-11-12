@@ -241,7 +241,11 @@ export default function Home() {
 
   // Request notification permission on initial mount
   useEffect(() => {
-    Notification.requestPermission();
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      Notification.requestPermission().catch(err => {
+        console.log('Notification permission request failed:', err);
+      });
+    }
   }, []);
 
   const totalValue = portfolio.reduce((a, b) => a + b.actualValue, 0);
