@@ -29,6 +29,7 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const [previousDayPrices, setPreviousDayPrices] = useState<Record<string, number>>({});
   const [isAiSidebarOpen, setIsAiSidebarOpen] = useState(false);
+  const [isAiInternalSidebarCollapsed, setIsAiInternalSidebarCollapsed] = useState(false);
 
   const config = configs.find(c => c.id === active)!;
 
@@ -181,8 +182,13 @@ export default function Home() {
       
       const data = await response.json();
       
-      // Check if the response contains an error
+      // Check if the response contains an error or rate limit
       if (!response.ok || data.error) {
+        // If rate limited, don't make further API calls
+        if (data.rateLimited) {
+          console.log('Rate limit detected - using cached/previous prices');
+        }
+        
         const errorInfo = classifyApiError({
           message: data.error || data.message || 'API request failed',
           status: response.status,
@@ -192,11 +198,13 @@ export default function Home() {
         // Set error state so it can be displayed
         setApiError(errorInfo);
         
-        // Return previous prices if we have them, otherwise NaN
+        // Return previous prices if we have them, otherwise use cached prices
         const fallbackMap: Record<string, number> = {};
         symbols.forEach(symbol => {
           fallbackMap[symbol] = previousPrices[symbol] || NaN;
         });
+        
+        console.log('Using fallback prices:', fallbackMap);
         return fallbackMap;
       }
 
@@ -216,7 +224,7 @@ export default function Home() {
 
       return map;
     } catch (error) {
-      console.warn('Alpha Vantage API failed:', error);
+      console.warn('API failed:', error);
       const errorInfo = classifyApiError(error);
       setApiError(errorInfo);
 
@@ -681,13 +689,18 @@ export default function Home() {
               </svg>
             </button>
             {/* Portfolio Context Badge */}
-            <div className="absolute top-4 left-4 z-[60] px-3 py-1.5 bg-purple-600 text-white text-sm font-medium rounded-lg flex items-center gap-2">
-              <span>📊</span>
-              <span>{config.name} Portfolio</span>
-            </div>
+            {!isAiInternalSidebarCollapsed && (
+              <div className="absolute top-4 left-4 z-[60] px-3 py-1.5 bg-purple-600 text-white text-sm font-medium rounded-lg flex items-center gap-2 transition-opacity duration-300">
+                <span>📊</span>
+                <span>{config.name} Portfolio</span>
+              </div>
+            )}
             {/* StonksAI Component */}
             <div className="h-full w-full">
-              <StonksAI tickers={currentPortfolioTickers} />
+              <StonksAI 
+                tickers={currentPortfolioTickers} 
+                onSidebarToggle={setIsAiInternalSidebarCollapsed}
+              />
             </div>
           </div>
         </>

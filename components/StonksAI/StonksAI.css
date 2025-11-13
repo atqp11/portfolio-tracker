@@ -20,6 +20,8 @@
     color: var(--text-color);
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
     overflow: hidden;
+    position: relative;
+    z-index: 1;
 }
 
 .sidebar {
@@ -338,6 +340,8 @@
     height: 100%;
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     background: var(--background-color);
+    position: relative;
+    z-index: 10;
 }
 
 .chat-header {
@@ -349,6 +353,9 @@
     gap: 16px;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
     backdrop-filter: blur(10px);
+    position: sticky;
+    top: 0;
+    z-index: 100;
 }
 
 .sidebar-toggle {
@@ -365,6 +372,8 @@
     align-items: center;
     transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
     font-weight: 600;
+    position: relative;
+    z-index: 110;
 }
 
 .sidebar-toggle:hover {

@@ -6,7 +6,7 @@ export default function CommodityCard({ name, price, ts }: { name: string; price
       <p className="text-xl sm:text-2xl font-bold mt-1 text-[#E5E7EB]">
         ${price.toFixed(name.includes('Copper') ? 3 : 2)}
       </p>
-      <p className="text-xs text-[#9CA3AF] mt-1">{ts} ET</p>
+      <p className="text-xs text-[#9CA3AF] mt-1">{ts}</p>
     </div>
   );
 }

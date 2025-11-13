@@ -318,7 +318,7 @@ async function callAi(
         );
     };
 
-    const StonksAI = ({ tickers = [] }: { tickers?: string[] }) => {
+    const StonksAI = ({ tickers = [], onSidebarToggle }: { tickers?: string[]; onSidebarToggle?: (collapsed: boolean) => void }) => {
     const [messages, setMessages] = useState<Message[]>([]);
     const [news, setNews] = useState<Article[]>([]);
     const [filings, setFilings] = useState<Filing[]>([]);
@@ -764,7 +764,11 @@ async function callAi(
                 </aside>
                 <main className="chat-container">
                     <header className="chat-header">
-                        <button className="sidebar-toggle" onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)} aria-label="Toggle sidebar" title="Toggle sidebar">
+                        <button className="sidebar-toggle" onClick={() => {
+                            const newState = !isSidebarCollapsed;
+                            setIsSidebarCollapsed(newState);
+                            onSidebarToggle?.(newState);
+                        }} aria-label="Toggle sidebar" title="Toggle sidebar">
                             {isSidebarCollapsed ? '»' : '«'}
                         </button>
                         <h1>StonksAI</h1>

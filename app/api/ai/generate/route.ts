@@ -20,6 +20,28 @@ const serverCache = new Map<string, ServerCacheEntry>();
 // TTL for server-side cache (shorter than client-side)
 const SERVER_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
+// Track AI rate limits
+let aiRateLimitResetTime: number | null = null;
+
+function isAiRateLimited(): boolean {
+  if (!aiRateLimitResetTime) return false;
+  
+  const now = Date.now();
+  if (now < aiRateLimitResetTime) {
+    const minutesRemaining = ((aiRateLimitResetTime - now) / (1000 * 60)).toFixed(1);
+    console.log(`AI rate limit active. Resets in ${minutesRemaining} minutes`);
+    return true;
+  }
+  
+  aiRateLimitResetTime = null;
+  return false;
+}
+
+function markAiRateLimited(retryAfterSeconds: number = 60): void {
+  aiRateLimitResetTime = Date.now() + (retryAfterSeconds * 1000);
+  console.log(`AI rate limited. Resets in ${retryAfterSeconds} seconds`);
+}
+
 /**
  * Generate a hash for the request to use as cache key
  */
@@ -60,6 +82,15 @@ setInterval(cleanExpiredCache, 10 * 60 * 1000);
 export async function POST(req: Request) {
   try {
     const body = await req.json();
+    
+    // Check if we're rate limited
+    if (isAiRateLimited()) {
+      return NextResponse.json({ 
+        error: 'AI rate limit active. Please wait a moment and try again.',
+        rateLimitExceeded: true,
+        resetTime: aiRateLimitResetTime
+      }, { status: 429 });
+    }
     
     // Check if client wants to bypass cache
     const bypassCache = body.bypassCache === true;
@@ -112,10 +143,25 @@ export async function POST(req: Request) {
     console.error('AI proxy error:', err);
     
     // Check if it's a rate limit error
-    if (err.status === 429) {
+    if (err.status === 429 || err.code === 429) {
+      // Mark as rate limited for 60 seconds
+      markAiRateLimited(60);
+      
       return NextResponse.json({ 
-        error: 'Rate limit exceeded. Please wait a moment and try again.',
-        rateLimitExceeded: true 
+        error: 'AI rate limit exceeded. Please wait a minute and try again.',
+        rateLimitExceeded: true,
+        resetTime: aiRateLimitResetTime
+      }, { status: 429 });
+    }
+    
+    // Check for quota errors
+    if (err.message?.includes('quota') || err.message?.includes('RESOURCE_EXHAUSTED')) {
+      markAiRateLimited(3600); // 1 hour for quota errors
+      
+      return NextResponse.json({ 
+        error: 'AI quota exhausted. Please try again later.',
+        rateLimitExceeded: true,
+        resetTime: aiRateLimitResetTime
       }, { status: 429 });
     }
     
