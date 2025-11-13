@@ -340,6 +340,8 @@ async function callAi(
             setMessages([]);
             // Clean up expired cache on component mount
             clearExpiredCache();
+            // Notify parent of initial sidebar state
+            onSidebarToggle?.(false);
         }, []);
 
         useEffect(() => {
