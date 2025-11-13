@@ -8,6 +8,10 @@ import { fetchFMPQuotes } from '@/lib/api/fmp';
 const API_PROVIDER: string = 'alphavantage';
 console.log('API provider forced to Alpha Vantage (STOCK_API_PROVIDER ignored)');
 
+// Mark this route as dynamic since it uses searchParams
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
