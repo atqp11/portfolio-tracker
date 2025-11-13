@@ -1,5 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { fetchAlphaVantageBatch } from '@/lib/api/alphavantage';
+import { fetchFMPQuotes } from '@/lib/api/fmp';
+
+// Force using Alpha Vantage only because FMP endpoints are limited to some symbols.
+// We keep the FMP client in the repo for reference/fallback, but the route will
+// always use Alpha Vantage to fetch quotes.
+const API_PROVIDER: string = 'alphavantage';
+console.log('API provider forced to Alpha Vantage (STOCK_API_PROVIDER ignored)');
 
 export async function GET(request: NextRequest) {
   try {
@@ -22,8 +29,15 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Fetch quotes from Alpha Vantage
-    const quotes = await fetchAlphaVantageBatch(symbolArray);
+    // Fetch quotes based on configured provider
+    let quotes;
+    if (API_PROVIDER === 'fmp') {
+      console.log('Using Financial Modeling Prep API');
+      quotes = await fetchFMPQuotes(symbolArray);
+    } else {
+      console.log('Using Alpha Vantage API');
+      quotes = await fetchAlphaVantageBatch(symbolArray);
+    }
     
     return NextResponse.json(quotes);
   } catch (error: any) {

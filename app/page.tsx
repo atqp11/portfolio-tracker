@@ -15,6 +15,7 @@ import CommodityCard from '@/components/CommodityCard';
 import PortfolioHeader from '@/components/PortfolioHeader';
 import AssetCard from '@/components/AssetCard';
 import StrategyAccordion from '@/components/StrategyAccordion';
+import StonksAI from '@/components/StonksAI/StonksAI';
 
 export default function Home() {
   const [active, setActive] = useState<'energy' | 'copper'>('energy');
@@ -27,6 +28,7 @@ export default function Home() {
   const [lastCacheUpdate, setLastCacheUpdate] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [previousDayPrices, setPreviousDayPrices] = useState<Record<string, number>>({});
+  const [isAiSidebarOpen, setIsAiSidebarOpen] = useState(false);
 
   const config = configs.find(c => c.id === active)!;
 
@@ -339,6 +341,9 @@ export default function Home() {
   const dayChange = totalValue - totalPreviousValue;
   const dayChangePercent = totalPreviousValue > 0 ? (dayChange / totalPreviousValue) * 100 : 0;
 
+  // Get current portfolio tickers for AI Co-Pilot
+  const currentPortfolioTickers = portfolio.map(stock => stock.symbol);
+
   return (
     <main className="min-h-screen bg-[#0A0C0E] p-4 sm:p-6">
       <AlertBanner alerts={alerts} />
@@ -363,7 +368,7 @@ export default function Home() {
           ))}
         </div>
 
-        {/* Refresh Button */}
+        {/* Refresh Button & AI Co-Pilot Toggle */}
         <div className="mb-6 flex items-center gap-4 flex-wrap">
           <button
             onClick={() => {
@@ -374,6 +379,18 @@ export default function Home() {
             className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition disabled:bg-gray-400 disabled:cursor-not-allowed"
           >
             {isLoading ? 'Updating...' : 'Refresh Data'}
+          </button>
+          <button
+            onClick={() => setIsAiSidebarOpen(!isAiSidebarOpen)}
+            className={`px-4 py-2 rounded-lg font-medium transition flex items-center gap-2 ${
+              isAiSidebarOpen
+                ? 'bg-purple-600 text-white hover:bg-purple-700'
+                : 'bg-[#0E1114] text-[#E5E7EB] border border-purple-600 hover:bg-purple-600 hover:text-white'
+            }`}
+            title="Toggle AI Co-Pilot"
+          >
+            <span className="text-xl">✨</span>
+            <span>AI Co-Pilot</span>
           </button>
           {isLoading && (
             <span className="text-sm text-blue-400 font-medium animate-pulse">
@@ -642,6 +659,39 @@ export default function Home() {
           </div>
         )}
       </div>
+
+      {/* AI Co-Pilot Sidebar */}
+      {isAiSidebarOpen && (
+        <>
+          {/* Backdrop overlay */}
+          <div 
+            className="fixed inset-0 bg-black/60 z-40 transition-opacity animate-fadeIn"
+            onClick={() => setIsAiSidebarOpen(false)}
+          />
+          {/* Sidebar */}
+          <div className="fixed top-0 right-0 h-full w-full sm:w-[90%] md:w-[600px] lg:w-[700px] xl:w-[800px] bg-[#121212] z-50 shadow-2xl transform transition-transform duration-300 ease-in-out overflow-hidden animate-slideInRight">
+            {/* Close button */}
+            <button
+              onClick={() => setIsAiSidebarOpen(false)}
+              className="absolute top-4 right-4 z-[60] p-2 bg-[#1e1e1e] hover:bg-red-600 rounded-lg transition border border-gray-700"
+              title="Close AI Co-Pilot"
+            >
+              <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+            {/* Portfolio Context Badge */}
+            <div className="absolute top-4 left-4 z-[60] px-3 py-1.5 bg-purple-600 text-white text-sm font-medium rounded-lg flex items-center gap-2">
+              <span>📊</span>
+              <span>{config.name} Portfolio</span>
+            </div>
+            {/* StonksAI Component */}
+            <div className="h-full w-full">
+              <StonksAI tickers={currentPortfolioTickers} />
+            </div>
+          </div>
+        </>
+      )}
     </main>
   );
 }
