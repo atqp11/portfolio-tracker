@@ -2,6 +2,12 @@
 
 import './StonksAI.css';
 import React, { useState, useEffect, useRef } from 'react';
+import { 
+  loadAICache, 
+  saveAICache, 
+  AIDataType,
+  clearExpiredCache 
+} from '@/lib/aiCache';
 
 // --- Types ---
 type Sender = 'bot' | 'user';
@@ -50,13 +56,27 @@ type Message =
     | { sender: Sender; type: 'filing_list'; content: Filing[]; stockTicker: string }
     | { sender: Sender; type: 'profile'; content: Profile; stockTicker: string };
 
-// Client -> Server proxy helper. The server route (app/api/ai/generate) holds
-// the GoogleGenAI client and the API key so secrets remain server-side.
-async function callAi(payload: { model: string; contents: string; config?: Record<string, unknown> }) {
+// Client -> Server proxy helper with intelligent caching
+// The server route (app/api/ai/generate) holds the GoogleGenAI client and the API key
+async function callAi(
+    payload: { model: string; contents: string; config?: Record<string, unknown> },
+    cacheOptions?: { dataType: AIDataType; ticker: string; bypassCache?: boolean }
+) {
+    // Check client-side cache first if caching is enabled
+    if (cacheOptions && !cacheOptions.bypassCache) {
+        const cached = loadAICache(cacheOptions.dataType, cacheOptions.ticker);
+        if (cached) {
+            return { text: JSON.stringify(cached), fromCache: true };
+        }
+    }
+
     const res = await fetch('/api/ai/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+            ...payload,
+            bypassCache: cacheOptions?.bypassCache || false,
+        }),
     });
 
     if (!res.ok) {
@@ -68,7 +88,20 @@ async function callAi(payload: { model: string; contents: string; config?: Recor
         throw new Error(txt);
     }
 
-    return res.json(); // expected: { text: string }
+    const result = await res.json(); // expected: { text: string, cached?: boolean }
+    
+    // Save to client-side cache if this is a new response and caching is enabled
+    if (cacheOptions && !result.fromCache && !result.cached) {
+        try {
+            const data = JSON.parse(result.text);
+            saveAICache(cacheOptions.dataType, cacheOptions.ticker, data);
+        } catch (e) {
+            // If parsing fails, it might not be JSON - skip caching
+            console.warn('Could not cache non-JSON response');
+        }
+    }
+    
+    return result;
 }
 
     // --- Helper Functions ---
@@ -305,6 +338,8 @@ async function callAi(payload: { model: string; contents: string; config?: Recor
         useEffect(() => {
             // Don't show initial message, let user start fresh
             setMessages([]);
+            // Clean up expired cache on component mount
+            clearExpiredCache();
         }, []);
 
         useEffect(() => {
@@ -321,6 +356,7 @@ async function callAi(payload: { model: string; contents: string; config?: Recor
                 }
                 setIsNewsLoading(true);
                 try {
+                    const tickersKey = portfolioTickers.sort().join(',');
                     const response = await callAi({
                         model: 'gemini-2.5-flash',
                         contents: `Provide the top 10 recent news headlines for the following stock tickers: ${portfolioTickers.join(', ')}. For each article, include the stock ticker, a brief one-sentence summary, and the overall sentiment ('POSITIVE', 'NEGATIVE', or 'NEUTRAL').`,
@@ -345,7 +381,7 @@ async function callAi(payload: { model: string; contents: string; config?: Recor
                                 }
                             }
                         }
-                    });
+                    }, { dataType: 'news', ticker: tickersKey });
 
                     const newsData = JSON.parse(response.text || '{}');
                     setNews(newsData.articles || []);
@@ -368,6 +404,7 @@ async function callAi(payload: { model: string; contents: string; config?: Recor
                 }
                 setIsFilingsLoading(true);
                 try {
+                    const tickersKey = portfolioTickers.sort().join(',');
                     const response = await callAi({
                         model: 'gemini-2.5-flash',
                         contents: `Provide the top 5 most recent and important SEC filings (like 8-K, 10-K, 10-Q) for the following stock tickers: ${portfolioTickers.join(', ')}. For each filing, include the stock ticker, the form type, the filing date, and a brief one-sentence summary.`,
@@ -392,7 +429,7 @@ async function callAi(payload: { model: string; contents: string; config?: Recor
                                 }
                             }
                         }
-                    });
+                    }, { dataType: 'filing_list', ticker: tickersKey });
 
                     const filingsData = JSON.parse(response.text || '{}');
                     setFilings(filingsData.filings || []);
@@ -429,7 +466,7 @@ async function callAi(payload: { model: string; contents: string; config?: Recor
                             }
                         }
                     }
-                });
+                }, { dataType: 'sentiment', ticker: stockTicker });
 
                 const sentimentData = JSON.parse(response.text || '{}');
                 setMessages((prev) => [...prev, { sender: 'bot', type: 'sentiment', content: sentimentData, stockTicker }]);
@@ -452,7 +489,7 @@ async function callAi(payload: { model: string; contents: string; config?: Recor
                     model: 'gemini-2.5-flash',
                     contents: `Provide details for the single most recent important SEC filing (like 8-K, 10-K, 10-Q) for the stock ticker: ${stockTicker}. Include the form type, the filing date, a brief one-sentence summary, and the direct URL to the filing on the SEC EDGAR website.`,
                     config: { responseMimeType: 'application/json' }
-                });
+                }, { dataType: 'sec_filing', ticker: stockTicker });
                 const filingData = JSON.parse(response.text || '{}');
                 setMessages((prev) => [...prev, { sender: 'bot', type: 'filing', content: filingData, stockTicker }, { sender: 'bot', type: 'action_options', stockTicker }]);
             } catch (err: any) {
@@ -486,7 +523,7 @@ async function callAi(payload: { model: string; contents: string; config?: Recor
                             }
                         }
                     }
-                });
+                }, { dataType: 'company_profile', ticker: stockTicker });
                 const profileData = JSON.parse(response.text || '{}');
                 setMessages((prev) => [...prev, { sender: 'bot', type: 'profile', content: profileData, stockTicker }, { sender: 'bot', type: 'action_options', stockTicker }]);
             } catch (err: any) {
@@ -521,9 +558,12 @@ async function callAi(payload: { model: string; contents: string; config?: Recor
                 let responseSchema: Record<string, unknown> | undefined;
                 let responseType = 'filing';
 
+                let dataType: AIDataType = 'sec_filing';
+                
                 switch (option) {
                     case 'profile':
                         responseType = 'profile';
+                        dataType = 'company_profile';
                         prompt = `Provide a company profile for the stock ticker: ${stockTicker}. Include its business description, industry, current CEO, headquarters location, and official website URL.`;
                         responseSchema = {
                             type: 'object',
@@ -538,6 +578,7 @@ async function callAi(payload: { model: string; contents: string; config?: Recor
                         break;
                     case 'last_10':
                         responseType = 'filing_list';
+                        dataType = 'filing_list';
                         prompt = `Provide a list of the 10 most recent important SEC filings for ${stockTicker}. For each, include form type, filing date, a one-sentence summary, and the direct URL to the filing's index page on the SEC EDGAR website.`;
                         responseSchema = {
                             type: 'object',
@@ -562,7 +603,10 @@ async function callAi(payload: { model: string; contents: string; config?: Recor
                         prompt = option;
                 }
 
-                const response = await callAi({ model: 'gemini-2.5-flash', contents: prompt, config: { responseMimeType: 'application/json', responseSchema } });
+                const response = await callAi(
+                    { model: 'gemini-2.5-flash', contents: prompt, config: { responseMimeType: 'application/json', responseSchema } },
+                    { dataType, ticker: stockTicker }
+                );
                 const responseData = JSON.parse(response.text || '{}') as Record<string, unknown>;
 
                 if (responseType === 'filing_list') {
@@ -593,11 +637,13 @@ async function callAi(payload: { model: string; contents: string; config?: Recor
             setIsModalOpen(true);
             setIsModalLoading(true);
             try {
+                // Create a unique cache key based on headline hash
+                const headlineHash = newsItem.headline?.substring(0, 30) || 'news';
                 const response = await callAi({
                     model: 'gemini-2.5-flash',
                     contents: `Based on the headline: "${newsItem.headline}" and the initial summary: "${newsItem.summary}", please provide a more detailed, expanded summary of the news article AND a list of 3-5 key takeaways as bullet points. Elaborate on the key points and the potential impact on the stock.`,
                     config: { responseMimeType: 'application/json' }
-                });
+                }, { dataType: 'news_detail', ticker: newsItem.ticker || headlineHash });
                 const summaryData = JSON.parse(response.text || '{}') as Record<string, unknown>;
                 setModalContent((p) => ({ ...p, summary: (summaryData.detailed_summary as string) || (summaryData.detailedSummary as string) || '', takeaways: (summaryData.key_takeaways as string[]) || (summaryData.keyTakeaways as string[]) || [] }));
             } catch (err) {
@@ -614,7 +660,12 @@ async function callAi(payload: { model: string; contents: string; config?: Recor
             setIsModalOpen(true);
             setIsModalLoading(true);
             try {
-                const response = await callAi({ model: 'gemini-2.5-flash', contents: `Please provide a detailed summary AND a list of 3-5 key takeaways for the SEC filing with the following details: Ticker: ${filing.ticker}, Form Type: ${filing.form_type}, Filing Date: ${filing.filing_date}, Initial Summary: "${filing.summary}". Explain the key points and potential impact on the stock.`, config: { responseMimeType: 'application/json' } });
+                // Cache key based on ticker, form type, and date for specific filing details
+                const filingKey = `${filing.ticker}_${filing.form_type}_${filing.filing_date}`;
+                const response = await callAi(
+                    { model: 'gemini-2.5-flash', contents: `Please provide a detailed summary AND a list of 3-5 key takeaways for the SEC filing with the following details: Ticker: ${filing.ticker}, Form Type: ${filing.form_type}, Filing Date: ${filing.filing_date}, Initial Summary: "${filing.summary}". Explain the key points and potential impact on the stock.`, config: { responseMimeType: 'application/json' } },
+                    { dataType: 'sec_filing', ticker: filingKey }
+                );
                 const summaryData = JSON.parse(response.text || '{}') as Record<string, unknown>;
                 setModalContent((p) => ({ ...p, summary: (summaryData.detailed_summary as string) || '', takeaways: (summaryData.key_takeaways as string[]) || [] }));
             } catch (err) {
