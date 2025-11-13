@@ -754,7 +754,7 @@
     text-transform: uppercase;
 }
 
-.profileLabel {
+.profile-label {
     font-size: 11px;
     font-weight: 700;
     color: white;
@@ -766,20 +766,20 @@
     box-shadow: 0 2px 8px rgba(168, 85, 247, 0.3);
 }
 
-.profileGrid {
+.profile-grid {
     display: grid;
     grid-template-columns: 1fr;
     gap: 14px;
     margin-bottom: 18px;
 }
 
-.profileItem {
+.profile-item {
     display: flex;
     flex-direction: column;
     gap: 6px;
 }
 
-.profileItemLabel {
+.profile-item-label {
     font-size: 11px;
     font-weight: 700;
     color: #94a3b8;
@@ -787,13 +787,13 @@
     letter-spacing: 1px;
 }
 
-.profileItemValue {
+.profile-item-value {
     font-size: 15px;
     font-weight: 500;
     color: #ffffff;
 }
 
-.profileLink {
+.profile-link {
     color: var(--primary-color);
     text-decoration: none;
     font-weight: 600;
@@ -803,12 +803,12 @@
     transition: all 0.2s;
 }
 
-.profileLink:hover {
+.profile-link:hover {
     color: #8b5cf6;
     text-decoration: underline;
 }
 
-.profileDescriptionHeading {
+.profile-description-heading {
     font-size: 13px;
     font-weight: 700;
     color: #ffffff;
@@ -820,32 +820,32 @@
     border-top: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-.profileDescription {
+.profile-description {
     color: #e5e7eb;
     line-height: 1.7;
     font-size: 15px;
     font-weight: 400;
 }
 
-.action-optionsCard {
+.action-options-card {
     background-color: #2a2a2a;
     padding: 16px;
     border-radius: 8px;
     width: 100%;
 }
 
-.action-optionsCard p {
+.action-options-card p {
     margin-bottom: 12px;
     font-size: 14px;
 }
 
-.action-optionsButtons {
+.action-options-buttons {
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
 }
 
-.action-optionButton {
+.action-option-button {
     padding: 8px 12px;
     background-color: var(--background-color);
     color: var(--text-color);
@@ -857,7 +857,7 @@
     transition: background-color 0.2s, border-color 0.2s;
 }
 
-.action-optionButton:hover {
+.action-option-button:hover {
     background-color: #333;
     border-color: #555;
 }
@@ -875,39 +875,39 @@
     padding-bottom: 12px;
 }
 
-.filingListItem {
+.filing-list-item {
     padding: 12px 0;
     border-bottom: 1px solid var(--border-color);
 }
 
-.filingListItem:last-child {
+.filing-list-item:last-child {
     border-bottom: none;
     padding-bottom: 0;
 }
 
-.filingListItem:first-of-type {
+.filing-list-item:first-of-type {
     padding-top: 0;
 }
 
-.filingListItem h4 {
+.filing-list-item h4 {
     font-size: 16px;
     font-weight: 500;
 }
 
-.filingListItem p {
+.filing-list-item p {
     font-size: 14px;
     color: var(--text-muted-color);
     margin: 4px 0 8px;
 }
 
-.filingListItem a {
+.filing-list-item a {
     color: var(--primary-color);
     text-decoration: none;
     font-size: 14px;
     font-weight: 500;
 }
 
-.filingListItem a:hover {
+.filing-list-item a:hover {
     text-decoration: underline;
 }
 

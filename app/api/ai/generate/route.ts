@@ -19,6 +19,15 @@ export async function POST(req: Request) {
     return NextResponse.json({ text: response.text });
   } catch (err: any) {
     console.error('AI proxy error:', err);
+    
+    // Check if it's a rate limit error
+    if (err.status === 429) {
+      return NextResponse.json({ 
+        error: 'Rate limit exceeded. Please wait a moment and try again.',
+        rateLimitExceeded: true 
+      }, { status: 429 });
+    }
+    
     return NextResponse.json({ error: String(err) }, { status: 500 });
   }
 }

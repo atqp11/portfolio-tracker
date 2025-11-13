@@ -60,8 +60,12 @@ async function callAi(payload: { model: string; contents: string; config?: Recor
     });
 
     if (!res.ok) {
-        const txt = await res.text();
-        throw new Error(txt || `HTTP ${res.status}`);
+        const errorData = await res.json().catch(() => ({}));
+        if (res.status === 429 || errorData.rateLimitExceeded) {
+            throw new Error('RATE_LIMIT');
+        }
+        const txt = errorData.error || `HTTP ${res.status}`;
+        throw new Error(txt);
     }
 
     return res.json(); // expected: { text: string }
@@ -85,6 +89,13 @@ async function callAi(payload: { model: string; contents: string; config?: Recor
             lowerCaseText.includes('8-k')
         ) {
             return 'filing';
+        }
+        if (
+            lowerCaseText.includes('profile') ||
+            lowerCaseText.includes('company') ||
+            lowerCaseText.includes('about')
+        ) {
+            return 'profile';
         }
         return 'sentiment';
     };
@@ -422,9 +433,12 @@ async function callAi(payload: { model: string; contents: string; config?: Recor
 
                 const sentimentData = JSON.parse(response.text || '{}');
                 setMessages((prev) => [...prev, { sender: 'bot', type: 'sentiment', content: sentimentData, stockTicker }]);
-            } catch (err) {
+            } catch (err: any) {
                 console.error('Error fetching sentiment analysis:', err);
-                setMessages((prev) => [...prev, { sender: 'bot', type: 'text', content: `Sorry, I couldn't retrieve the analysis for ${stockTicker}.` }]);
+                const errorMessage = err?.message?.includes('RATE_LIMIT') 
+                    ? `⏱️ Rate limit reached. Please wait about 30 seconds before trying again.`
+                    : `Sorry, I couldn't retrieve the analysis for ${stockTicker}.`;
+                setMessages((prev) => [...prev, { sender: 'bot', type: 'text', content: errorMessage }]);
             } finally {
                 setIsLoading(false);
             }
@@ -441,9 +455,46 @@ async function callAi(payload: { model: string; contents: string; config?: Recor
                 });
                 const filingData = JSON.parse(response.text || '{}');
                 setMessages((prev) => [...prev, { sender: 'bot', type: 'filing', content: filingData, stockTicker }, { sender: 'bot', type: 'action_options', stockTicker }]);
-            } catch (err) {
+            } catch (err: any) {
                 console.error('Error fetching latest filing:', err);
-                setMessages((prev) => [...prev, { sender: 'bot', type: 'text', content: `Sorry, I couldn't retrieve the latest filing for ${stockTicker}.` }]);
+                const errorMessage = err?.message?.includes('RATE_LIMIT') 
+                    ? `⏱️ Rate limit reached. Please wait about 30 seconds before trying again.`
+                    : `Sorry, I couldn't retrieve the latest filing for ${stockTicker}.`;
+                setMessages((prev) => [...prev, { sender: 'bot', type: 'text', content: errorMessage }]);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        const fetchCompanyProfile = async (stockTicker: string) => {
+            setIsLoading(true);
+            setMessages((prev) => [...prev, { sender: 'user', type: 'text', content: `Get company profile for ${stockTicker}` }]);
+            try {
+                const response = await callAi({
+                    model: 'gemini-2.5-flash',
+                    contents: `Provide a company profile for the stock ticker: ${stockTicker}. Include its business description, industry, current CEO, headquarters location, and official website URL.`,
+                    config: { 
+                        responseMimeType: 'application/json',
+                        responseSchema: {
+                            type: 'object',
+                            properties: {
+                                description: { type: 'string' },
+                                industry: { type: 'string' },
+                                ceo: { type: 'string' },
+                                headquarters: { type: 'string' },
+                                website: { type: 'string' }
+                            }
+                        }
+                    }
+                });
+                const profileData = JSON.parse(response.text || '{}');
+                setMessages((prev) => [...prev, { sender: 'bot', type: 'profile', content: profileData, stockTicker }, { sender: 'bot', type: 'action_options', stockTicker }]);
+            } catch (err: any) {
+                console.error('Error fetching company profile:', err);
+                const errorMessage = err?.message?.includes('RATE_LIMIT') 
+                    ? `⏱️ Rate limit reached. Please wait about 30 seconds before trying again.`
+                    : `Sorry, I couldn't retrieve the company profile for ${stockTicker}.`;
+                setMessages((prev) => [...prev, { sender: 'bot', type: 'text', content: errorMessage }]);
             } finally {
                 setIsLoading(false);
             }
@@ -474,12 +525,38 @@ async function callAi(payload: { model: string; contents: string; config?: Recor
                     case 'profile':
                         responseType = 'profile';
                         prompt = `Provide a company profile for the stock ticker: ${stockTicker}. Include its business description, industry, current CEO, headquarters location, and official website URL.`;
-                        responseSchema = { type: 'object' };
+                        responseSchema = {
+                            type: 'object',
+                            properties: {
+                                description: { type: 'string' },
+                                industry: { type: 'string' },
+                                ceo: { type: 'string' },
+                                headquarters: { type: 'string' },
+                                website: { type: 'string' }
+                            }
+                        };
                         break;
                     case 'last_10':
                         responseType = 'filing_list';
                         prompt = `Provide a list of the 10 most recent important SEC filings for ${stockTicker}. For each, include form type, filing date, a one-sentence summary, and the direct URL to the filing's index page on the SEC EDGAR website.`;
-                        responseSchema = { type: 'object' };
+                        responseSchema = {
+                            type: 'object',
+                            properties: {
+                                filings: {
+                                    type: 'array',
+                                    items: {
+                                        type: 'object',
+                                        properties: {
+                                            ticker: { type: 'string' },
+                                            form_type: { type: 'string' },
+                                            filing_date: { type: 'string' },
+                                            summary: { type: 'string' },
+                                            url: { type: 'string' }
+                                        }
+                                    }
+                                }
+                            }
+                        };
                         break;
                     default:
                         prompt = option;
@@ -555,9 +632,10 @@ async function callAi(payload: { model: string; contents: string; config?: Recor
             const intent = parseUserIntent(inputValue);
             if (stockTicker) {
                 if (intent === 'filing') fetchLatestFiling(stockTicker);
+                else if (intent === 'profile') fetchCompanyProfile(stockTicker);
                 else fetchSentimentAnalysis(stockTicker);
             } else {
-                setMessages((prev) => [...prev, { sender: 'user', type: 'text', content: inputValue }, { sender: 'bot', type: 'text', content: "I can help with sentiment analysis or SEC filings. Please provide a valid stock ticker (e.g., 'sentiment for TSLA' or 'latest GOOGL filing')." }]);
+                setMessages((prev) => [...prev, { sender: 'user', type: 'text', content: inputValue }, { sender: 'bot', type: 'text', content: "I can help with sentiment analysis, company profiles, or SEC filings. Please provide a valid stock ticker (e.g., 'sentiment for TSLA', 'AAPL profile', or 'latest GOOGL filing')." }]);
             }
             setInputValue('');
         };
