@@ -291,7 +291,7 @@ export default function Home() {
     }
   }, []);
 
-  const totalValue = portfolio.reduce((a, b) => a + b.actualValue, 0);
+  const totalValue = dbStocks.reduce((a, b) => a + (b.actualValue || 0), 0);
 
   const calculatePL = (actualValue: number, costBasis: number) => {
     const pl = actualValue - costBasis;
@@ -337,20 +337,17 @@ export default function Home() {
     return 'text-black';
   };
 
-  // Calculate total cost basis from database or config
-  const totalCostBasis = portfolio.reduce((sum, p) => {
-    if (p.avgPrice && p.shares) {
-      return sum + (p.avgPrice * p.shares);
-    }
-    return sum;
-  }, 0) || config.initialValue;
+  // Calculate total cost basis from database
+  const totalCostBasis = dbStocks.reduce((sum, s) => {
+    return sum + (s.avgPrice * s.shares);
+  }, 0) || (dbPortfolio?.initialValue ?? config.initialValue);
   
   const totalPL = totalValue - totalCostBasis;
   const totalPLPercentage = totalCostBasis > 0 ? (totalPL / totalCostBasis) * 100 : 0;
 
   // Calculate day change based on previous prices
-  const totalPreviousValue = portfolio.reduce((sum, stock) => {
-    const prevPrice = stock.previousPrice || stock.price;
+  const totalPreviousValue = dbStocks.reduce((sum, stock) => {
+    const prevPrice = stock.previousPrice || stock.currentPrice;
     if (!prevPrice || isNaN(prevPrice)) return sum;
     return sum + (stock.shares * prevPrice);
   }, 0);
@@ -364,7 +361,7 @@ export default function Home() {
   const displayUnrealizedPLPercent = (dbStocks.length > 0) ? metrics.unrealizedPLPercent : totalPLPercentage;
 
   // Get current portfolio tickers for AI Co-Pilot
-  const currentPortfolioTickers = portfolio.map(stock => stock.symbol);
+  const currentPortfolioTickers = dbStocks.map(stock => stock.symbol);
 
   return (
     <>
@@ -534,16 +531,16 @@ export default function Home() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <p className="text-lg sm:text-xl font-bold text-[#E5E7EB]">
-                Portfolio Value: {totalValue > 0 ? `$${totalValue.toFixed(0)}` : 'N/A'}
+                Portfolio Value: {displayAccountValue > 0 ? `$${displayAccountValue.toFixed(0)}` : 'N/A'}
               </p>
               <p className="text-xs sm:text-sm text-[#9CA3AF] mt-1">
-                Cost Basis: ${config.initialValue.toFixed(0)}
+                Cost Basis: ${displayCostBasis.toFixed(0)}
               </p>
-              {totalValue > 0 && (
-                <p className={`text-xs sm:text-sm mt-1 ${getChangeColor(totalPL)}`}>
-                  Unrealized P&L: {totalPL >= 0 ? '+' : ''}${totalPL.toFixed(2)}
-                  <span className={`ml-1 ${getChangeColor(totalPLPercentage)}`}>
-                    ({totalPLPercentage >= 0 ? '+' : ''}{totalPLPercentage.toFixed(2)}%)
+              {displayAccountValue > 0 && (
+                <p className={`text-xs sm:text-sm mt-1 ${getChangeColor(displayUnrealizedPL)}`}>
+                  Unrealized P&L: {displayUnrealizedPL >= 0 ? '+' : ''}${displayUnrealizedPL.toFixed(2)}
+                  <span className={`ml-1 ${getChangeColor(displayUnrealizedPLPercent)}`}>
+                    ({displayUnrealizedPLPercent >= 0 ? '+' : ''}{displayUnrealizedPLPercent.toFixed(2)}%)
                   </span>
                 </p>
               )}
@@ -569,7 +566,7 @@ export default function Home() {
           <div className="lg:col-span-1">
             <StrategyAccordion 
               portfolioType={active as 'energy' | 'copper'}
-              currentValue={totalValue}
+              currentValue={displayAccountValue}
               targetDeleverValue={config.takeProfitValue}
               targetProfitValue={config.takeProfitValue}
               wtiPrice={active === 'energy' && market.commodities && 'oil' in market.commodities ? (market.commodities as any).oil?.price : undefined}
