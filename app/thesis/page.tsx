@@ -11,44 +11,42 @@ import { InvestmentThesis } from '@/lib/models';
 import ThesisCard from '@/components/ThesisCard';
 import { decisionToThesis } from '@/lib/models/thesis';
 import Navigation from '@/components/Navigation';
+import { usePortfolio, useStocks, useTheses, usePortfolioMetrics } from '@/lib/hooks/useDatabase';
 
 export default function ThesisPage() {
   const [active, setActive] = useState<'energy' | 'copper'>('energy');
   const [portfolio, setPortfolio] = useState<any[]>([]);
-  const [currentValue, setCurrentValue] = useState(0);
 
   const config = configs.find(c => c.id === active)!;
+  
+  // Database hooks
+  const { portfolio: dbPortfolio, loading: portfolioLoading } = usePortfolio(active);
+  const { stocks: dbStocks, loading: stocksLoading } = useStocks(dbPortfolio?.id);
+  const { theses: dbTheses, loading: thesesLoading } = useTheses(dbPortfolio?.id);
+  const metrics = usePortfolioMetrics(dbStocks, dbPortfolio?.borrowedAmount || 0);
+  
+  const currentValue = metrics.currentValue;
 
-  // Load portfolio data from cache to get current value
+  // Load stock data from database for portfolio display
   useEffect(() => {
-    const loadPortfolioData = async () => {
-      try {
-        const cacheKey = `portfolio_${active}`;
-        const cached = localStorage.getItem(cacheKey);
-        if (cached) {
-          const data = JSON.parse(cached);
-          setPortfolio(data);
-          
-          // Calculate current value
-          const totalValue = data.reduce((sum: number, stock: any) => {
-            return sum + (stock.actualValue || 0);
-          }, 0);
-          setCurrentValue(totalValue);
-        } else {
-          setCurrentValue(config.initialValue);
-        }
-      } catch (error) {
-        console.error('Error loading portfolio:', error);
-        setCurrentValue(config.initialValue);
-      }
-    };
-    loadPortfolioData();
-  }, [active, config]);
+    if (dbStocks && dbStocks.length > 0) {
+      // Convert database stocks to portfolio format
+      const portfolioData = dbStocks.map(stock => ({
+        symbol: stock.symbol,
+        shares: stock.shares,
+        price: stock.currentPrice || stock.avgPrice,
+        avgPrice: stock.avgPrice,
+        actualValue: stock.actualValue || (stock.shares * (stock.currentPrice || stock.avgPrice)),
+      }));
+      setPortfolio(portfolioData);
+    }
+  }, [dbStocks]);
 
-  // Calculate margin metrics
-  const marginUsed = active === 'energy' ? 6000 : 3000;
-  const marginCallValue = marginUsed / 0.70;
-  const equityPercent = currentValue > 0 ? ((currentValue - marginUsed) / currentValue) * 100 : 0;
+  // Calculate margin metrics from database
+  const marginUsed = dbPortfolio?.borrowedAmount || (active === 'energy' ? 6000 : 3000);
+  const marginCallLevel = dbPortfolio?.marginCallLevel || 0.30;
+  const marginCallValue = marginUsed / marginCallLevel;
+  const equityPercent = metrics.equityPercent;
 
   // Target values
   const targetDeleverValue = active === 'energy' ? 30000 : 15000;
@@ -300,7 +298,16 @@ export default function ThesisPage() {
     }
   };
 
-  const theses = getTheses();
+  // Use database theses directly (schema now supports full thesis structure)
+  const theses = (dbTheses && dbTheses.length > 0) 
+    ? dbTheses.map(t => ({
+        ...t,
+        bearCase: t.bearCase || undefined,
+        lastValidated: t.lastValidated ? new Date(t.lastValidated) : undefined,
+        createdAt: new Date(t.createdAt),
+        updatedAt: new Date(t.updatedAt),
+      })) 
+    : getTheses();
 
   const handleValidateThesis = (thesisId: string) => {
     alert(`🔍 Validating thesis: ${thesisId}\n\nThis would trigger AI validation in Phase 5.`);

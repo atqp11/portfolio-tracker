@@ -41,24 +41,29 @@ model Stock {
 }
 
 model InvestmentThesis {
-  id          String    @id @default(cuid())
-  portfolioId String
-  title       String
-  description String
-  rationale   String
-  risks       String[]
-  indicators  String[]
-  targetPrice Float?
-  stopLoss    Float?
-  timeHorizon String
-  confidence  String
-  status      String    @default("active")
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  portfolio   Portfolio @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+  id                 String   @id @default(cuid())
+  portfolioId        String
+  ticker             String
+  title              String
+  description        String
+  rationale          String
+  bearCase           String?
+  risks              String[]
+  keyMetrics         Json     // Array of ThesisMetric objects
+  stopLossRules      Json     // Array of StopLossRule objects
+  exitCriteria       Json     // ExitCriteria object
+  thesisHealthScore  Float
+  urgency            String   // 'green' | 'yellow' | 'red'
+  lastValidated      DateTime?
+  validationHistory  Json?    // Array of ValidationRecord objects
+  status             String   @default("active")
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  portfolio          Portfolio @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
 
   @@index([portfolioId])
   @@index([status])
+  @@index([urgency])
 }
 
 model DailyChecklist {

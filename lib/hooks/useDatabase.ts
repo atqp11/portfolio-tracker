@@ -33,18 +33,45 @@ export interface Stock {
   lastUpdated: string;
 }
 
+export interface ThesisMetric {
+  name: string;
+  targetValue: string | number;
+  currentValue: string | number;
+  condition: string;
+  urgency: 'green' | 'yellow' | 'red';
+}
+
+export interface StopLossRule {
+  type: 'hard_stop' | 'thesis_invalidation' | 'time_based' | 'margin_call';
+  trigger: string;
+  action: string;
+  currentDistance?: string;
+}
+
+export interface ExitCriteria {
+  targetPrice?: number;
+  targetValue: number;
+  profitTarget: number;
+  timeHorizon?: string;
+  conditions: string[];
+}
+
 export interface InvestmentThesis {
   id: string;
   portfolioId: string;
+  ticker: string;
   title: string;
   description: string;
   rationale: string;
+  bearCase: string | null;
   risks: string[];
-  indicators: string[];
-  targetPrice: number | null;
-  stopLoss: number | null;
-  timeHorizon: string;
-  confidence: string;
+  keyMetrics: ThesisMetric[];
+  stopLossRules: StopLossRule[];
+  exitCriteria: ExitCriteria;
+  thesisHealthScore: number;
+  urgency: 'green' | 'yellow' | 'red';
+  lastValidated: string | null;
+  validationHistory?: any[];
   status: string;
   createdAt: string;
   updatedAt: string;

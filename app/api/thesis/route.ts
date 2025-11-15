@@ -53,22 +53,24 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const {
       portfolioId,
+      ticker,
       title,
       description,
       rationale,
+      bearCase,
       risks,
-      indicators,
-      targetPrice,
-      stopLoss,
-      timeHorizon,
-      confidence,
+      keyMetrics,
+      stopLossRules,
+      exitCriteria,
+      thesisHealthScore,
+      urgency,
       status,
     } = body;
 
     // Validation
-    if (!portfolioId || !title) {
+    if (!portfolioId || !title || !ticker) {
       return NextResponse.json(
-        { error: 'Portfolio ID and title are required' },
+        { error: 'Portfolio ID, title, and ticker are required' },
         { status: 400 }
       );
     }
@@ -76,15 +78,17 @@ export async function POST(request: NextRequest) {
     const thesis = await prisma.investmentThesis.create({
       data: {
         portfolioId,
+        ticker,
         title,
         description: description || '',
         rationale: rationale || '',
+        bearCase: bearCase || null,
         risks: risks || [],
-        indicators: indicators || [],
-        targetPrice: targetPrice || 0,
-        stopLoss: stopLoss || 0,
-        timeHorizon: timeHorizon || '',
-        confidence: confidence || 0,
+        keyMetrics: keyMetrics || [],
+        stopLossRules: stopLossRules || [],
+        exitCriteria: exitCriteria || {},
+        thesisHealthScore: thesisHealthScore || 50,
+        urgency: urgency || 'green',
         status: status || 'active',
       },
     });
