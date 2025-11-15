@@ -2,12 +2,15 @@
 
 /**
  * Test page for Phase 2 components
- * Verifies shared UI components and ThesisCard work before integration
+ * Verifies shared UI components, ThesisCard, and checklist components work before integration
  */
 
+import { useState } from 'react';
 import { UrgencyBadge, ExpandableDetails, ActionButton } from '@/components/shared';
 import ThesisCard from '@/components/ThesisCard';
-import { InvestmentThesis } from '@/lib/models';
+import ChecklistTaskCard from '@/components/ChecklistTaskCard';
+import DailyChecklistView from '@/components/DailyChecklistView';
+import { InvestmentThesis, ChecklistTask, DailyChecklist } from '@/lib/models';
 
 export default function TestComponentsPage() {
   // Mock thesis data
@@ -127,6 +130,128 @@ export default function TestComponentsPage() {
     updatedAt: new Date(),
   };
 
+  // Mock checklist data
+  const [mockChecklist, setMockChecklist] = useState<DailyChecklist>({
+    id: 'checklist_energy_2024-11-14',
+    portfolioId: 'energy',
+    date: new Date('2024-11-14'),
+    morningRoutine: [
+      {
+        id: 'task_morning_1',
+        portfolioId: 'energy',
+        frequency: 'Daily',
+        task: 'Open dashboard at 9:30 AM ET, check prices and portfolio value',
+        urgency: 'green',
+        category: 'morning_routine',
+        completed: true,
+        completedAt: new Date('2024-11-14T09:35:00'),
+        actions: [{ label: 'Mark Complete', type: 'complete', handler: 'toggleComplete' }],
+        createdAt: new Date('2024-11-14'),
+        dueDate: new Date('2024-11-14'),
+      },
+      {
+        id: 'task_morning_2',
+        portfolioId: 'energy',
+        frequency: 'Daily',
+        task: 'Check commodity prices (WTI, NG for energy / Copper for copper)',
+        urgency: 'green',
+        category: 'morning_routine',
+        completed: false,
+        actions: [{ label: 'Mark Complete', type: 'complete', handler: 'toggleComplete' }],
+        createdAt: new Date('2024-11-14'),
+        dueDate: new Date('2024-11-14'),
+      },
+    ],
+    marketHours: [
+      {
+        id: 'task_market_1',
+        portfolioId: 'energy',
+        frequency: 'Daily',
+        task: 'Monitor for any breaking news affecting holdings',
+        urgency: 'yellow',
+        condition: 'Check news feed every 2 hours',
+        category: 'market_hours',
+        completed: false,
+        actions: [{ label: 'Mark Complete', type: 'complete', handler: 'toggleComplete' }],
+        createdAt: new Date('2024-11-14'),
+        dueDate: new Date('2024-11-14'),
+      },
+    ],
+    eveningReview: [
+      {
+        id: 'task_evening_1',
+        portfolioId: 'energy',
+        frequency: 'Daily',
+        task: 'Review day performance, note any significant moves',
+        urgency: 'green',
+        category: 'evening_review',
+        completed: false,
+        actions: [{ label: 'Mark Complete', type: 'complete', handler: 'toggleComplete' }],
+        createdAt: new Date('2024-11-14'),
+        dueDate: new Date('2024-11-14'),
+      },
+    ],
+    eventDriven: [
+      {
+        id: 'task_event_1',
+        portfolioId: 'energy',
+        frequency: 'Ad-hoc',
+        task: 'URGENT: Verify no red alerts (stop-loss, margin call)',
+        urgency: 'red',
+        condition: 'Equity drops below 35%',
+        category: 'event_driven',
+        completed: false,
+        trigger: {
+          type: 'margin_warning',
+          description: 'Equity percentage approaching danger zone',
+          threshold: 35,
+        },
+        actions: [{ label: 'Mark Complete', type: 'complete', handler: 'toggleComplete' }],
+        createdAt: new Date('2024-11-14'),
+        dueDate: new Date('2024-11-14'),
+      },
+    ],
+    totalTasks: 5,
+    completedTasks: 1,
+    completionPercentage: 20,
+    currentStreak: 3,
+    longestStreak: 7,
+  });
+
+  const handleToggleTask = (taskId: string) => {
+    setMockChecklist(prev => {
+      const updateTaskInCategory = (tasks: ChecklistTask[]) => 
+        tasks.map(task => 
+          task.id === taskId 
+            ? { ...task, completed: !task.completed, completedAt: !task.completed ? new Date() : undefined }
+            : task
+        );
+
+      const newChecklist = {
+        ...prev,
+        morningRoutine: updateTaskInCategory(prev.morningRoutine),
+        marketHours: updateTaskInCategory(prev.marketHours),
+        eveningReview: updateTaskInCategory(prev.eveningReview),
+        eventDriven: updateTaskInCategory(prev.eventDriven),
+      };
+
+      // Recalculate completion stats
+      const allTasks = [
+        ...newChecklist.morningRoutine,
+        ...newChecklist.marketHours,
+        ...newChecklist.eveningReview,
+        ...newChecklist.eventDriven,
+      ];
+      const completed = allTasks.filter(t => t.completed).length;
+      
+      return {
+        ...newChecklist,
+        completedTasks: completed,
+        completionPercentage: (completed / allTasks.length) * 100,
+      };
+    });
+  };
+
   return (
     <div className="min-h-screen bg-[#0B0E11] p-4 sm:p-6">
       <div className="max-w-6xl mx-auto space-y-8">
@@ -228,6 +353,40 @@ export default function TestComponentsPage() {
             <h3 className="text-sm font-semibold text-[#9CA3AF] mb-3">Compact Mode</h3>
             <ThesisCard thesis={mockHealthyThesis} isCompact />
           </div>
+        </section>
+
+        {/* ChecklistTaskCard Section */}
+        <section>
+          <h2 className="text-xl font-bold text-[#E5E7EB] mb-4">ChecklistTaskCard Component</h2>
+          
+          <div className="space-y-3">
+            {mockChecklist.morningRoutine.map(task => (
+              <ChecklistTaskCard
+                key={task.id}
+                task={task}
+                onToggleComplete={handleToggleTask}
+                onSnooze={(id) => alert(`Snoozed task: ${id}`)}
+              />
+            ))}
+            {mockChecklist.eventDriven.map(task => (
+              <ChecklistTaskCard
+                key={task.id}
+                task={task}
+                onToggleComplete={handleToggleTask}
+              />
+            ))}
+          </div>
+        </section>
+
+        {/* DailyChecklistView Section */}
+        <section>
+          <h2 className="text-xl font-bold text-[#E5E7EB] mb-4">DailyChecklistView Component</h2>
+          <DailyChecklistView
+            checklist={mockChecklist}
+            onToggleComplete={handleToggleTask}
+            onSnooze={(id) => alert(`Snoozed task: ${id}`)}
+            showEmptySections={true}
+          />
         </section>
 
         {/* Navigation */}
