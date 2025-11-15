@@ -17,6 +17,7 @@ export default function ChecklistPage() {
   const [active, setActive] = useState<'energy' | 'copper'>('energy');
   const [checklist, setChecklist] = useState<DailyChecklist | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [hasError, setHasError] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const config = configs.find(c => c.id === active)!;
@@ -31,18 +32,29 @@ export default function ChecklistPage() {
   // Load portfolio data from database and generate checklist
   useEffect(() => {
     const loadChecklistData = async () => {
-      setIsLoading(portfolioLoading || stocksLoading);
       setError(null); // Reset error on portfolio switch
+      setHasError(false);
       
       try {
         // Wait for database data to load
         if (portfolioLoading || stocksLoading) {
+          setIsLoading(true);
           return;
         }
+        
+        setIsLoading(true);
         
         // Use database portfolio value or fallback to config
         const portfolioValue = currentValue > 0 ? currentValue : config.initialValue;
         const usingFallback = currentValue === 0;
+
+        // Validate we have a valid value before generating checklist
+        if (!portfolioValue || portfolioValue <= 0) {
+          console.error('Invalid portfolio value:', portfolioValue);
+          setError('Waiting for portfolio data to load...');
+          setIsLoading(false);
+          return;
+        }
 
         // Generate checklist
         const newChecklist = generateDailyChecklist(active, portfolioValue);
@@ -93,6 +105,7 @@ export default function ChecklistPage() {
         console.error('Critical error loading checklist:', error);
         setError('Failed to generate checklist. Please check console for details.');
         setChecklist(null);
+        setHasError(true);
       } finally {
         setIsLoading(false);
       }
@@ -337,7 +350,7 @@ export default function ChecklistPage() {
     );
   }
 
-  if (!checklist) {
+  if (hasError) {
     return (
       <div className="min-h-screen bg-[#0B0E11] p-4 sm:p-6 flex items-center justify-center">
         <div className="max-w-md text-center space-y-4">
@@ -418,12 +431,14 @@ export default function ChecklistPage() {
         </div>
 
         {/* Checklist */}
-        <DailyChecklistView
-          checklist={checklist}
-          onToggleComplete={handleToggleTask}
-          onSnooze={handleSnooze}
-          showEmptySections={false}
-        />
+        {checklist && (
+          <DailyChecklistView
+            checklist={checklist}
+            onToggleComplete={handleToggleTask}
+            onSnooze={handleSnooze}
+            showEmptySections={false}
+          />
+        )}
 
         {/* Navigation */}
         <div className="text-center pt-4">
