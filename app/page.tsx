@@ -494,32 +494,29 @@ export default function Home() {
 
             {/* Holdings - Asset Cards */}
             <div className="space-y-4">
-          {portfolio.map(p => {
-            const isUnavailable = !p.price || isNaN(p.price);
+          {dbStocks.map(stock => {
+            const isUnavailable = !stock.currentPrice || isNaN(stock.currentPrice);
             
-            // Use avgPrice from database as cost basis, or fallback to config
-            const costBasis = p.avgPrice ? (p.shares * p.avgPrice) : (() => {
-              const stockConfig = config.stocks.find(s => s.symbol === p.symbol);
-              return stockConfig ? (stockConfig.cashAllocation / config.cashRatio) : 0;
-            })();
+            // Calculate cost basis from database
+            const costBasis = stock.shares * stock.avgPrice;
             
             // Calculate values
-            const currentPrice = isUnavailable ? 0 : p.price;
-            const previousPrice = p.previousPrice || currentPrice;
+            const currentPrice = isUnavailable ? 0 : stock.currentPrice;
+            const previousPrice = stock.previousPrice || currentPrice;
             const priceChange = currentPrice - previousPrice;
-            const marketValue = p.actualValue;
-            const dayChangeValue = isUnavailable ? 0 : marketValue - (p.shares * previousPrice);
-            const dayChangePercent = isUnavailable || previousPrice === 0 ? 0 : (dayChangeValue / (p.shares * previousPrice)) * 100;
+            const marketValue = stock.actualValue;
+            const dayChangeValue = isUnavailable ? 0 : marketValue - (stock.shares * previousPrice);
+            const dayChangePercent = isUnavailable || previousPrice === 0 ? 0 : (dayChangeValue / (stock.shares * previousPrice)) * 100;
             const gainLoss = isUnavailable ? NaN : marketValue - costBasis;
             const gainLossPercent = isUnavailable || costBasis <= 0 ? NaN : (gainLoss / costBasis) * 100;
 
             return (
               <AssetCard
-                key={p.symbol}
-                symbol={p.symbol}
-                name={p.name}
+                key={stock.symbol}
+                symbol={stock.symbol}
+                name={stock.name}
                 type="Stock"
-                shares={p.shares}
+                shares={stock.shares}
                 price={currentPrice}
                 priceChange={priceChange}
                 marketValue={marketValue}
