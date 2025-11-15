@@ -10,6 +10,7 @@ import { configs } from '@/lib/config';
 import { ChecklistTask, DailyChecklist } from '@/lib/models';
 import DailyChecklistView from '@/components/DailyChecklistView';
 import { get, set } from '@/lib/storage';
+import Navigation from '@/components/Navigation';
 
 export default function ChecklistPage() {
   const [active, setActive] = useState<'energy' | 'copper'>('energy');
@@ -375,8 +376,10 @@ export default function ChecklistPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0B0E11] p-4 sm:p-6">
-      <div className="max-w-5xl mx-auto space-y-6">
+    <>
+      <Navigation />
+      <div className="min-h-screen bg-[#0B0E11] p-4 sm:p-6">
+        <div className="max-w-5xl mx-auto space-y-6">
         {/* Warning Banner */}
         {error && (
           <div className="bg-yellow-900/20 border border-yellow-500/50 rounded-lg p-4">
@@ -445,5 +448,6 @@ export default function ChecklistPage() {
         </div>
       </div>
     </div>
+    </>
   );
 }

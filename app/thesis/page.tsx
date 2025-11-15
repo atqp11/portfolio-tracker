@@ -10,6 +10,7 @@ import { configs } from '@/lib/config';
 import { InvestmentThesis } from '@/lib/models';
 import ThesisCard from '@/components/ThesisCard';
 import { decisionToThesis } from '@/lib/models/thesis';
+import Navigation from '@/components/Navigation';
 
 export default function ThesisPage() {
   const [active, setActive] = useState<'energy' | 'copper'>('energy');
@@ -310,8 +311,10 @@ export default function ThesisPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0B0E11] p-4 sm:p-6">
-      <div className="max-w-7xl mx-auto space-y-6">
+    <>
+      <Navigation />
+      <div className="min-h-screen bg-[#0B0E11] p-4 sm:p-6">
+        <div className="max-w-7xl mx-auto space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between flex-wrap gap-4">
           <div>
@@ -397,5 +400,6 @@ export default function ThesisPage() {
         </div>
       </div>
     </div>
+    </>
   );
 }

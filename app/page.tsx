@@ -16,6 +16,7 @@ import PortfolioHeader from '@/components/PortfolioHeader';
 import AssetCard from '@/components/AssetCard';
 import StrategyAccordion from '@/components/StrategyAccordion';
 import StonksAI from '@/components/StonksAI/StonksAI';
+import Navigation from '@/components/Navigation';
 
 export default function Home() {
   const [active, setActive] = useState<'energy' | 'copper'>('energy');
@@ -353,8 +354,10 @@ export default function Home() {
   const currentPortfolioTickers = portfolio.map(stock => stock.symbol);
 
   return (
-    <main className="min-h-screen bg-[#0A0C0E] p-4 sm:p-6">
-      <AlertBanner alerts={alerts} />
+    <>
+      <Navigation />
+      <main className="min-h-screen bg-[#0A0C0E] p-4 sm:p-6">
+        <AlertBanner alerts={alerts} />
 
       <div className="max-w-5xl mx-auto">
         {/* Tabs */}
@@ -706,5 +709,6 @@ export default function Home() {
         </>
       )}
     </main>
+    </>
   );
 }
