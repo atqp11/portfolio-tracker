@@ -10,6 +10,7 @@ import { generateEnergySnapshot, generateCopperSnapshot } from '@/lib/api/snapsh
 import { fetchEnergyNews, fetchCopperNews } from '@/lib/api/news';
 import { saveToCache, loadFromCache, classifyApiError, formatCacheAge, getCacheAge, ApiError } from '@/lib/cache';
 import { USE_MOCK_DATA, MOCK_PRICES, MOCK_PRICE_CHANGES } from '@/lib/mockData';
+import { usePortfolio, useStocks, usePortfolioMetrics } from '@/lib/hooks/useDatabase';
 import AlertBanner from '@/components/AlertBanner';
 import CommodityCard from '@/components/CommodityCard';
 import PortfolioHeader from '@/components/PortfolioHeader';
@@ -31,6 +32,11 @@ export default function Home() {
   const [previousDayPrices, setPreviousDayPrices] = useState<Record<string, number>>({});
   const [isAiSidebarOpen, setIsAiSidebarOpen] = useState(false);
   const [isAiInternalSidebarCollapsed, setIsAiInternalSidebarCollapsed] = useState(false);
+
+  // Load portfolio and stocks from database
+  const { portfolio: dbPortfolio, loading: portfolioLoading } = usePortfolio(active);
+  const { stocks: dbStocks, loading: stocksLoading } = useStocks(dbPortfolio?.id);
+  const metrics = usePortfolioMetrics(dbStocks, dbPortfolio?.borrowedAmount || 0);
 
   const config = configs.find(c => c.id === active)!;
 
@@ -239,35 +245,28 @@ export default function Home() {
     }
   };
 
+  // Load database stocks into portfolio format
+  useEffect(() => {
+    if (!stocksLoading && dbStocks.length > 0) {
+      console.log('Loading portfolio from database');
+      const portfolioFromDb = dbStocks.map(stock => ({
+        symbol: stock.symbol,
+        name: stock.name,
+        shares: stock.shares,
+        price: stock.currentPrice || stock.avgPrice,
+        previousPrice: stock.currentPrice || stock.avgPrice,
+        actualValue: stock.actualValue || 0,
+        cashUsed: 0, // Will be updated with live prices
+        marginUsed: 0, // Will be updated with live prices
+        avgPrice: stock.avgPrice, // Add cost basis
+      }));
+      setPortfolio(portfolioFromDb);
+    }
+  }, [dbStocks, stocksLoading]);
+
   // Load cached data immediately on mount or tab change
   useEffect(() => {
-    const portfolioCacheKey = `portfolio_${active}`;
     const marketCacheKey = `market_${active}`;
-    
-    // Load cached portfolio immediately if available
-    const cachedPortfolio = loadFromCache<any[]>(portfolioCacheKey);
-    if (cachedPortfolio && cachedPortfolio.length > 0) {
-      console.log('Loading cached portfolio immediately');
-      setPortfolio(cachedPortfolio);
-      const cacheAge = getCacheAge(portfolioCacheKey);
-      setLastCacheUpdate(formatCacheAge(cacheAge));
-    } else {
-      // No cache, show empty portfolio with N/A values
-      const emptyPortfolio = config.stocks.map(stock => {
-        const position = calculatePosition(stock, NaN, config);
-        return {
-          symbol: stock.symbol,
-          name: stock.name,
-          shares: position.shares,
-          price: NaN,
-          previousPrice: NaN,
-          actualValue: 0,
-          cashUsed: position.cashUsed,
-          marginUsed: position.marginUsed,
-        };
-      });
-      setPortfolio(emptyPortfolio);
-    }
     
     // Load cached market data immediately if available
     const cachedMarket = loadFromCache<any>(marketCacheKey);
@@ -276,10 +275,12 @@ export default function Home() {
       setMarket(cachedMarket);
     }
     
-    // Then fetch fresh data in background
-    fetchLivePortfolioData();
+    // Fetch fresh data in background
+    if (dbStocks.length > 0) {
+      fetchLivePortfolioData();
+    }
     fetchLiveMarketData();
-  }, [active]);
+  }, [active, dbStocks]);
 
   // Request notification permission on initial mount
   useEffect(() => {
@@ -336,8 +337,14 @@ export default function Home() {
     return 'text-black';
   };
 
-  // Calculate total cost basis from config (total investment including margin)
-  const totalCostBasis = config.initialValue; // Use total investment (cash + margin)
+  // Calculate total cost basis from database or config
+  const totalCostBasis = portfolio.reduce((sum, p) => {
+    if (p.avgPrice && p.shares) {
+      return sum + (p.avgPrice * p.shares);
+    }
+    return sum;
+  }, 0) || config.initialValue;
+  
   const totalPL = totalValue - totalCostBasis;
   const totalPLPercentage = totalCostBasis > 0 ? (totalPL / totalCostBasis) * 100 : 0;
 
@@ -484,9 +491,11 @@ export default function Home() {
           {portfolio.map(p => {
             const isUnavailable = !p.price || isNaN(p.price);
             
-            // Find the stock config to get cost basis (total investment including margin)
-            const stockConfig = config.stocks.find(s => s.symbol === p.symbol);
-            const costBasis = stockConfig ? (stockConfig.cashAllocation / config.cashRatio) : 0;
+            // Use avgPrice from database as cost basis, or fallback to config
+            const costBasis = p.avgPrice ? (p.shares * p.avgPrice) : (() => {
+              const stockConfig = config.stocks.find(s => s.symbol === p.symbol);
+              return stockConfig ? (stockConfig.cashAllocation / config.cashRatio) : 0;
+            })();
             
             // Calculate values
             const currentPrice = isUnavailable ? 0 : p.price;
