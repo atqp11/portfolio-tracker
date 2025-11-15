@@ -357,6 +357,12 @@ export default function Home() {
   const dayChange = totalValue - totalPreviousValue;
   const dayChangePercent = totalPreviousValue > 0 ? (dayChange / totalPreviousValue) * 100 : 0;
 
+  // Use database metrics when stocks are loaded, otherwise fallback to calculated values
+  const displayAccountValue = (dbStocks.length > 0 && metrics.currentValue > 0) ? metrics.currentValue : totalValue;
+  const displayCostBasis = (dbStocks.length > 0 && metrics.costBasis > 0) ? metrics.costBasis : totalCostBasis;
+  const displayUnrealizedPL = (dbStocks.length > 0) ? metrics.unrealizedPL : totalPL;
+  const displayUnrealizedPLPercent = (dbStocks.length > 0) ? metrics.unrealizedPLPercent : totalPLPercentage;
+
   // Get current portfolio tickers for AI Co-Pilot
   const currentPortfolioTickers = portfolio.map(stock => stock.symbol);
 
@@ -479,11 +485,11 @@ export default function Home() {
           <div className="lg:col-span-2 space-y-6">
             {/* Portfolio Header */}
             <PortfolioHeader
-              accountValue={totalValue}
+              accountValue={displayAccountValue}
               dayChange={dayChange}
               dayChangePercent={dayChangePercent}
-              unrealizedGainLoss={totalPL}
-              unrealizedGainLossPercent={totalPLPercentage}
+              unrealizedGainLoss={displayUnrealizedPL}
+              unrealizedGainLossPercent={displayUnrealizedPLPercent}
             />
 
             {/* Holdings - Asset Cards */}
