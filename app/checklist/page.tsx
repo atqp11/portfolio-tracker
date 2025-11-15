@@ -11,50 +11,38 @@ import { ChecklistTask, DailyChecklist } from '@/lib/models';
 import DailyChecklistView from '@/components/DailyChecklistView';
 import { get, set } from '@/lib/storage';
 import Navigation from '@/components/Navigation';
+import { usePortfolio, useStocks, usePortfolioMetrics } from '@/lib/hooks/useDatabase';
 
 export default function ChecklistPage() {
   const [active, setActive] = useState<'energy' | 'copper'>('energy');
   const [checklist, setChecklist] = useState<DailyChecklist | null>(null);
-  const [currentValue, setCurrentValue] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const config = configs.find(c => c.id === active)!;
+  
+  // Database hooks
+  const { portfolio: dbPortfolio, loading: portfolioLoading } = usePortfolio(active);
+  const { stocks: dbStocks, loading: stocksLoading } = useStocks(dbPortfolio?.id);
+  const metrics = usePortfolioMetrics(dbStocks, dbPortfolio?.borrowedAmount || 0);
+  
+  const currentValue = metrics.currentValue || config.initialValue;
 
-  // Load portfolio data and generate checklist
+  // Load portfolio data from database and generate checklist
   useEffect(() => {
     const loadChecklistData = async () => {
-      setIsLoading(true);
+      setIsLoading(portfolioLoading || stocksLoading);
       setError(null); // Reset error on portfolio switch
       
       try {
-        // Load portfolio value from cache
-        const cacheKey = `portfolio_${active}`;
-        const cached = localStorage.getItem(cacheKey);
-        let portfolioValue = config.initialValue;
-        let usingFallback = false;
-        
-        if (cached) {
-          try {
-            const data = JSON.parse(cached);
-            if (Array.isArray(data)) {
-              portfolioValue = data.reduce((sum: number, stock: any) => {
-                return sum + (stock.actualValue || 0);
-              }, 0);
-            } else {
-              console.warn('Cached data is not an array, using initial value');
-              usingFallback = true;
-            }
-          } catch (e) {
-            console.error('Error parsing cached portfolio:', e);
-            usingFallback = true;
-          }
-        } else {
-          // No cached data - using initial config value
-          usingFallback = true;
+        // Wait for database data to load
+        if (portfolioLoading || stocksLoading) {
+          return;
         }
         
-        setCurrentValue(portfolioValue);
+        // Use database portfolio value or fallback to config
+        const portfolioValue = currentValue > 0 ? currentValue : config.initialValue;
+        const usingFallback = currentValue === 0;
 
         // Generate checklist
         const newChecklist = generateDailyChecklist(active, portfolioValue);
@@ -111,7 +99,7 @@ export default function ChecklistPage() {
     };
 
     loadChecklistData();
-  }, [active, config]);
+  }, [active, config, portfolioLoading, stocksLoading, currentValue]);
 
   const getTodayString = () => {
     const today = new Date();
