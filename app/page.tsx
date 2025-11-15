@@ -347,7 +347,7 @@ export default function Home() {
 
   // Calculate day change based on previous prices
   const totalPreviousValue = dbStocks.reduce((sum, stock) => {
-    const prevPrice = stock.previousPrice || stock.currentPrice;
+    const prevPrice = stock.previousPrice ?? stock.currentPrice ?? 0;
     if (!prevPrice || isNaN(prevPrice)) return sum;
     return sum + (stock.shares * prevPrice);
   }, 0);
@@ -498,10 +498,10 @@ export default function Home() {
             const costBasis = stock.shares * stock.avgPrice;
             
             // Calculate values
-            const currentPrice = isUnavailable ? 0 : stock.currentPrice;
-            const previousPrice = stock.previousPrice || currentPrice;
+            const currentPrice = isUnavailable ? 0 : (stock.currentPrice ?? 0);
+            const previousPrice = stock.previousPrice ?? currentPrice;
             const priceChange = currentPrice - previousPrice;
-            const marketValue = stock.actualValue;
+            const marketValue = stock.actualValue ?? 0;
             const dayChangeValue = isUnavailable ? 0 : marketValue - (stock.shares * previousPrice);
             const dayChangePercent = isUnavailable || previousPrice === 0 ? 0 : (dayChangeValue / (stock.shares * previousPrice)) * 100;
             const gainLoss = isUnavailable ? NaN : marketValue - costBasis;

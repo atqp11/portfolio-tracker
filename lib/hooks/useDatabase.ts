@@ -29,6 +29,7 @@ export interface Stock {
   shares: number;
   avgPrice: number;
   currentPrice: number | null;
+  previousPrice?: number | null;
   actualValue: number | null;
   lastUpdated: string;
 }
