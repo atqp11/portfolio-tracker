@@ -186,3 +186,5 @@ tmp/
 temp/*-test.js
 test-*.js
 debug-env.js
+
+/generated/prisma
