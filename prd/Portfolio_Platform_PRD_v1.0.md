@@ -28,7 +28,7 @@ A Next.js-based platform that combines:
 - AI-powered intelligent decision support (multi-model routing)
 - Proactive checklist system aligned with investment principles
 - Beautiful, minimalist design (Vercel/Linear aesthetic)
-- Budget-friendly ($0 for users, $20/month AI costs, $0 data via Alpha Vantage + smart caching)
+- Budget-friendly ($0 for users, $20/month AI costs)
 
 ### 1.4 Success Metrics
 - **Month 1:** AI costs <$20, 5 models integrated, 20+ fundamental metrics
@@ -217,16 +217,10 @@ A Next.js-based platform that combines:
 
 #### Data Sources
 ```
-Primary:   Alpha Vantage (25 calls/day, FREE tier)
-Fallback:  Yahoo Finance (unlimited scraping, rate-limited)
-SEC Data:  Edgar API (10 req/sec, unlimited)
-Caching:   Redis (24-hour fundamentals, 30-day SEC filings)
-
-Smart Caching Strategy:
-- Fundamentals: Cache 24 hours, refresh after market close
-- Price data: Cache 15 min during market hours, 1 hour after close
-- SEC filings: Cache 30 days (filings don't change)
-- News: Cache 8 hours, refresh 3x daily (6 AM, 12 PM, 6 PM)
+Primary:   Financial Modeling Prep API (250 calls/day)
+Secondary: Alpha Vantage (25 calls/day)
+Fallback:  Yahoo Finance (unlimited scraping)
+SEC Data:  Edgar API (unlimited)
 ```
 
 #### Design Specifications
@@ -282,13 +276,9 @@ if (query.type === "quick_summary" || query.length < 200) {
 
 **D. Smart Caching**
 - Cache SEC filings for 30 days (Redis/Upstash)
-- Cache news digests for 8 hours (refresh 3x daily: 6 AM, 12 PM, 6 PM)
-- Cache fundamental metrics for 24 hours (refresh after market close)
-- Cache financial statements for 90 days (quarterly updates only)
-- Cache price quotes for 15 min during market hours, 1 hour after close
+- Cache news digests (3x daily: 6 AM, 12 PM, 6 PM)
+- Cache fundamental metrics (daily after market close)
 - Cache AI responses for identical queries (24-hour TTL)
-- Cache Alpha Vantage API responses to stay under 25 calls/day limit
-- Target cache hit rate: >85% for data APIs, >70% for AI queries
 
 **E. Rate Limit Handling**
 - Detect 429 errors from APIs
@@ -349,19 +339,11 @@ async function routeQuery(
 
 **Caching Strategy:**
 ```typescript
-// Redis cache key structure with TTLs optimized for Alpha Vantage
-AV:QUOTE:{ticker}                         // TTL: 15 min (market hours), 1 hour (after close)
-AV:FUNDAMENTALS:{ticker}                  // TTL: 24 hours
-AV:INCOME:{ticker}                        // TTL: 90 days (quarterly reports)
-AV:BALANCE:{ticker}                       // TTL: 90 days
-AV:CASHFLOW:{ticker}                      // TTL: 90 days
+// Redis cache key structure
 SEC_FILING:{ticker}:{filing_type}:{date}  // TTL: 30 days
-NEWS_DIGEST:{ticker}:{date}:{time_slot}   // TTL: 8 hours
+NEWS_DIGEST:{date}:{time_slot}            // TTL: 8 hours
+FUNDAMENTALS:{ticker}                     // TTL: 24 hours
 AI_RESPONSE:{hash(query)}                 // TTL: 24 hours
-AI_SEC_SUMMARY:{ticker}:{filing}          // TTL: 30 days (filing summaries never change)
-
-// Smart cache warming: Pre-fetch all portfolio stocks at market close
-// This ensures next-day data is ready and minimizes API calls
 ```
 
 ---
@@ -965,11 +947,11 @@ AI Infrastructure:
   Streaming: Vercel AI SDK
   
 Data Sources:
-  Primary: Alpha Vantage (FREE tier, 25 calls/day)
-  Fallback: Yahoo Finance (scraping, self-rate-limited)
-  SEC: Edgar API (10 req/sec)
-  News: NewsAPI (cached 8 hours)
-  Cache Layer: Upstash Redis (persistent, 24hr-30day TTL)
+  Primary: Financial Modeling Prep API
+  Secondary: Alpha Vantage
+  Tertiary: Yahoo Finance (scraping)
+  SEC: Edgar API
+  News: NewsAPI (cached)
 
 Deployment:
   Platform: Vercel
@@ -1001,30 +983,27 @@ Development Tools:
 ┌─────────┐ ┌──────────────┐
 │  Redis  │ │  PostgreSQL  │
 │ (Cache) │ │  (User Data) │
-│ 15min-  │ │              │
-│ 90day   │ │              │
-│  TTL    │ │              │
-└────┬────┘ └──────────────┘
+└─────────┘ └──────────────┘
      │
-     ↓ (Cache Miss - Smart Fallback Chain)
+     ↓ (Cache Miss)
 ┌──────────────────────────┐
 │   External APIs          │
 ├──────────────────────────┤
-│ 1. Alpha Vantage (25/day)│ ← Primary
-│ 2. Yahoo Finance (scrape)│ ← Fallback
-│ 3. SEC Edgar (10/sec)    │ ← Filings
-│ 4. NewsAPI (100/day)     │ ← News
-└──────┬───────────────────┘
-       │
-       ↓ (Analysis)
+│ • Financial Modeling Prep│
+│ • Alpha Vantage          │
+│ • Yahoo Finance          │
+│ • SEC Edgar              │
+│ • NewsAPI                │
+└──────────────────────────┘
+     │
+     ↓ (Analysis)
 ┌──────────────────────────┐
-│   AI Router + Cache      │
+│   AI Router              │
 ├──────────────────────────┤
 │ → DeepSeek (Tier 1)      │
 │ → Qwen (Tier 2)          │
 │ → Claude (Tier 3)        │
 │ → Fallback chain         │
-│ Cache: 24hr AI responses │
 └──────────────────────────┘
 ```
 
@@ -1132,59 +1111,45 @@ CREATE TABLE fundamentals (
 ### 5.4 API Rate Limits & Costs
 
 ```yaml
-Alpha Vantage (FREE - Primary):
-  Limit: 25 calls/day
-  Cost: $0
-  Endpoints Used:
-    - OVERVIEW (fundamentals): 1 call per stock
-    - INCOME_STATEMENT: 1 call per stock
-    - BALANCE_SHEET: 1 call per stock
-    - CASH_FLOW: 1 call per stock
-    - GLOBAL_QUOTE (price): 1 call per stock
-  
-  Usage Strategy (10 stocks portfolio):
-    - Daily price updates: 10 calls (all stocks)
-    - Fundamentals rotation: 3 stocks/day (12 calls over 4 days)
-    - SEC filing triggers: On-demand (1-2 calls/day)
-    - Total: ~15 calls/day (well under 25 limit)
-  
-  Smart Caching:
-    - Price data: 15 min TTL during market hours
-    - Fundamentals: 24 hour TTL (refresh after market close)
-    - Income/Balance/Cash Flow: 90 day TTL (quarterly updates)
-    - Cache hit rate target: >85%
-
-Yahoo Finance (FREE - Fallback):
-  Limit: None (scraping, self-rate-limited to 1 req/sec)
+Financial Modeling Prep (FREE):
+  Limit: 250 calls/day
   Cost: $0
   Usage Strategy:
-    - Fallback when Alpha Vantage limit hit
-    - Real-time price quotes (15-min delay acceptable)
-    - Historical price data (10 years)
-    - Basic fundamentals as backup
-    - Self-imposed rate limit: 60 calls/hour
-  
-  Cache Strategy:
-    - Same as Alpha Vantage (15 min prices, 24hr fundamentals)
-    - Prioritize cache hits to minimize scraping
+    - Fetch fundamentals 1x/day after market close
+    - Cache for 24 hours
+    - ~10 stocks = 20 calls/day (well under limit)
 
-SEC Edgar (FREE):
+Alpha Vantage (FREE):
+  Limit: 25 calls/day
+  Cost: $0
+  Usage Strategy:
+    - Backup for price data
+    - Fetch technical indicators
+    - ~5 calls/day
+
+Yahoo Finance:
+  Limit: None (scraping)
+  Cost: $0
+  Usage Strategy:
+    - Primary for price data (15-min delay)
+    - Fallback for everything
+    - Rate-limit ourselves: 1 req/second
+
+SEC Edgar:
   Limit: 10 requests/second
   Cost: $0
   Usage Strategy:
-    - Fetch 10-Q, 10-K as published (event-driven)
-    - Cache for 30 days (filings never change)
-    - ~1-2 calls/day (only when new filings detected)
-    - User-Agent required: "portfolio-tracker/1.0 (contact@example.com)"
+    - Fetch 10-Q, 10-K as published
+    - Cache for 30 days
+    - ~1-2 calls/day
 
 NewsAPI (FREE):
   Limit: 100 calls/day
   Cost: $0
   Usage Strategy:
-    - Fetch 3x daily: 6 AM, 12 PM, 6 PM ET
-    - 10 stocks × 3 fetches = 30 calls/day
-    - Cache for 8 hours between refreshes
-    - Keyword-based queries (ticker symbols + "earnings OR SEC OR analyst")
+    - Fetch 3x daily (6 AM, 12 PM, 6 PM)
+    - Cache for 8 hours
+    - 3 calls/day
 
 OpenRouter (AI):
   Budget: $20/month = ~$0.67/day
@@ -1199,32 +1164,11 @@ OpenRouter (AI):
     - 25% Qwen/Llama (analysis): ~$0.17/day
     - 5% Claude (critical decisions): ~$0.03/day
     - Total: ~$0.67/day = $20/month ✅
-  
-  AI Response Caching:
-    - Identical queries: 24 hour TTL
-    - SEC filing summaries: 30 day TTL
-    - Stock analysis: 12 hour TTL
-    - Cache hit rate target: >70%
 
 Upstash Redis (FREE):
   Limit: 10K commands/day
   Cost: $0
-  Usage: Primary caching layer
-  
-  Cache Structure:
-    AV:QUOTE:{ticker}           TTL: 15 min
-    AV:FUNDAMENTALS:{ticker}    TTL: 24 hours
-    AV:INCOME:{ticker}          TTL: 90 days
-    AV:BALANCE:{ticker}         TTL: 90 days
-    AV:CASHFLOW:{ticker}        TTL: 90 days
-    SEC:{ticker}:{filing}       TTL: 30 days
-    NEWS:{ticker}:{date}        TTL: 8 hours
-    AI:RESPONSE:{hash}          TTL: 24 hours
-  
-  Cache Efficiency:
-    - Estimated daily cache reads: ~500 (well under 10K)
-    - Estimated daily cache writes: ~50
-    - Cache hit rate monitoring: Dashboard metric
+  Usage: Caching layer for all data
 ```
 
 ---

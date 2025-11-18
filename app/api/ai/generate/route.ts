@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
 import { GoogleGenAI } from '@google/genai';
 import crypto from 'crypto';
-import { routeQuery } from '@/lib/ai/router';
 
 const API_KEY = process.env.AI_API_KEY || process.env.NEXT_PUBLIC_AI_API_KEY;
-// Only Gemini model is used for AI responses with smart routing
+
+// Create the client once per module on the server
 const ai = new GoogleGenAI({ apiKey: API_KEY });
 
 // Server-side in-memory cache for AI responses
@@ -118,33 +118,26 @@ export async function POST(req: Request) {
       }
     }
 
-    // Smart routing: determine which model to use based on query
-    const queryText = body.contents || '';
-    const routingResult = routeQuery(queryText);
-    const selectedModel = routingResult.model.modelId;
+    console.log(`🤖 Making new Gemini API call (cache ${bypassCache ? 'bypassed' : 'miss'})`);
     
-    console.log(`🤖 Smart routing: ${routingResult.tier} -> ${routingResult.model.name} (cache ${bypassCache ? 'bypassed' : 'miss'})`);
-    
-    // Use the selected model (override body.model if needed)
-    const requestBody = {
-      ...body,
-      model: selectedModel,
-    };
-    
-    // Always use Gemini for AI responses with smart tier selection
-    const response = await ai.models.generateContent(requestBody as any);
+    // Forward the request to the Google GenAI SDK
+    const response = await ai.models.generateContent(body as any);
+
     const responseText = response.text || '';
+    
+    // Cache the response
     serverCache.set(cacheKey, {
       text: responseText,
       timestamp: Date.now(),
       requestHash: cacheKey,
     });
-    console.log(`✅ Cached new Gemini AI response from ${routingResult.model.name} (key: ${cacheKey.substring(0, 8)}..., entries: ${serverCache.size})`);
+    
+    console.log(`✅ Cached new AI response (key: ${cacheKey.substring(0, 8)}..., entries: ${serverCache.size})`);
+
+    // Return only the serializable parts the client expects
     return NextResponse.json({ 
       text: responseText,
-      cached: false,
-      model: selectedModel,
-      tier: routingResult.tier
+      cached: false 
     });
   } catch (err: any) {
     console.error('AI proxy error:', err);
