@@ -108,12 +108,18 @@ export const calculatePB = (price: number, bookValue: number): number | null => 
  * Calculate ROE (Return on Equity)
  * Formula: (Net Income / Shareholder Equity) * 100
  */
-export const calculateROE = (netIncome: number, equity: number): number | null => {
-  if (equity <= 0) return null;
-  // Normalize units if netIncome and equity are off by a factor of 1000 or more
+export const calculateROE = (
+  netIncome: number,
+  equity: number,
+  priorEquity?: number
+): number | null => {
+  // Use average shareholders' equity when prior year value is available
+  const avgEquity = (priorEquity && priorEquity > 0) ? (equity + priorEquity) / 2 : equity;
+  if (avgEquity <= 0) return null;
+
+  // Normalize units if netIncome and avgEquity are off by a factor of 1000 or more
   let ni = netIncome;
-  let eq = equity;
-  // If one value is >1000x the other, scale down the larger
+  let eq = avgEquity;
   if (Math.abs(ni) > 0 && Math.abs(eq) > 0) {
     const ratio = Math.max(Math.abs(ni), Math.abs(eq)) / Math.min(Math.abs(ni), Math.abs(eq));
     if (ratio > 1000) {
@@ -124,6 +130,7 @@ export const calculateROE = (netIncome: number, equity: number): number | null =
       }
     }
   }
+
   return (ni / eq) * 100;
 };
 
@@ -277,6 +284,7 @@ export const calculateFundamentalMetrics = (
   // Get latest financial data
   const latestIncome = income?.annualReports?.[0];
   const latestBalance = balance?.annualReports?.[0];
+  const priorBalance = balance?.annualReports?.[1];
   
   // Parse income statement
   const revenue = parseNum(latestIncome?.totalRevenue);
@@ -294,6 +302,7 @@ export const calculateFundamentalMetrics = (
   const currentLiabilities = parseNum(latestBalance?.totalCurrentLiabilities);
   const totalLiabilities = parseNum(latestBalance?.totalLiabilities);
   const totalEquity = parseNum(latestBalance?.totalShareholderEquity);
+  const priorTotalEquity = parseNum(priorBalance?.totalShareholderEquity);
   const inventory = parseNum(latestBalance?.inventory);
   const longTermDebt = parseNum(latestBalance?.longTermDebt);
   const shortTermDebt = parseNum(latestBalance?.shortTermDebt);
@@ -320,9 +329,9 @@ export const calculateFundamentalMetrics = (
   // Valuation indicators (using industry standard thresholds)
   const peIndicator = pe ? getValuationIndicator(pe, 0, 20) : null;  // <15 undervalued, >25 overvalued
   const pbIndicator = pb ? getValuationIndicator(pb, 0, 2) : null;   // <1 undervalued, >3 overvalued
-  // ROE: Use API value if present, otherwise calculate and log
-  console.log(`[ROE] Calculated ROE: netIncome=${netIncome}, totalEquity=${totalEquity}, ROE=${calculateROE(netIncome, totalEquity)}`);
-  const calculatedROE = calculateROE(netIncome, totalEquity);
+  // ROE: prefer calculated value using average shareholders' equity (if prior year available)
+  const avgEquity = priorTotalEquity > 0 ? (totalEquity + priorTotalEquity) / 2 : totalEquity;
+  const calculatedROE = calculateROE(netIncome, totalEquity, priorTotalEquity);
   const evEbitdaIndicator = evToEbitda ? getValuationIndicator(evToEbitda, 0, 12) : null; // <10 undervalued, >15 overvalued
   
   return {

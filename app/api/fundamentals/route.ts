@@ -1,7 +1,5 @@
 // app/api/fundamentals/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import fs from 'fs';
-import path from 'path';
 import {
   fetchCompanyOverview,
   fetchIncomeStatement,
@@ -30,6 +28,7 @@ interface FundamentalsResponse {
   cashFlow: any;
   source: 'alpha_vantage' | 'yahoo' | 'fmp' | 'cache';
   cachedAt?: string;
+  debugRouteHit?: boolean;
   fetchedAt: string;
 }
 
@@ -40,6 +39,7 @@ interface FundamentalsResponse {
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const ticker = searchParams.get('ticker')?.toUpperCase();
+  const includeDebug = searchParams.get('debug') === 'true';
 
   if (!ticker) {
     return NextResponse.json(
@@ -48,23 +48,7 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  // Top-level log to confirm route execution and ticker value
-  try {
-    console.log('fundamentals route hit', ticker);
-  } catch (e) {
-    // Swallow logging errors in restricted runtimes
-  }
-
-  // Also write a persistent debug line to a file so we can inspect logs
-  try {
-    const logDir = path.join(process.cwd(), 'tmp');
-    const logPath = path.join(logDir, 'fundamentals.log');
-    if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true });
-    const line = `${new Date().toISOString()} fundamentals route hit ${ticker}\n`;
-    fs.appendFileSync(logPath, line);
-  } catch (e) {
-    // Ignore file write failures
-  }
+  // (debug removed) handler starts here
   try {
     // Check cache first
     const cachedQuote = getCachedFundamentals(ticker, 'quote');
@@ -75,8 +59,6 @@ export async function GET(request: NextRequest) {
 
     // If all data is cached, return immediately
     if (cachedQuote && cachedFundamentals && cachedIncome && cachedBalance && cachedCashFlow) {
-      console.log(`📦 Returning cached fundamentals for ${ticker}`);
-      
       const metrics = calculateFundamentalMetrics(
         cachedFundamentals,
         cachedIncome,
@@ -93,6 +75,7 @@ export async function GET(request: NextRequest) {
         balance: cachedBalance,
         cashFlow: cachedCashFlow,
         source: 'cache',
+        ...(includeDebug ? { debugRouteHit: true } : {}),
         cachedAt: new Date(Date.now() - (15 * 60 * 1000)).toISOString(), // Approximate
         fetchedAt: new Date().toISOString(),
       };
@@ -106,7 +89,6 @@ export async function GET(request: NextRequest) {
     }
 
     // Fetch missing data from Alpha Vantage
-    console.log(`🔍 Fetching fundamentals for ${ticker} from Alpha Vantage`);
 
     const [quote, overview, income, balance, cashFlow] = await Promise.all([
       cachedQuote || fetchAlphaVantageQuote(ticker),
@@ -170,6 +152,7 @@ export async function GET(request: NextRequest) {
       balance,
       cashFlow,
       source: 'alpha_vantage',
+      ...(includeDebug ? { debugRouteHit: true } : {}),
       fetchedAt: new Date().toISOString(),
     };
 
