@@ -1,4 +1,6 @@
 // components/AssetCard.tsx
+import Link from 'next/link';
+
 interface AssetCardProps {
   symbol: string;
   name: string;
@@ -35,11 +37,12 @@ export default function AssetCard({
   };
 
   return (
-    <div className="bg-[#0E1114] p-4 rounded-lg border border-neutral-800">
+    <Link href={`/stocks/${symbol}`}>
+      <div className="bg-[#0E1114] p-4 rounded-lg border border-neutral-800 hover:border-[#3B82F6] hover:shadow-lg hover:shadow-[#3B82F6]/20 hover:scale-[1.02] transition-all duration-200 cursor-pointer group">
       {/* Header */}
       <div className="mb-3">
         <div className="flex items-baseline gap-2 mb-1">
-          <span className="text-[#E5E7EB] font-bold text-lg">{symbol}</span>
+          <span className="text-[#E5E7EB] group-hover:text-[#3B82F6] font-bold text-lg transition-colors">{symbol}</span>
           <span className="text-[#9CA3AF] text-sm">({name})</span>
         </div>
         <div className="text-[#9CA3AF] text-sm">
@@ -102,6 +105,17 @@ export default function AssetCard({
           )}
         </div>
       </div>
-    </div>
+
+        {/* View Details Link */}
+        <div className="mt-3 pt-3 border-t border-neutral-800">
+          <div className="flex items-center justify-between text-sm text-[#71717A] group-hover:text-[#3B82F6] transition-colors">
+            <span>View Fundamentals</span>
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+          </div>
+        </div>
+      </div>
+    </Link>
   );
 }

@@ -1,9 +1,166 @@
 // lib/api/alphavantage.ts
+
+// ============================================================================
+// INTERFACES
+// ============================================================================
+
 export interface AlphaVantageQuote {
   symbol: string;
   price: number;
   change: number;
   changePercent: string;
+}
+
+export interface CompanyOverview {
+  Symbol: string;
+  AssetType: string;
+  Name: string;
+  Description: string;
+  Exchange: string;
+  Currency: string;
+  Country: string;
+  Sector: string;
+  Industry: string;
+  MarketCapitalization: string;
+  EBITDA: string;
+  PERatio: string;
+  PEGRatio: string;
+  BookValue: string;
+  DividendPerShare: string;
+  DividendYield: string;
+  EPS: string;
+  RevenuePerShareTTM: string;
+  ProfitMargin: string;
+  OperatingMarginTTM: string;
+  ReturnOnAssetsTTM: string;
+  ReturnOnEquityTTM: string;
+  RevenueTTM: string;
+  GrossProfitTTM: string;
+  DilutedEPSTTM: string;
+  QuarterlyEarningsGrowthYOY: string;
+  QuarterlyRevenueGrowthYOY: string;
+  AnalystTargetPrice: string;
+  TrailingPE: string;
+  ForwardPE: string;
+  PriceToSalesRatioTTM: string;
+  PriceToBookRatio: string;
+  EVToRevenue: string;
+  EVToEBITDA: string;
+  Beta: string;
+  '52WeekHigh': string;
+  '52WeekLow': string;
+  '50DayMovingAverage': string;
+  '200DayMovingAverage': string;
+  SharesOutstanding: string;
+  DividendDate: string;
+  ExDividendDate: string;
+}
+
+export interface IncomeStatement {
+  fiscalDateEnding: string;
+  reportedCurrency: string;
+  grossProfit: string;
+  totalRevenue: string;
+  costOfRevenue: string;
+  costofGoodsAndServicesSold: string;
+  operatingIncome: string;
+  sellingGeneralAndAdministrative: string;
+  researchAndDevelopment: string;
+  operatingExpenses: string;
+  investmentIncomeNet: string;
+  netInterestIncome: string;
+  interestIncome: string;
+  interestExpense: string;
+  nonInterestIncome: string;
+  otherNonOperatingIncome: string;
+  depreciation: string;
+  depreciationAndAmortization: string;
+  incomeBeforeTax: string;
+  incomeTaxExpense: string;
+  interestAndDebtExpense: string;
+  netIncomeFromContinuingOperations: string;
+  comprehensiveIncomeNetOfTax: string;
+  ebit: string;
+  ebitda: string;
+  netIncome: string;
+}
+
+export interface BalanceSheet {
+  fiscalDateEnding: string;
+  reportedCurrency: string;
+  totalAssets: string;
+  totalCurrentAssets: string;
+  cashAndCashEquivalentsAtCarryingValue: string;
+  cashAndShortTermInvestments: string;
+  inventory: string;
+  currentNetReceivables: string;
+  totalNonCurrentAssets: string;
+  propertyPlantEquipment: string;
+  accumulatedDepreciationAmortizationPPE: string;
+  intangibleAssets: string;
+  intangibleAssetsExcludingGoodwill: string;
+  goodwill: string;
+  investments: string;
+  longTermInvestments: string;
+  shortTermInvestments: string;
+  otherCurrentAssets: string;
+  otherNonCurrentAssets: string;
+  totalLiabilities: string;
+  totalCurrentLiabilities: string;
+  currentAccountsPayable: string;
+  deferredRevenue: string;
+  currentDebt: string;
+  shortTermDebt: string;
+  totalNonCurrentLiabilities: string;
+  capitalLeaseObligations: string;
+  longTermDebt: string;
+  currentLongTermDebt: string;
+  longTermDebtNoncurrent: string;
+  shortLongTermDebtTotal: string;
+  otherCurrentLiabilities: string;
+  otherNonCurrentLiabilities: string;
+  totalShareholderEquity: string;
+  treasuryStock: string;
+  retainedEarnings: string;
+  commonStock: string;
+  commonStockSharesOutstanding: string;
+}
+
+export interface CashFlowStatement {
+  fiscalDateEnding: string;
+  reportedCurrency: string;
+  operatingCashflow: string;
+  paymentsForOperatingActivities: string;
+  proceedsFromOperatingActivities: string;
+  changeInOperatingLiabilities: string;
+  changeInOperatingAssets: string;
+  depreciationDepletionAndAmortization: string;
+  capitalExpenditures: string;
+  changeInReceivables: string;
+  changeInInventory: string;
+  profitLoss: string;
+  cashflowFromInvestment: string;
+  cashflowFromFinancing: string;
+  proceedsFromRepaymentsOfShortTermDebt: string;
+  paymentsForRepurchaseOfCommonStock: string;
+  paymentsForRepurchaseOfEquity: string;
+  paymentsForRepurchaseOfPreferredStock: string;
+  dividendPayout: string;
+  dividendPayoutCommonStock: string;
+  dividendPayoutPreferredStock: string;
+  proceedsFromIssuanceOfCommonStock: string;
+  proceedsFromIssuanceOfLongTermDebtAndCapitalSecuritiesNet: string;
+  proceedsFromIssuanceOfPreferredStock: string;
+  proceedsFromRepurchaseOfEquity: string;
+  proceedsFromSaleOfTreasuryStock: string;
+  changeInCashAndCashEquivalents: string;
+  changeInExchangeRate: string;
+  netIncome: string;
+}
+
+export interface FinancialData {
+  annualReports: IncomeStatement[] | BalanceSheet[] | CashFlowStatement[];
+  quarterlyReports: IncomeStatement[] | BalanceSheet[] | CashFlowStatement[];
 }
 
 const API_KEY = process.env.ALPHAVANTAGE_API_KEY;
@@ -139,4 +296,213 @@ export const fetchAlphaVantageBatch = async (symbols: string[]): Promise<Record<
       status: 503
     };
   }
+};
+
+// ============================================================================
+// FUNDAMENTAL DATA ENDPOINTS
+// ============================================================================
+
+/**
+ * Fetch company overview with fundamental metrics
+ * Includes: P/E, P/B, ROE, ROA, margins, EV/EBITDA, etc.
+ */
+export const fetchCompanyOverview = async (symbol: string): Promise<CompanyOverview | null> => {
+  if (!API_KEY) {
+    console.warn('Alpha Vantage API key not configured');
+    return null;
+  }
+
+  try {
+    console.log(`Fetching company overview for: ${symbol}`);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+    const response = await fetch(
+      `${BASE_URL}?function=OVERVIEW&symbol=${symbol}&apikey=${API_KEY}`,
+      { signal: controller.signal }
+    );
+
+    clearTimeout(timeoutId);
+
+    const data = await response.json();
+
+    // Check for errors
+    if (data['Error Message'] || data['Note'] || data['Information']) {
+      const errorMsg = data['Error Message'] || data['Note'] || data['Information'];
+      console.warn(`Alpha Vantage overview error for ${symbol}:`, errorMsg);
+      
+      if (errorMsg.toLowerCase().includes('rate limit')) {
+        throw new Error(`RATE_LIMIT: ${errorMsg}`);
+      }
+      
+      return null;
+    }
+
+    // Check if we got valid data
+    if (!data.Symbol) {
+      console.warn(`No overview data for ${symbol}`);
+      return null;
+    }
+
+    return data as CompanyOverview;
+  } catch (error) {
+    console.warn(`Failed to fetch overview for ${symbol}:`, error);
+    return null;
+  }
+};
+
+/**
+ * Fetch income statement (annual and quarterly)
+ * Returns 5 years of annual data and 20 quarters
+ */
+export const fetchIncomeStatement = async (symbol: string): Promise<FinancialData | null> => {
+  if (!API_KEY) {
+    console.warn('Alpha Vantage API key not configured');
+    return null;
+  }
+
+  try {
+    console.log(`Fetching income statement for: ${symbol}`);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+    const response = await fetch(
+      `${BASE_URL}?function=INCOME_STATEMENT&symbol=${symbol}&apikey=${API_KEY}`,
+      { signal: controller.signal }
+    );
+
+    clearTimeout(timeoutId);
+
+    const data = await response.json();
+
+    // Check for errors
+    if (data['Error Message'] || data['Note'] || data['Information']) {
+      const errorMsg = data['Error Message'] || data['Note'] || data['Information'];
+      console.warn(`Alpha Vantage income statement error for ${symbol}:`, errorMsg);
+      
+      if (errorMsg.toLowerCase().includes('rate limit')) {
+        throw new Error(`RATE_LIMIT: ${errorMsg}`);
+      }
+      
+      return null;
+    }
+
+    return {
+      annualReports: data.annualReports || [],
+      quarterlyReports: data.quarterlyReports || []
+    };
+  } catch (error) {
+    console.warn(`Failed to fetch income statement for ${symbol}:`, error);
+    return null;
+  }
+};
+
+/**
+ * Fetch balance sheet (annual and quarterly)
+ */
+export const fetchBalanceSheet = async (symbol: string): Promise<FinancialData | null> => {
+  if (!API_KEY) {
+    console.warn('Alpha Vantage API key not configured');
+    return null;
+  }
+
+  try {
+    console.log(`Fetching balance sheet for: ${symbol}`);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+    const response = await fetch(
+      `${BASE_URL}?function=BALANCE_SHEET&symbol=${symbol}&apikey=${API_KEY}`,
+      { signal: controller.signal }
+    );
+
+    clearTimeout(timeoutId);
+
+    const data = await response.json();
+
+    // Check for errors
+    if (data['Error Message'] || data['Note'] || data['Information']) {
+      const errorMsg = data['Error Message'] || data['Note'] || data['Information'];
+      console.warn(`Alpha Vantage balance sheet error for ${symbol}:`, errorMsg);
+      
+      if (errorMsg.toLowerCase().includes('rate limit')) {
+        throw new Error(`RATE_LIMIT: ${errorMsg}`);
+      }
+      
+      return null;
+    }
+
+    return {
+      annualReports: data.annualReports || [],
+      quarterlyReports: data.quarterlyReports || []
+    };
+  } catch (error) {
+    console.warn(`Failed to fetch balance sheet for ${symbol}:`, error);
+    return null;
+  }
+};
+
+/**
+ * Fetch cash flow statement (annual and quarterly)
+ */
+export const fetchCashFlow = async (symbol: string): Promise<FinancialData | null> => {
+  if (!API_KEY) {
+    console.warn('Alpha Vantage API key not configured');
+    return null;
+  }
+
+  try {
+    console.log(`Fetching cash flow for: ${symbol}`);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+    const response = await fetch(
+      `${BASE_URL}?function=CASH_FLOW&symbol=${symbol}&apikey=${API_KEY}`,
+      { signal: controller.signal }
+    );
+
+    clearTimeout(timeoutId);
+
+    const data = await response.json();
+
+    // Check for errors
+    if (data['Error Message'] || data['Note'] || data['Information']) {
+      const errorMsg = data['Error Message'] || data['Note'] || data['Information'];
+      console.warn(`Alpha Vantage cash flow error for ${symbol}:`, errorMsg);
+      
+      if (errorMsg.toLowerCase().includes('rate limit')) {
+        throw new Error(`RATE_LIMIT: ${errorMsg}`);
+      }
+      
+      return null;
+    }
+
+    return {
+      annualReports: data.annualReports || [],
+      quarterlyReports: data.quarterlyReports || []
+    };
+  } catch (error) {
+    console.warn(`Failed to fetch cash flow for ${symbol}:`, error);
+    return null;
+  }
+};
+
+/**
+ * Fetch all fundamental data for a symbol (optimized for caching)
+ */
+export const fetchAllFundamentals = async (symbol: string) => {
+  const [overview, income, balance, cashFlow] = await Promise.all([
+    fetchCompanyOverview(symbol),
+    fetchIncomeStatement(symbol),
+    fetchBalanceSheet(symbol),
+    fetchCashFlow(symbol)
+  ]);
+
+  return {
+    overview,
+    income,
+    balance,
+    cashFlow,
+    fetchedAt: new Date().toISOString()
+  };
 };
