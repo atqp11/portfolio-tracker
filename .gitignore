@@ -188,3 +188,6 @@ test-*.js
 debug-env.js
 
 /generated/prisma
+
+# Telemetry and application logs
+logs/
