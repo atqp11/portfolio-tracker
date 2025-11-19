@@ -5,7 +5,7 @@
  * Verifies shared UI components, ThesisCard, and checklist components work before integration
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { UrgencyBadge, ExpandableDetails, ActionButton } from '@/components/shared';
 import ThesisCard from '@/components/ThesisCard';
 import ChecklistTaskCard from '@/components/ChecklistTaskCard';
@@ -13,6 +13,68 @@ import DailyChecklistView from '@/components/DailyChecklistView';
 import { InvestmentThesis, ChecklistTask, DailyChecklist } from '@/lib/models';
 
 export default function TestComponentsPage() {
+  // News scraping test state
+  const [newsUrl, setNewsUrl] = useState<string>("");
+  const [selectedCategory, setSelectedCategory] = useState<string>("");
+  const [headlines, setHeadlines] = useState<Array<{ headline: string; link: string }>>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // SEC EDGAR test state
+  const [cik, setCik] = useState("");
+  const [symbol, setSymbol] = useState("");
+  const [edgarResult, setEdgarResult] = useState<any>(null);
+  const [edgarLoading, setEdgarLoading] = useState(false);
+  const [edgarError, setEdgarError] = useState<string | null>(null);
+
+  async function fetchEdgar() {
+    setEdgarLoading(true);
+    setEdgarError(null);
+    setEdgarResult(null);
+    try {
+      // Send both cik and symbol if provided
+      const params = new URLSearchParams();
+      if (cik) params.append("cik", cik);
+      if (symbol) params.append("symbol", symbol);
+      const res = await fetch(`/api/sec-edgar?${params.toString()}`);
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || `HTTP ${res.status}`);
+      }
+      const data = await res.json();
+      setEdgarResult(data);
+    } catch (err) {
+      setEdgarError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setEdgarLoading(false);
+    }
+  }
+
+  async function fetchHeadlines() {
+    setLoading(true);
+    setError(null);
+    setHeadlines([]);
+    try {
+      let url = '';
+      if (selectedCategory) {
+        url = `/api/scrape-news?url=${encodeURIComponent(selectedCategory)}`;
+      } else {
+        url = `/api/scrape-news?url=${encodeURIComponent(newsUrl)}`;
+      }
+      const res = await fetch(url);
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || `HTTP ${res.status}`);
+      }
+      const data = await res.json();
+      setHeadlines(data.headlines || []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setLoading(false);
+    }
+  }
+  // ...existing code...
   // Mock thesis data
   const mockHealthyThesis: InvestmentThesis = {
     id: 'test_energy_margin',
@@ -263,6 +325,99 @@ export default function TestComponentsPage() {
           <p className="text-[#9CA3AF]">Phase 2: Testing extracted components</p>
         </div>
 
+        {/* SEC EDGAR Test Section */}
+        <section className="bg-[#0E1114] border border-neutral-800 rounded-lg p-6 mb-8">
+          <h2 className="text-xl font-bold text-[#E5E7EB] mb-4">SEC EDGAR Test</h2>
+          <div className="mb-4 flex flex-col sm:flex-row gap-2">
+            <input
+              type="text"
+              value={cik}
+              onChange={e => setCik(e.target.value)}
+              className="flex-1 px-3 py-2 rounded border border-neutral-700 bg-neutral-900 text-white"
+              placeholder="Enter CIK (e.g. 0000320193 for Apple)"
+            />
+            <input
+              type="text"
+              value={symbol}
+              onChange={e => setSymbol(e.target.value)}
+              className="flex-1 px-3 py-2 rounded border border-neutral-700 bg-neutral-900 text-white"
+              placeholder="Or enter Symbol (e.g. AAPL)"
+            />
+            <button
+              onClick={fetchEdgar}
+              className="px-4 py-2 bg-green-600 hover:bg-green-500 text-white rounded"
+              disabled={edgarLoading || (!cik && !symbol)}
+            >
+              {edgarLoading ? 'Loading...' : 'Fetch Filings'}
+            </button>
+          </div>
+          {edgarError && (
+            <div className="text-red-500 mb-2">
+              <strong>Error:</strong> {edgarError}
+            </div>
+          )}
+          {edgarResult && (
+            <div className="bg-neutral-900 border border-neutral-700 rounded p-4 text-white text-sm overflow-x-auto">
+              <div><strong>CIK:</strong> {edgarResult.cik}</div>
+              <div><strong>Name:</strong> {edgarResult.name || edgarResult.entityType || 'N/A'}</div>
+              <div><strong>Filings:</strong></div>
+              <pre className="whitespace-pre-wrap max-h-64 overflow-y-auto">{JSON.stringify(edgarResult, null, 2)}</pre>
+            </div>
+          )}
+        </section>
+
+        {/* News Scraping Test Section */}
+        <section className="bg-[#0E1114] border border-neutral-800 rounded-lg p-6 mb-8">
+          <h2 className="text-xl font-bold text-[#E5E7EB] mb-4">Finnhub News Test</h2>
+          <div className="mb-4 flex flex-col sm:flex-row gap-2">
+            <input
+              type="text"
+              value={newsUrl}
+              onChange={e => setNewsUrl(e.target.value)}
+              className="flex-1 px-3 py-2 rounded border border-neutral-700 bg-neutral-900 text-white"
+              placeholder="Enter ticker (e.g. AAPL) or keyword (e.g. oil)"
+            />
+            <button
+              onClick={fetchHeadlines}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded"
+              disabled={loading}
+            >
+              {loading ? 'Loading...' : 'Fetch Headlines'}
+            </button>
+          </div>
+          {error && (
+            <div className="text-red-500 mb-2">
+              <strong>Error:</strong> {error}
+              {error.includes('timed out') && (
+                <div>Request timed out. <button className="underline text-blue-400" onClick={fetchHeadlines}>Try Again</button></div>
+              )}
+              {error.includes('rate limit') && (
+                <div>API rate limit exceeded. Please wait and try again later.</div>
+              )}
+              {error.includes('unauthorized') && (
+                <div>API key error. Please check your Finnhub API key configuration.</div>
+              )}
+              {!error.includes('timed out') && !error.includes('rate limit') && !error.includes('unauthorized') && (
+                <div>Try a different ticker (e.g. <span className="font-mono">AAPL</span>) or keyword (e.g. <span className="font-mono">oil</span>).</div>
+              )}
+            </div>
+          )}
+          <ul className="space-y-2">
+            {headlines.map((h, idx) => (
+              <li key={idx}>
+                <a href={h.link} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">
+                  {h.headline}
+                </a>
+              </li>
+            ))}
+            {!loading && headlines.length === 0 && !error && (
+              <li className="text-neutral-400">
+                No headlines found.<br />
+                Try a different ticker (e.g. <span className="font-mono">AAPL</span>) or keyword (e.g. <span className="font-mono">oil</span>).
+              </li>
+            )}
+          </ul>
+        </section>
         {/* Shared Components Section */}
         <section className="bg-[#0E1114] border border-neutral-800 rounded-lg p-6">
           <h2 className="text-xl font-bold text-[#E5E7EB] mb-4">Shared UI Components</h2>

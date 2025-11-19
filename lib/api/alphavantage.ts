@@ -165,6 +165,8 @@ export interface FinancialData {
 
 const API_KEY = process.env.ALPHAVANTAGE_API_KEY;
 const BASE_URL = 'https://www.alphavantage.co/query';
+import { markRateLimited } from '../rateLimitTracker';
+import { recordRateLimit } from '../metrics';
 
 // Adding detailed logging to debug fetching quotes
 export const fetchAlphaVantageQuote = async (symbol: string): Promise<AlphaVantageQuote | null> => {
@@ -193,12 +195,14 @@ export const fetchAlphaVantageQuote = async (symbol: string): Promise<AlphaVanta
     if (data['Error Message'] || data['Note'] || data['Information']) {
       const errorMsg = data['Error Message'] || data['Note'] || data['Information'];
       console.warn(`Alpha Vantage error for ${symbol}:`, errorMsg);
-      
+
       // Throw specific error for rate limits so it can be caught and classified
       if (errorMsg.toLowerCase().includes('rate limit') || errorMsg.toLowerCase().includes('api rate limit')) {
+        try { recordRateLimit('alpha_vantage', errorMsg); } catch {}
+        try { markRateLimited('alpha_vantage', 1); } catch {}
         throw new Error(`RATE_LIMIT: ${errorMsg}`);
       }
-      
+
       return null;
     }
 
@@ -217,6 +221,17 @@ export const fetchAlphaVantageQuote = async (symbol: string): Promise<AlphaVanta
     };
   } catch (error) {
     console.warn(`Alpha Vantage fetch failed for ${symbol}:`, error);
+    // Propagate rate-limit errors so callers can handle them specially
+    if (error && (error as any).message && (error as any).message.toString().toLowerCase().includes('rate_limit')) {
+      try { recordRateLimit('alpha_vantage', (error as any).message); } catch {}
+      try { markRateLimited('alpha_vantage', 1); } catch {}
+      throw error;
+    }
+    if (error && (error as any).message && (error as any).message.toString().toLowerCase().includes('rate limit')) {
+      try { recordRateLimit('alpha_vantage', (error as any).message); } catch {}
+      try { markRateLimited('alpha_vantage', 1); } catch {}
+      throw error;
+    }
     return null;
   }
 };
@@ -332,6 +347,8 @@ export const fetchCompanyOverview = async (symbol: string): Promise<CompanyOverv
       console.warn(`Alpha Vantage overview error for ${symbol}:`, errorMsg);
       
       if (errorMsg.toLowerCase().includes('rate limit')) {
+        try { recordRateLimit('alpha_vantage', errorMsg); } catch {}
+        try { markRateLimited('alpha_vantage', 1); } catch {}
         throw new Error(`RATE_LIMIT: ${errorMsg}`);
       }
       
@@ -347,6 +364,16 @@ export const fetchCompanyOverview = async (symbol: string): Promise<CompanyOverv
     return data as CompanyOverview;
   } catch (error) {
     console.warn(`Failed to fetch overview for ${symbol}:`, error);
+    if (error && (error as any).message && (error as any).message.toString().toLowerCase().includes('rate_limit')) {
+      try { recordRateLimit('alpha_vantage', (error as any).message); } catch {}
+      try { markRateLimited('alpha_vantage', 1); } catch {}
+      throw error;
+    }
+    if (error && (error as any).message && (error as any).message.toString().toLowerCase().includes('rate limit')) {
+      try { recordRateLimit('alpha_vantage', (error as any).message); } catch {}
+      try { markRateLimited('alpha_vantage', 1); } catch {}
+      throw error;
+    }
     return null;
   }
 };
@@ -381,6 +408,8 @@ export const fetchIncomeStatement = async (symbol: string): Promise<FinancialDat
       console.warn(`Alpha Vantage income statement error for ${symbol}:`, errorMsg);
       
       if (errorMsg.toLowerCase().includes('rate limit')) {
+        try { recordRateLimit('alpha_vantage', errorMsg); } catch {}
+        try { markRateLimited('alpha_vantage', 1); } catch {}
         throw new Error(`RATE_LIMIT: ${errorMsg}`);
       }
       
@@ -393,6 +422,16 @@ export const fetchIncomeStatement = async (symbol: string): Promise<FinancialDat
     };
   } catch (error) {
     console.warn(`Failed to fetch income statement for ${symbol}:`, error);
+    if (error && (error as any).message && (error as any).message.toString().toLowerCase().includes('rate_limit')) {
+      try { recordRateLimit('alpha_vantage', (error as any).message); } catch {}
+      try { markRateLimited('alpha_vantage', 1); } catch {}
+      throw error;
+    }
+    if (error && (error as any).message && (error as any).message.toString().toLowerCase().includes('rate limit')) {
+      try { recordRateLimit('alpha_vantage', (error as any).message); } catch {}
+      try { markRateLimited('alpha_vantage', 1); } catch {}
+      throw error;
+    }
     return null;
   }
 };
@@ -426,6 +465,8 @@ export const fetchBalanceSheet = async (symbol: string): Promise<FinancialData |
       console.warn(`Alpha Vantage balance sheet error for ${symbol}:`, errorMsg);
       
       if (errorMsg.toLowerCase().includes('rate limit')) {
+        try { recordRateLimit('alpha_vantage', errorMsg); } catch {}
+        try { markRateLimited('alpha_vantage', 1); } catch {}
         throw new Error(`RATE_LIMIT: ${errorMsg}`);
       }
       
@@ -438,6 +479,16 @@ export const fetchBalanceSheet = async (symbol: string): Promise<FinancialData |
     };
   } catch (error) {
     console.warn(`Failed to fetch balance sheet for ${symbol}:`, error);
+    if (error && (error as any).message && (error as any).message.toString().toLowerCase().includes('rate_limit')) {
+      try { recordRateLimit('alpha_vantage', (error as any).message); } catch {}
+      try { markRateLimited('alpha_vantage', 1); } catch {}
+      throw error;
+    }
+    if (error && (error as any).message && (error as any).message.toString().toLowerCase().includes('rate limit')) {
+      try { recordRateLimit('alpha_vantage', (error as any).message); } catch {}
+      try { markRateLimited('alpha_vantage', 1); } catch {}
+      throw error;
+    }
     return null;
   }
 };
@@ -471,6 +522,8 @@ export const fetchCashFlow = async (symbol: string): Promise<FinancialData | nul
       console.warn(`Alpha Vantage cash flow error for ${symbol}:`, errorMsg);
       
       if (errorMsg.toLowerCase().includes('rate limit')) {
+        try { recordRateLimit('alpha_vantage', errorMsg); } catch {}
+        try { markRateLimited('alpha_vantage', 1); } catch {}
         throw new Error(`RATE_LIMIT: ${errorMsg}`);
       }
       
@@ -483,6 +536,16 @@ export const fetchCashFlow = async (symbol: string): Promise<FinancialData | nul
     };
   } catch (error) {
     console.warn(`Failed to fetch cash flow for ${symbol}:`, error);
+    if (error && (error as any).message && (error as any).message.toString().toLowerCase().includes('rate_limit')) {
+      try { recordRateLimit('alpha_vantage', (error as any).message); } catch {}
+      try { markRateLimited('alpha_vantage', 1); } catch {}
+      throw error;
+    }
+    if (error && (error as any).message && (error as any).message.toString().toLowerCase().includes('rate limit')) {
+      try { recordRateLimit('alpha_vantage', (error as any).message); } catch {}
+      try { markRateLimited('alpha_vantage', 1); } catch {}
+      throw error;
+    }
     return null;
   }
 };

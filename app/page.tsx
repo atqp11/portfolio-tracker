@@ -11,6 +11,7 @@ import { fetchEnergyNews, fetchCopperNews } from '@/lib/api/news';
 import { saveToCache, loadFromCache, classifyApiError, formatCacheAge, getCacheAge, ApiError } from '@/lib/cache';
 import { USE_MOCK_DATA, MOCK_PRICES, MOCK_PRICE_CHANGES } from '@/lib/mockData';
 import { usePortfolio, useStocks, usePortfolioMetrics } from '@/lib/hooks/useDatabase';
+import RiskMetricsPanel from '@/components/RiskMetricsPanel';
 import AlertBanner from '@/components/AlertBanner';
 import CommodityCard from '@/components/CommodityCard';
 import PortfolioHeader from '@/components/PortfolioHeader';
@@ -39,6 +40,76 @@ export default function Home() {
   const metrics = usePortfolioMetrics(dbStocks, dbPortfolio?.borrowedAmount || 0);
 
   const config = configs.find(c => c.id === active)!;
+
+  // Risk Metrics State
+  const [riskMetrics, setRiskMetrics] = useState(null);
+  const [riskLoading, setRiskLoading] = useState(false);
+  const [riskError, setRiskError] = useState<string | null>(null);
+
+  // Compute returns for risk metrics
+  function getPortfolioReturns(stocks: Array<{ currentPrice?: number; avgPrice: number; shares: number; previousPrice?: number }>): number[] {
+    if (!stocks || stocks.length === 0) return [];
+    const currentValue = stocks.reduce((sum: number, s) => sum + (s.currentPrice ?? s.avgPrice) * s.shares, 0);
+    const previousValue = stocks.reduce((sum: number, s) => sum + (s.previousPrice ?? s.avgPrice) * s.shares, 0);
+    if (previousValue > 0) {
+      return [(currentValue - previousValue) / previousValue];
+    }
+    return [];
+  }
+  function getMarketReturns(): number[] {
+    // Use commodity price change as market proxy (demo)
+    if (active === 'energy' && market.commodities && market.commodities.oil && market.commodities.oil.price && market.commodities.oil.previousPrice) {
+      const curr = market.commodities.oil.price;
+      const prev = market.commodities.oil.previousPrice;
+      if (prev > 0) return [(curr - prev) / prev];
+    }
+    if (active === 'copper' && market.commodities && market.commodities.price && market.commodities.previousPrice) {
+      const curr = market.commodities.price;
+      const prev = market.commodities.previousPrice;
+      if (prev > 0) return [(curr - prev) / prev];
+    }
+    return [0.01];
+  }
+  const riskFreeRate = 0.045;
+
+  async function fetchRiskMetrics() {
+    setRiskLoading(true);
+    setRiskError(null);
+    try {
+      const safeStocks = dbStocks.map(stock => ({
+        ...stock,
+        currentPrice: stock.currentPrice === null ? undefined : stock.currentPrice,
+        previousPrice: stock.previousPrice === null ? undefined : stock.previousPrice,
+      }));
+      const portfolioReturns = getPortfolioReturns(safeStocks);
+      const marketReturns = getMarketReturns();
+      if (portfolioReturns.length === 0 || marketReturns.length === 0) throw new Error('Insufficient data for risk metrics');
+      const res = await fetch('/api/risk-metrics', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ portfolioReturns, marketReturns, riskFreeRate }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || `HTTP ${res.status}`);
+      }
+      const data = await res.json();
+      setRiskMetrics(data);
+    } catch (err) {
+      setRiskError(err instanceof Error ? err.message : String(err));
+      setRiskMetrics(null);
+    } finally {
+      setRiskLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    // Fetch risk metrics when stocks or market data change
+    if (dbStocks.length > 0 && market.commodities) {
+      fetchRiskMetrics();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dbStocks, market.commodities, active]);
 
   const fetchLivePortfolioData = async () => {
     setIsLoading(true);
@@ -526,30 +597,30 @@ export default function Home() {
           })}
         </div>
 
-        {/* Summary */}
+        {/* Summary & Risk Metrics */}
         <div className="bg-[#0E1114] border border-neutral-800 p-4 sm:p-6 rounded-lg text-center sm:text-left">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <p className="text-lg sm:text-xl font-bold text-[#E5E7EB]">
-                Portfolio Value: {displayAccountValue > 0 ? `$${displayAccountValue.toFixed(0)}` : 'N/A'}
+              <p className="text-lg sm:text-xl font-bold">
+                <span className="text-white">Portfolio Value:</span> <span className={displayUnrealizedPL > 0.0001 ? 'text-[#22C55E]' : displayUnrealizedPL < -0.0001 ? 'text-[#EF4444]' : 'text-[#E5E7EB]'}>{displayAccountValue > 0 ? `$${displayAccountValue.toFixed(0)}` : 'N/A'}</span>
               </p>
               <p className="text-xs sm:text-sm text-[#9CA3AF] mt-1">
                 Cost Basis: ${displayCostBasis.toFixed(0)}
               </p>
               {displayAccountValue > 0 && (
-                <p className={`text-xs sm:text-sm mt-1 ${getChangeColor(displayUnrealizedPL)}`}>
+                <p className={`text-xs sm:text-sm mt-1 font-medium ${displayUnrealizedPL > 0.0001 ? 'text-[#22C55E]' : displayUnrealizedPL < -0.0001 ? 'text-[#EF4444]' : 'text-[#E5E7EB]'}`}>
                   Unrealized P&L: {displayUnrealizedPL >= 0 ? '+' : ''}${displayUnrealizedPL.toFixed(2)}
-                  <span className={`ml-1 ${getChangeColor(displayUnrealizedPLPercent)}`}>
+                  <span className={`ml-1 ${displayUnrealizedPLPercent > 0.0001 ? 'text-[#22C55E]' : displayUnrealizedPLPercent < -0.0001 ? 'text-[#EF4444]' : 'text-[#E5E7EB]'}`}>
                     ({displayUnrealizedPLPercent >= 0 ? '+' : ''}{displayUnrealizedPLPercent.toFixed(2)}%)
                   </span>
                 </p>
               )}
             </div>
             <div>
-              <p className="text-xs sm:text-sm text-[#9CA3AF]">
+              <p className="text-xs sm:text-sm text-white font-semibold">
                 Stop-Loss: ${config.stopLossValue} | Take Profit: ${config.takeProfitValue}
               </p>
-              <p className="text-xs sm:text-sm text-[#9CA3AF] mt-1">
+              <p className="text-xs sm:text-sm text-white font-semibold mt-1">
                 Cash: ${config.initialCash} | Margin: ${config.initialMargin}
               </p>
               {apiError && (
@@ -559,7 +630,11 @@ export default function Home() {
               )}
             </div>
           </div>
-            </div>
+          {/* Risk Metrics Panel */}
+          <div className="mt-6">
+            <RiskMetricsPanel metrics={riskMetrics} loading={riskLoading} error={riskError} />
+          </div>
+        </div>
           </div>
 
           {/* Right Column: Strategy & Monitoring Guide */}

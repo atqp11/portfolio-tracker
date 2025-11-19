@@ -1,3 +1,124 @@
+// ============================================================================
+// RISK METRICS TYPES & API
+// ============================================================================
+
+export interface RiskMetrics {
+  sharpe: number | null;
+  sortino: number | null;
+  alpha: number | null;
+  beta: number | null;
+  calmar: number | null;
+  stdDev: number | null;
+  maxDrawdown: number | null;
+  currentDrawdown: number | null;
+  rSquared: number | null;
+}
+
+/**
+ * Calculate Sharpe Ratio
+ * Formula: (Portfolio Return - Risk-Free Rate) / Portfolio StdDev
+ */
+export function calculateSharpeRatio(portfolioReturns: number[], riskFreeRate: number): number | null {
+  if (!portfolioReturns.length) return null;
+  const avgReturn = portfolioReturns.reduce((a, b) => a + b, 0) / portfolioReturns.length;
+  const excessReturns = portfolioReturns.map(r => r - riskFreeRate);
+  const stdDev = Math.sqrt(excessReturns.reduce((sum, r) => sum + Math.pow(r - (avgReturn - riskFreeRate), 2), 0) / excessReturns.length);
+  if (stdDev === 0) return null;
+  return (avgReturn - riskFreeRate) / stdDev;
+}
+
+/**
+ * Calculate Sortino Ratio
+ * Formula: (Portfolio Return - Risk-Free Rate) / Downside Deviation
+ */
+export function calculateSortinoRatio(portfolioReturns: number[], riskFreeRate: number): number | null {
+  if (!portfolioReturns.length) return null;
+  const avgReturn = portfolioReturns.reduce((a, b) => a + b, 0) / portfolioReturns.length;
+  const downsideReturns = portfolioReturns.filter(r => r < riskFreeRate);
+  if (!downsideReturns.length) return null;
+  const downsideDev = Math.sqrt(downsideReturns.reduce((sum, r) => sum + Math.pow(r - riskFreeRate, 2), 0) / downsideReturns.length);
+  if (downsideDev === 0) return null;
+  return (avgReturn - riskFreeRate) / downsideDev;
+}
+
+/**
+ * Calculate Alpha
+ * Formula: Portfolio Return - [Risk-Free Rate + Beta * (Market Return - Risk-Free Rate)]
+ */
+export function calculateAlpha(portfolioReturn: number, marketReturn: number, beta: number, riskFreeRate: number): number | null {
+  const expectedReturn = riskFreeRate + beta * (marketReturn - riskFreeRate);
+  return portfolioReturn - expectedReturn;
+}
+
+/**
+ * Calculate Beta
+ * Formula: Covariance(Portfolio, Market) / Variance(Market)
+ */
+export function calculateBeta(portfolioReturns: number[], marketReturns: number[]): number | null {
+  if (portfolioReturns.length !== marketReturns.length || !portfolioReturns.length) return null;
+  const avgPortfolio = portfolioReturns.reduce((a, b) => a + b, 0) / portfolioReturns.length;
+  const avgMarket = marketReturns.reduce((a, b) => a + b, 0) / marketReturns.length;
+  let cov = 0, varMarket = 0;
+  for (let i = 0; i < portfolioReturns.length; i++) {
+    cov += (portfolioReturns[i] - avgPortfolio) * (marketReturns[i] - avgMarket);
+    varMarket += Math.pow(marketReturns[i] - avgMarket, 2);
+  }
+  cov /= portfolioReturns.length;
+  varMarket /= marketReturns.length;
+  if (varMarket === 0) return null;
+  return cov / varMarket;
+}
+
+/**
+ * Calculate Standard Deviation
+ */
+export function calculateStdDev(returns: number[]): number | null {
+  if (!returns.length) return null;
+  const avg = returns.reduce((a, b) => a + b, 0) / returns.length;
+  const variance = returns.reduce((sum, r) => sum + Math.pow(r - avg, 2), 0) / returns.length;
+  return Math.sqrt(variance);
+}
+
+/**
+ * Calculate Maximum Drawdown
+ */
+export function calculateMaxDrawdown(values: number[]): number | null {
+  if (!values.length) return null;
+  let maxPeak = values[0];
+  let maxDD = 0;
+  for (const v of values) {
+    if (v > maxPeak) maxPeak = v;
+    const dd = (v - maxPeak) / maxPeak;
+    if (dd < maxDD) maxDD = dd;
+  }
+  return Math.abs(maxDD);
+}
+
+/**
+ * Calculate Current Drawdown
+ */
+export function calculateCurrentDrawdown(values: number[]): number | null {
+  if (!values.length) return null;
+  const maxPeak = Math.max(...values);
+  const last = values[values.length - 1];
+  return Math.abs((last - maxPeak) / maxPeak);
+}
+
+/**
+ * Calculate R-squared (correlation strength)
+ */
+export function calculateRSquared(portfolioReturns: number[], marketReturns: number[]): number | null {
+  if (portfolioReturns.length !== marketReturns.length || !portfolioReturns.length) return null;
+  const avgPortfolio = portfolioReturns.reduce((a, b) => a + b, 0) / portfolioReturns.length;
+  const avgMarket = marketReturns.reduce((a, b) => a + b, 0) / marketReturns.length;
+  let ssTot = 0, ssRes = 0;
+  for (let i = 0; i < portfolioReturns.length; i++) {
+    ssTot += Math.pow(portfolioReturns[i] - avgPortfolio, 2);
+    ssRes += Math.pow(portfolioReturns[i] - avgPortfolio - (marketReturns[i] - avgMarket), 2);
+  }
+  if (ssTot === 0) return null;
+  return 1 - ssRes / ssTot;
+}
 // lib/calculator.ts
 
 // ============================================================================

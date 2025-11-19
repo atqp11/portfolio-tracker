@@ -1,4 +1,6 @@
 # 🔄 Portfolio Tracker Refactoring Plan
+#
+> **Note:** This refactoring plan is designed to align with both the PRD and the Stock Research Agent Integration spec (see `prd/stock-research-agent-design.md`). All major architectural features—multi-model AI routing, tiered stock system, three-layer caching, batch jobs, cost management, quality assurance, security, and monitoring—are planned for integration. Any features from the agent spec not yet implemented are scheduled for future phases, ensuring full strategic alignment.
 
 **Date:** November 14, 2025  
 **Status:** Planning Phase  
@@ -138,18 +140,10 @@ app/
       page.tsx              # Risk analytics
     thesis/
       page.tsx              # Thesis tracker dashboard
-      [id]/
-        page.tsx            # Individual thesis editor
-    checklist/
-      page.tsx              # Daily/weekly checklist
     
 components/
-  dashboard/                # NEW
-    PortfolioOverview.tsx   # Value cards, P&L
-    HoldingsGrid.tsx        # Sortable holdings table
     AllocationChart.tsx     # Pie/donut chart
     PerformanceChart.tsx    # Portfolio vs S&P 500
-  fundamentals/             # NEW
     MetricsGrid.tsx         # 30+ metrics display
     HistoricalChart.tsx     # 10Y financials
     ComparisonView.tsx      # Side-by-side stocks
@@ -415,25 +409,16 @@ CREATE TABLE checklist_templates (
 - Top navigation bar
 - Sidebar navigation (collapsible)
 - Breadcrumbs
-- Command palette (⌘K)
-
-**Structure:**
-```typescript
 // components/layout/DashboardLayout.tsx
 ├── TopNav
-│   ├── Logo
-│   ├── Portfolio selector
-│   ├── Command palette trigger
 │   └── User menu
 ├── Sidebar
-│   ├── Overview
 │   ├── Holdings
 │   ├── Fundamentals
 │   ├── Risk Analytics
 │   ├── Thesis Tracker
 │   └── Checklist
 └── Main content area
-```
 
 #### 3.2 Performance Optimization
 **Targets (from PRD):**

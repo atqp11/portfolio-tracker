@@ -5,28 +5,39 @@ export interface CacheData {
   timestamp: number;
 }
 
+function hasLocalStorage(): boolean {
+  try {
+    if (typeof localStorage !== 'undefined') return true;
+  } catch (e) {
+    // ignore
+  }
+  return typeof (global as any).localStorage !== 'undefined';
+}
+
 export function saveToCache(key: string, data: any): void {
-  if (typeof window === 'undefined') return;
-  
+  if (!hasLocalStorage()) return;
+
   const cacheData: CacheData = {
     data,
     timestamp: Date.now(),
   };
-  
+
   try {
-    localStorage.setItem(key, JSON.stringify(cacheData));
+    const storage = (typeof localStorage !== 'undefined') ? localStorage : (global as any).localStorage;
+    storage.setItem(key, JSON.stringify(cacheData));
   } catch (error) {
     console.error('Failed to save to cache:', error);
   }
 }
 
 export function loadFromCache<T = any>(key: string): T | null {
-  if (typeof window === 'undefined') return null;
-  
+  if (!hasLocalStorage()) return null;
+
   try {
-    const cached = localStorage.getItem(key);
+    const storage = (typeof localStorage !== 'undefined') ? localStorage : (global as any).localStorage;
+    const cached = storage.getItem(key);
     if (!cached) return null;
-    
+
     const cacheData = JSON.parse(cached) as CacheData;
     return cacheData.data as T;
   } catch (error) {
@@ -36,12 +47,13 @@ export function loadFromCache<T = any>(key: string): T | null {
 }
 
 export function getCacheAge(key: string): number {
-  if (typeof window === 'undefined') return 0;
-  
+  if (!hasLocalStorage()) return 0;
+
   try {
-    const cached = localStorage.getItem(key);
+    const storage = (typeof localStorage !== 'undefined') ? localStorage : (global as any).localStorage;
+    const cached = storage.getItem(key);
     if (!cached) return 0;
-    
+
     const cacheData = JSON.parse(cached) as CacheData;
     return Date.now() - cacheData.timestamp;
   } catch (error) {
@@ -262,13 +274,14 @@ export async function warmFundamentalsCache(tickers: string[]): Promise<void> {
  * Clear all fundamental caches (useful for debugging)
  */
 export function clearFundamentalsCache(): void {
-  if (typeof window === 'undefined') return;
-  
+  if (!hasLocalStorage()) return;
+
   try {
-    const keys = Object.keys(localStorage);
+    const storage = (typeof localStorage !== 'undefined') ? localStorage : (global as any).localStorage;
+    const keys = Object.keys(storage);
     keys.forEach(key => {
       if (key.startsWith('AV:')) {
-        localStorage.removeItem(key);
+        storage.removeItem(key);
       }
     });
     console.log('Fundamentals cache cleared');
