@@ -55,7 +55,26 @@
 
 ## 🟡 HIGH PRIORITY (Improves UX & Maintainability)
 
-### 3. Navigation Structure
+### 3. Upgrade to Latest Next.js
+**Why:** Security updates, performance improvements, bug fixes
+**Time:** 2-3 hours
+**Blocker:** No
+
+**Tasks:**
+- [ ] Check current Next.js version: `npm list next`
+- [ ] Review Next.js changelog for breaking changes
+- [ ] Update Next.js: `npm install next@latest react@latest react-dom@latest`
+- [ ] Update dependencies that depend on Next.js version
+- [ ] Run build and fix any breaking changes
+- [ ] Test all pages and API routes
+- [ ] Update Husky pre-push hook (remove deprecated lines)
+
+**Current Version:** 14.2.33
+**Target:** Latest stable (15.x)
+
+---
+
+### 4. Navigation Structure
 **Why:** Better UX, scalability for new features
 **Time:** 4-6 hours
 **Blocker:** No
@@ -80,7 +99,7 @@
 
 ---
 
-### 4. Refactor app/page.tsx
+### 5. Refactor app/page.tsx
 **Why:** Maintainability, performance
 **Time:** 6-8 hours
 **Blocker:** Navigation structure recommended first
@@ -98,7 +117,7 @@
 
 ---
 
-### 5. Performance Optimization Pass
+### 6. Performance Optimization Pass
 **Why:** Better UX, meet <1.5s page load target
 **Time:** 6-8 hours
 **Blocker:** No
@@ -118,7 +137,7 @@
 
 ## 🟢 MEDIUM PRIORITY (Quality & Polish)
 
-### 6. Testing Infrastructure
+### 7. Testing Infrastructure
 **Time:** 8-12 hours
 **Blocker:** No
 
@@ -137,7 +156,7 @@
 
 ---
 
-### 7. Mobile UX Improvements
+### 8. Mobile UX Improvements
 **Time:** 4-6 hours
 **Blocker:** Navigation structure
 
@@ -153,7 +172,7 @@
 
 ---
 
-### 8. Security & Production Prep
+### 9. Security & Production Prep
 **Time:** 4-6 hours
 **Blocker:** No
 
@@ -171,7 +190,7 @@
 
 ## ⚪ LOW PRIORITY (Nice to Have)
 
-### 9. Additional Features
+### 10. Additional Features
 **Time:** Varies
 **Blocker:** Complete critical items first
 
