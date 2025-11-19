@@ -19,16 +19,15 @@ export const fetchFMPQuote = async (symbol: string): Promise<FMPQuote | null> =>
     return null;
   }
 
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 5000);
+
   try {
     console.log(`Fetching FMP quote for symbol: ${symbol}`);
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000);
 
     const url = `${BASE_URL}/quote?symbol=${encodeURIComponent(symbol)}&apikey=${API_KEY}`;
     console.log(`FMP request URL: ${url}`);
     const response = await fetch(url, { signal: controller.signal });
-
-    clearTimeout(timeoutId);
 
     if (!response.ok) {
       // Try to capture a useful message from the body (some accounts hit a
@@ -74,6 +73,8 @@ export const fetchFMPQuote = async (symbol: string): Promise<FMPQuote | null> =>
       }
     }
     return null;
+  } finally {
+    clearTimeout(timeoutId); // Always clear timeout
   }
 };
 

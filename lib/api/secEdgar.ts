@@ -19,14 +19,16 @@ export async function fetchCompanyFilings(cik: string): Promise<any> {
       },
       signal: controller.signal,
     });
-    clearTimeout(timeoutId);
   } catch (err) {
+    clearTimeout(timeoutId); // Clear timeout on error
     if (typeof err === 'object' && err !== null && 'name' in err && (err as any).name === 'AbortError') {
       console.error('SEC EDGAR API request timed out');
       throw new Error('SEC EDGAR API request timed out');
     }
     console.error('Network error when calling SEC EDGAR:', err);
     throw new Error('Network error when calling SEC EDGAR API');
+  } finally {
+    clearTimeout(timeoutId); // Always clear timeout
   }
   if (!res.ok) {
     let errorMsg = `SEC EDGAR API error: ${res.status} ${res.statusText}`;

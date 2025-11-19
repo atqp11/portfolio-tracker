@@ -21,14 +21,16 @@ export async function fetchYahooQuote(ticker: string): Promise<any> {
       },
       signal: controller.signal,
     });
-    clearTimeout(timeoutId);
   } catch (err) {
+    clearTimeout(timeoutId); // Clear timeout on error
     if (typeof err === 'object' && err !== null && 'name' in err && (err as any).name === 'AbortError') {
       console.error('Yahoo Finance API request timed out');
       throw new Error('Yahoo Finance API request timed out');
     }
     console.error('Network error when calling Yahoo Finance:', err);
     throw new Error('Network error when calling Yahoo Finance API');
+  } finally {
+    clearTimeout(timeoutId); // Always clear timeout
   }
   if (!res.ok) {
     let errorMsg = `Yahoo Finance API error: ${res.status} ${res.statusText}`;

@@ -22,14 +22,16 @@ export async function fetchBraveNews(query: string): Promise<any> {
       },
       signal: controller.signal,
     });
-    clearTimeout(timeoutId);
   } catch (err) {
+    clearTimeout(timeoutId); // Clear timeout on error
     if (typeof err === 'object' && err !== null && 'name' in err && (err as any).name === 'AbortError') {
       console.error('Brave Search API request timed out');
       throw new Error('Brave Search API request timed out');
     }
     console.error('Network error when calling Brave Search:', err);
     throw new Error('Network error when calling Brave Search API');
+  } finally {
+    clearTimeout(timeoutId); // Always clear timeout
   }
   if (!res.ok) {
     let errorMsg = `Brave Search API error: ${res.status} ${res.statusText}`;

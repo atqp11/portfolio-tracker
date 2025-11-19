@@ -175,17 +175,16 @@ export const fetchAlphaVantageQuote = async (symbol: string): Promise<AlphaVanta
     return null;
   }
 
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 5000); // Reduced to 5 seconds for faster failure
+
   try {
     console.log(`Fetching quote for symbol: ${symbol}`);
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000); // Reduced to 5 seconds for faster failure
 
     const response = await fetch(
       `${BASE_URL}?function=GLOBAL_QUOTE&symbol=${symbol}&apikey=${API_KEY}`,
       { signal: controller.signal }
     );
-
-    clearTimeout(timeoutId);
 
     console.log(`Response received for symbol: ${symbol}`);
     const data = await response.json();
@@ -233,6 +232,8 @@ export const fetchAlphaVantageQuote = async (symbol: string): Promise<AlphaVanta
       throw error;
     }
     return null;
+  } finally {
+    clearTimeout(timeoutId); // Always clear timeout
   }
 };
 
@@ -327,17 +328,16 @@ export const fetchCompanyOverview = async (symbol: string): Promise<CompanyOverv
     return null;
   }
 
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 10000);
+
   try {
     console.log(`Fetching company overview for: ${symbol}`);
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000);
 
     const response = await fetch(
       `${BASE_URL}?function=OVERVIEW&symbol=${symbol}&apikey=${API_KEY}`,
       { signal: controller.signal }
     );
-
-    clearTimeout(timeoutId);
 
     const data = await response.json();
 
@@ -375,6 +375,8 @@ export const fetchCompanyOverview = async (symbol: string): Promise<CompanyOverv
       throw error;
     }
     return null;
+  } finally {
+    clearTimeout(timeoutId); // Always clear timeout
   }
 };
 
@@ -388,17 +390,16 @@ export const fetchIncomeStatement = async (symbol: string): Promise<FinancialDat
     return null;
   }
 
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 10000);
+
   try {
     console.log(`Fetching income statement for: ${symbol}`);
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000);
 
     const response = await fetch(
       `${BASE_URL}?function=INCOME_STATEMENT&symbol=${symbol}&apikey=${API_KEY}`,
       { signal: controller.signal }
     );
-
-    clearTimeout(timeoutId);
 
     const data = await response.json();
 
@@ -433,6 +434,8 @@ export const fetchIncomeStatement = async (symbol: string): Promise<FinancialDat
       throw error;
     }
     return null;
+  } finally {
+    clearTimeout(timeoutId); // Always clear timeout
   }
 };
 
@@ -445,17 +448,16 @@ export const fetchBalanceSheet = async (symbol: string): Promise<FinancialData |
     return null;
   }
 
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 10000);
+
   try {
     console.log(`Fetching balance sheet for: ${symbol}`);
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000);
 
     const response = await fetch(
       `${BASE_URL}?function=BALANCE_SHEET&symbol=${symbol}&apikey=${API_KEY}`,
       { signal: controller.signal }
     );
-
-    clearTimeout(timeoutId);
 
     const data = await response.json();
 
@@ -490,6 +492,8 @@ export const fetchBalanceSheet = async (symbol: string): Promise<FinancialData |
       throw error;
     }
     return null;
+  } finally {
+    clearTimeout(timeoutId); // Always clear timeout
   }
 };
 
@@ -502,17 +506,16 @@ export const fetchCashFlow = async (symbol: string): Promise<FinancialData | nul
     return null;
   }
 
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 10000);
+
   try {
     console.log(`Fetching cash flow for: ${symbol}`);
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000);
 
     const response = await fetch(
       `${BASE_URL}?function=CASH_FLOW&symbol=${symbol}&apikey=${API_KEY}`,
       { signal: controller.signal }
     );
-
-    clearTimeout(timeoutId);
 
     const data = await response.json();
 
@@ -547,6 +550,8 @@ export const fetchCashFlow = async (symbol: string): Promise<FinancialData | nul
       throw error;
     }
     return null;
+  } finally {
+    clearTimeout(timeoutId); // Always clear timeout
   }
 };
 

@@ -21,12 +21,14 @@ export async function fetchFinnhubCompanyNews(symbol: string, from: string, to: 
   let res;
   try {
     res = await fetch(url, { signal: controller.signal });
-    clearTimeout(timeoutId);
   } catch (err) {
+    clearTimeout(timeoutId); // Clear timeout on error
     if (err instanceof Error && err.name === 'AbortError') {
       throw new Error('Finnhub API request timed out');
     }
     throw new Error('Network error when calling Finnhub API');
+  } finally {
+    clearTimeout(timeoutId); // Always clear timeout
   }
   if (res.status === 401) throw new Error('Finnhub API unauthorized (401): Check API key');
   if (res.status === 429) throw new Error('Finnhub API rate limit exceeded (429)');
