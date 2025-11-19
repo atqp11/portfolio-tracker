@@ -10,9 +10,11 @@ describe('Alpha Vantage parsing and resilience', () => {
     av = await import('@/lib/api/alphavantage');
   });
 
+  let consoleErrorSpy: jest.SpyInstance;
   beforeEach(() => {
     jest.resetAllMocks();
     process.env.DISABLE_TELEMETRY_COMPACTION = '1';
+    consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
   });
 
   test('fetchAlphaVantageQuote handles malformed numeric fields (price -> NaN)', async () => {
@@ -167,6 +169,9 @@ describe('Alpha Vantage parsing and resilience', () => {
     const cached = getCachedFundamentals('FOO', 'fundamentals');
     expect(cached).not.toBeNull();
     expect((cached as any).overview).toStrictEqual(overview);
+  });
+  afterEach(() => {
+    if (consoleErrorSpy) consoleErrorSpy.mockRestore();
   });
 });
 

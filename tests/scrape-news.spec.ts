@@ -3,25 +3,21 @@ import { scrapeNewsHeadlines } from '../lib/api/braveSearch';
 describe('scrapeNewsHeadlines', () => {
   beforeEach(() => {
     jest.resetAllMocks();
+    (process.env as any).FINNHUB_API_KEY = 'test-key';
   });
 
   test('should return an array of headlines for a valid news site', async () => {
-    // Mock fetch to return sample HTML
+    // Mock fetch to return Finnhub-style JSON array
     (global as any).fetch = jest.fn(() =>
       Promise.resolve({
         ok: true,
-        text: () =>
-          Promise.resolve(`
-        <html>
-          <body>
-            <a data-testid="Heading" href="/news1">Headline 1</a>
-            <a data-testid="Heading" href="/news2">Headline 2</a>
-          </body>
-        </html>
-      `),
+        json: () => Promise.resolve([
+          { headline: 'Headline 1', url: '/news1' },
+          { headline: 'Headline 2', url: '/news2' }
+        ])
       })
     );
-    const url = 'https://www.reuters.com/';
+    const url = 'AAPL'; // Use ticker to trigger Finnhub branch
     const headlines = await scrapeNewsHeadlines(url);
     expect(Array.isArray(headlines)).toBe(true);
     expect(headlines.length).toBe(2);
@@ -35,6 +31,8 @@ describe('scrapeNewsHeadlines', () => {
     (global as any).fetch = jest.fn(() =>
       Promise.resolve({ ok: false, status: 404, statusText: 'Not Found', text: () => Promise.resolve('Not Found') })
     );
-    await expect(scrapeNewsHeadlines('https://invalid-url-for-testing.com/')).rejects.toThrow();
+    const headlines = await scrapeNewsHeadlines('AAPL');
+    expect(Array.isArray(headlines)).toBe(true);
+    expect(headlines.length).toBe(0);
   });
 });

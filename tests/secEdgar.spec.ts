@@ -3,9 +3,11 @@ import { fetchCompanyFilings } from '../lib/api/secEdgar';
 describe('fetchCompanyFilings', () => {
   const CIK = '0000320193'; // Example: Apple Inc.
 
+  let consoleErrorSpy: jest.SpyInstance;
   beforeEach(() => {
     jest.resetAllMocks();
     (process.env as any).EDGAR_API_KEY = 'test-key';
+    consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
   });
 
   test('returns data for valid CIK', async () => {
@@ -59,5 +61,8 @@ describe('fetchCompanyFilings', () => {
       })
     );
     await expect(fetchCompanyFilings(CIK)).rejects.toThrow(/Unexpected SEC EDGAR API response structure/);
+  });
+  afterEach(() => {
+    if (consoleErrorSpy) consoleErrorSpy.mockRestore();
   });
 });
