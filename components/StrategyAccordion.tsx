@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { get, set } from '@/lib/storage';
+import { ActionButton } from '@/components/shared';
 
 interface DecisionRow {
   title: string;
@@ -240,11 +241,11 @@ export default function StrategyAccordion({
   const getUrgencyColor = (urgency: 'green' | 'yellow' | 'red') => {
     switch (urgency) {
       case 'green':
-        return 'bg-green-900/30 border-green-500/50 text-green-300';
+        return 'text-green-900/30 border-green-500/50 text-green-300';
       case 'yellow':
-        return 'bg-yellow-900/30 border-yellow-500/50 text-yellow-300';
+        return 'text-yellow-900/30 border-yellow-500/50 text-yellow-300';
       case 'red':
-        return 'bg-red-900/30 border-red-500/50 text-red-300';
+        return 'text-red-900/30 border-red-500/50 text-red-300';
     }
   };
 
@@ -265,21 +266,22 @@ export default function StrategyAccordion({
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <span className="text-2xl">📊</span>
-          <h3 className="text-lg sm:text-xl font-bold text-[#E5E7EB]">
+          <h3 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-gray-100">
             Strategy & Monitoring Guide
           </h3>
         </div>
+
         <button
           onClick={handleResetAll}
-          className="text-xs sm:text-sm px-3 py-1.5 bg-neutral-800 hover:bg-neutral-700 text-[#9CA3AF] hover:text-[#E5E7EB] rounded transition-colors"
+          className="text-xs sm:text-sm px-3 py-1.5 bg-neutral-600/20 text-gray-900 dark:text-gray-100 hover:bg-neutral-600 transition-colors border border-neutral-500 hover:border-neutral-400 rounded whitespace-nowrap"
         >
           Reset All Reviews
         </button>
       </div>
 
       {/* Pro Tip Card - Always Visible */}
-      <div className="bg-blue-900/20 border border-blue-500/30 rounded-lg p-4">
-        <p className="text-xs sm:text-sm text-blue-300">
+      <div className="text-blue-600 dark:text-blue-400/20 border border-blue-500/30 rounded-lg p-4">
+        <p className="text-xs sm:text-sm text-blue-600 dark:text-blue-400">
           <strong>💡 Pro Tip:</strong> Use this guide daily to stay disciplined. Leverage amplifies both
           gains <span className="text-green-400">↑</span> and losses{' '}
           <span className="text-red-400">↓</span>. Stick to your stops and take profits when targets
@@ -288,19 +290,19 @@ export default function StrategyAccordion({
       </div>
 
       {/* Portfolio Decisions Accordion */}
-      <div className="bg-[#0E1114] border border-neutral-800 rounded-lg overflow-hidden">
+      <div className="bg-white dark:bg-gray-900 border border-neutral-300 dark:border-neutral-800 rounded-lg overflow-hidden">
         <button
           onClick={() => setIsDecisionsOpen(!isDecisionsOpen)}
-          className="w-full px-4 sm:px-6 py-4 flex items-center justify-between hover:bg-neutral-900/50 transition-colors"
+          className="w-full px-4 sm:px-6 py-4 flex items-center justify-between hover:bg-gray-100 dark:hover:bg-neutral-900/50 transition-colors"
         >
           <div className="flex items-center gap-3">
             <span className="text-xl">🎯</span>
-            <h4 className="text-lg sm:text-xl font-semibold text-[#E5E7EB]">
+            <h4 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-gray-100">
               Portfolio Decisions
             </h4>
           </div>
           <svg
-            className={`w-6 h-6 text-[#9CA3AF] transition-transform ${isDecisionsOpen ? 'rotate-180' : ''}`}
+            className={`w-6 h-6 text-gray-900 dark:text-gray-100 transition-transform ${isDecisionsOpen ? 'rotate-180' : ''}`}
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
@@ -323,7 +325,7 @@ export default function StrategyAccordion({
                     {/* Decision Header */}
                     <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 mb-3">
                       <div className="flex items-center gap-2 flex-1">
-                        <h5 className="font-semibold text-[#E5E7EB] text-sm sm:text-base">
+                        <h5 className="font-semibold text-gray-900 dark:text-gray-100 text-sm sm:text-base">
                           {decision.title}
                         </h5>
                         <span
@@ -336,8 +338,8 @@ export default function StrategyAccordion({
                         onClick={() => handleMarkReviewed('decision', key)}
                         className={`text-xs px-3 py-1 rounded transition-colors whitespace-nowrap ${
                           isReviewed
-                            ? 'bg-blue-500/20 text-blue-400 border border-blue-500/50'
-                            : 'bg-neutral-700 text-[#9CA3AF] hover:bg-neutral-600'
+                            ? 'bg-blue-600/20 text-blue-400 border border-blue-500/50'
+                            : 'bg-neutral-600/20 text-gray-900 dark:text-gray-100 hover:bg-neutral-600 transition-colors border border-neutral-500 hover:border-neutral-400'
                         }`}
                       >
                         {isReviewed ? '✓ Reviewed' : 'Mark as Reviewed'}
@@ -345,11 +347,11 @@ export default function StrategyAccordion({
                     </div>
 
                     {/* Description */}
-                    <p className="text-xs sm:text-sm text-[#E5E7EB] mb-2">{decision.description}</p>
+                    <p className="text-xs sm:text-sm text-gray-900 dark:text-gray-100 mb-2">{decision.description}</p>
 
                     {/* Rationale (Tooltip/Expandable) */}
                     <details className="group mb-2">
-                      <summary className="text-xs text-[#9CA3AF] cursor-pointer hover:text-[#E5E7EB] list-none flex items-center gap-1">
+                      <summary className="text-xs text-gray-900 dark:text-gray-100 cursor-pointer hover:text-gray-900 dark:text-gray-100 list-none flex items-center gap-1">
                         <svg
                           className="w-4 h-4 group-open:rotate-90 transition-transform"
                           fill="none"
@@ -365,12 +367,12 @@ export default function StrategyAccordion({
                         </svg>
                         <span className="underline">Why this matters</span>
                       </summary>
-                      <p className="text-xs text-[#9CA3AF] mt-2 ml-5 italic">{decision.rationale}</p>
+                      <p className="text-xs text-gray-900 dark:text-gray-100 mt-2 ml-5 italic">{decision.rationale}</p>
                     </details>
 
                     {/* Trigger Condition */}
                     {decision.triggerCondition && (
-                      <p className="text-xs text-[#9CA3AF] mb-2">
+                      <p className="text-xs text-gray-900 dark:text-gray-100 mb-2">
                         <strong>Trigger:</strong> {decision.triggerCondition}
                       </p>
                     )}
@@ -379,30 +381,23 @@ export default function StrategyAccordion({
                     {decision.action && (
                       <div className="mt-3 flex flex-wrap gap-2">
                         {decision.action === 'delever' && (
-                          <button
+                          <ActionButton
                             onClick={handleExecuteDelever}
-                            className={`text-xs sm:text-sm px-4 py-2 text-white font-bold rounded-lg shadow-lg transition-all border-2 ${
-                              decision.urgency === 'red' 
-                                ? 'bg-red-600 hover:bg-red-700 border-red-400 hover:shadow-red-500/50 animate-pulse hover:animate-none' 
-                                : decision.urgency === 'yellow'
-                                ? 'bg-yellow-600 hover:bg-yellow-700 border-yellow-400 hover:shadow-yellow-500/50'
-                                : 'bg-neutral-600 hover:bg-neutral-700 border-neutral-500 hover:shadow-neutral-500/50'
-                            }`}
+                            urgency={decision.urgency === 'red' ? 'red' : decision.urgency === 'yellow' ? 'yellow' : 'neutral'}
+                            animated={decision.urgency === 'red'}
+                            size="md"
                           >
                             {decision.urgency === 'red' ? '🚨' : decision.urgency === 'yellow' ? '⚠️' : '📊'} Execute Delever
-                          </button>
+                          </ActionButton>
                         )}
                         {decision.action === 'profit' && (
-                          <button
+                          <ActionButton
                             onClick={handleTakeProfit}
-                            className={`text-xs sm:text-sm px-4 py-2 text-white font-bold rounded-lg shadow-lg transition-all border-2 ${
-                              decision.urgency === 'yellow'
-                                ? 'bg-green-600 hover:bg-green-700 border-green-400 hover:shadow-green-500/50'
-                                : 'bg-neutral-600 hover:bg-neutral-700 border-neutral-500 hover:shadow-neutral-500/50'
-                            }`}
+                            urgency={decision.urgency === 'yellow' ? 'green' : 'neutral'}
+                            size="md"
                           >
                             {decision.urgency === 'yellow' ? '💰' : '📊'} Take Profit
-                          </button>
+                          </ActionButton>
                         )}
                       </div>
                     )}
@@ -415,19 +410,19 @@ export default function StrategyAccordion({
       </div>
 
       {/* Monitoring Checklist Accordion */}
-      <div className="bg-[#0E1114] border border-neutral-800 rounded-lg overflow-hidden">
+      <div className="bg-white dark:bg-gray-900 border border-neutral-300 dark:border-neutral-800 rounded-lg overflow-hidden">
         <button
           onClick={() => setIsMonitoringOpen(!isMonitoringOpen)}
-          className="w-full px-4 sm:px-6 py-4 flex items-center justify-between hover:bg-neutral-900/50 transition-colors"
+          className="w-full px-4 sm:px-6 py-4 flex items-center justify-between hover:bg-gray-100 dark:hover:bg-neutral-900/50 transition-colors"
         >
           <div className="flex items-center gap-3">
             <span className="text-xl">📋</span>
-            <h4 className="text-lg sm:text-xl font-semibold text-[#E5E7EB]">
+            <h4 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-gray-100">
               Monitoring Checklist
             </h4>
           </div>
           <svg
-            className={`w-6 h-6 text-[#9CA3AF] transition-transform ${isMonitoringOpen ? 'rotate-180' : ''}`}
+            className={`w-6 h-6 text-gray-900 dark:text-gray-100 transition-transform ${isMonitoringOpen ? 'rotate-180' : ''}`}
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
@@ -443,7 +438,7 @@ export default function StrategyAccordion({
                 const tasks = monitoring.filter((t) => t.frequency === freq);
                 return (
                   <div key={freq} className="space-y-2">
-                    <h5 className="text-sm sm:text-base font-semibold text-[#9CA3AF] flex items-center gap-2">
+                    <h5 className="text-sm sm:text-base font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2">
                       <span>
                         {freq === 'Daily' ? '🌅' : freq === 'Weekly' ? '📅' : '📆'}
                       </span>
@@ -462,11 +457,11 @@ export default function StrategyAccordion({
                               <div className="flex items-start gap-2 mb-1">
                                 <input
                                   type="checkbox"
-                                  checked={isReviewed}
+                                  checked={!!isReviewed}
                                   onChange={() => handleMarkReviewed('task', key)}
-                                  className="mt-1 w-4 h-4 rounded border-neutral-600 bg-neutral-800 checked:bg-blue-600"
+                                  className="mt-1 w-4 h-4 rounded border-gray-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 checked:bg-blue-600"
                                 />
-                                <p className="text-xs sm:text-sm text-[#E5E7EB] flex-1">
+                                <p className="text-xs sm:text-sm text-gray-900 dark:text-gray-100 flex-1">
                                   {task.task}
                                 </p>
                                 <span
@@ -478,7 +473,7 @@ export default function StrategyAccordion({
                                 </span>
                               </div>
                               {task.condition && (
-                                <p className="text-xs text-[#9CA3AF] ml-6">{task.condition}</p>
+                                <p className="text-xs text-gray-900 dark:text-gray-100 ml-6">{task.condition}</p>
                               )}
                             </div>
                           </div>

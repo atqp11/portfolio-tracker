@@ -54,8 +54,8 @@ export default function ChecklistTaskCard({
   return (
     <div
       className={`
-        bg-[#0E1114] border rounded-lg p-3 transition-all
-        ${task.completed ? 'border-green-800/50 opacity-75' : 'border-neutral-800 hover:border-neutral-700'}
+        bg-white dark:bg-gray-900 border rounded-lg p-3 transition-all
+        ${task.completed ? 'border-green-800/50 opacity-75' : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'}
       `}
     >
       {/* Header */}
@@ -65,9 +65,9 @@ export default function ChecklistTaskCard({
           onClick={() => onToggleComplete?.(task.id)}
           className={`
             w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-all mt-0.5
-            ${task.completed 
-              ? 'bg-green-600 border-green-500' 
-              : 'border-neutral-600 hover:border-neutral-500'
+            ${task.completed
+              ? 'bg-green-600 border-green-500'
+              : 'border-gray-400 dark:border-gray-600 hover:border-gray-500 dark:hover:border-gray-500'
             }
           `}
         >
@@ -82,14 +82,14 @@ export default function ChecklistTaskCard({
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1 flex-wrap">
             <span className="text-lg">{getCategoryIcon(task.category)}</span>
-            <span className="text-xs font-medium text-[#9CA3AF]">{getCategoryLabel(task.category)}</span>
+            <span className="text-xs font-medium text-gray-600 dark:text-gray-400">{getCategoryLabel(task.category)}</span>
             <UrgencyBadge urgency={task.urgency} size="sm" />
             <span className={`text-xs px-2 py-0.5 rounded border font-medium ${getFrequencyColor(task.frequency)}`}>
               {task.frequency}
             </span>
           </div>
-          
-          <p className={`text-sm ${task.completed ? 'line-through text-[#6B7280]' : 'text-[#E5E7EB]'}`}>
+
+          <p className={`text-sm ${task.completed ? 'line-through text-gray-500 dark:text-gray-500' : 'text-gray-900 dark:text-gray-100'}`}>
             {task.task}
           </p>
         </div>
@@ -100,7 +100,7 @@ export default function ChecklistTaskCard({
           {/* Condition */}
           {task.condition && (
             <div className="ml-8 mb-2">
-              <p className="text-xs text-[#9CA3AF]">
+              <p className="text-xs text-gray-600 dark:text-gray-400">
                 <strong>Condition:</strong> {task.condition}
               </p>
             </div>
@@ -112,7 +112,7 @@ export default function ChecklistTaskCard({
               <div className="flex items-center gap-2 mb-1">
                 <span className="text-xs font-semibold text-yellow-400">⚡ Event Triggered</span>
               </div>
-              <p className="text-xs text-[#9CA3AF]">{task.trigger.description}</p>
+              <p className="text-xs text-gray-600 dark:text-gray-400">{task.trigger.description}</p>
               {task.trigger.ticker && (
                 <p className="text-xs text-yellow-400 mt-1">Ticker: {task.trigger.ticker}</p>
               )}
@@ -124,8 +124,8 @@ export default function ChecklistTaskCard({
             <div className="ml-8 mb-2">
               <ExpandableDetails
                 summary={<span className="text-xs underline">View notes</span>}
-                summaryClassName="text-[#9CA3AF]"
-                contentClassName="text-xs text-[#9CA3AF] italic"
+                summaryClassName="text-gray-600 dark:text-gray-400"
+                contentClassName="text-xs text-gray-600 dark:text-gray-400 italic"
               >
                 {task.notes}
               </ExpandableDetails>

@@ -18,7 +18,6 @@ import PortfolioHeader from '@/components/PortfolioHeader';
 import AssetCard from '@/components/AssetCard';
 import StrategyAccordion from '@/components/StrategyAccordion';
 import StonksAI from '@/components/StonksAI/StonksAI';
-import Navigation from '@/components/Navigation';
 
 export default function Home() {
   const [active, setActive] = useState<'energy' | 'copper'>('energy');
@@ -435,9 +434,7 @@ export default function Home() {
   const currentPortfolioTickers = dbStocks.map(stock => stock.symbol);
 
   return (
-    <>
-      <Navigation />
-      <main className="min-h-screen bg-[#0A0C0E] p-4 sm:p-6">
+    <div className="space-y-6">
         <AlertBanner alerts={alerts} />
 
       <div className="max-w-5xl mx-auto">
@@ -452,7 +449,7 @@ export default function Home() {
               className={`flex-1 min-w-[120px] px-4 py-2 rounded-lg font-medium text-sm transition ${
                 active === c.id
                   ? 'bg-blue-600 text-white'
-                  : 'bg-[#0E1114] text-[#E5E7EB] border border-neutral-800 hover:border-neutral-700'
+                  : 'bg-gray-200 dark:bg-gray-800 text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-700 hover:border-gray-400 dark:hover:border-gray-600'
               }`}
             >
               {c.name}
@@ -474,10 +471,10 @@ export default function Home() {
           </button>
           <button
             onClick={() => setIsAiSidebarOpen(!isAiSidebarOpen)}
-            className={`px-4 py-2 rounded-lg font-medium transition flex items-center gap-2 ${
+            className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 flex items-center gap-2 ${
               isAiSidebarOpen
-                ? 'bg-purple-600 text-white hover:bg-purple-700'
-                : 'bg-[#0E1114] text-[#E5E7EB] border border-purple-600 hover:bg-purple-600 hover:text-white'
+                ? 'bg-purple-600 text-white hover:bg-purple-700 shadow-lg'
+                : 'bg-gradient-to-r from-purple-700 to-purple-800 dark:bg-gray-800 text-white dark:text-gray-100 hover:from-purple-500 hover:to-purple-600 dark:hover:bg-purple-600 dark:hover:text-white hover:shadow-purple-400/50 backdrop-blur-sm shadow-lg hover:shadow-xl hover:scale-105'
             }`}
             title="Toggle AI Co-Pilot"
           >
@@ -490,7 +487,7 @@ export default function Home() {
             </span>
           )}
           {!isLoading && lastCacheUpdate && (
-            <span className="text-sm text-[#9CA3AF]">
+            <span className="text-sm text-gray-600 dark:text-gray-400">
               Last updated: {lastCacheUpdate}
             </span>
           )}
@@ -527,16 +524,16 @@ export default function Home() {
         </div>
 
         {/* Snapshot */}
-        <div className="bg-[#0E1114] border border-neutral-800 p-4 sm:p-6 rounded-lg mb-6">
-          <div className="text-xs sm:text-sm whitespace-pre-wrap font-sans leading-relaxed text-[#E5E7EB]">
+        <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 p-4 sm:p-6 rounded-lg mb-6">
+          <div className="text-xs sm:text-sm whitespace-pre-wrap font-sans leading-relaxed text-gray-900 dark:text-gray-100">
             {market.snapshot && market.snapshot.split('\n').map((line: string, index: number) => {
               // Handle bold text (**text**)
               if (line.includes('**')) {
                 const parts = line.split('**');
                 return (
                   <div key={index}>
-                    {parts.map((part, i) => 
-                      i % 2 === 1 ? <strong key={i} className="text-[#E5E7EB]">{part}</strong> : <span key={i}>{part}</span>
+                    {parts.map((part, i) =>
+                      i % 2 === 1 ? <strong key={i} className="text-gray-900 dark:text-gray-100">{part}</strong> : <span key={i}>{part}</span>
                     )}
                   </div>
                 );
@@ -598,29 +595,29 @@ export default function Home() {
         </div>
 
         {/* Summary & Risk Metrics */}
-        <div className="bg-[#0E1114] border border-neutral-800 p-4 sm:p-6 rounded-lg text-center sm:text-left">
+        <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 p-4 sm:p-6 rounded-lg text-center sm:text-left">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <p className="text-lg sm:text-xl font-bold">
-                <span className="text-white">Portfolio Value:</span> <span className={displayUnrealizedPL > 0.0001 ? 'text-[#22C55E]' : displayUnrealizedPL < -0.0001 ? 'text-[#EF4444]' : 'text-[#E5E7EB]'}>{displayAccountValue > 0 ? `$${displayAccountValue.toFixed(0)}` : 'N/A'}</span>
+                <span className="text-gray-900 dark:text-gray-100">Portfolio Value:</span> <span className={displayUnrealizedPL > 0.0001 ? 'text-green-600 dark:text-green-400' : displayUnrealizedPL < -0.0001 ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-gray-100'}>{displayAccountValue > 0 ? `$${displayAccountValue.toFixed(0)}` : 'N/A'}</span>
               </p>
-              <p className="text-xs sm:text-sm text-[#9CA3AF] mt-1">
+              <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 mt-1">
                 Cost Basis: ${displayCostBasis.toFixed(0)}
               </p>
               {displayAccountValue > 0 && (
-                <p className={`text-xs sm:text-sm mt-1 font-medium ${displayUnrealizedPL > 0.0001 ? 'text-[#22C55E]' : displayUnrealizedPL < -0.0001 ? 'text-[#EF4444]' : 'text-[#E5E7EB]'}`}>
+                <p className={`text-xs sm:text-sm mt-1 font-medium ${displayUnrealizedPL > 0.0001 ? 'text-green-600 dark:text-green-400' : displayUnrealizedPL < -0.0001 ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-gray-100'}`}>
                   Unrealized P&L: {displayUnrealizedPL >= 0 ? '+' : ''}${displayUnrealizedPL.toFixed(2)}
-                  <span className={`ml-1 ${displayUnrealizedPLPercent > 0.0001 ? 'text-[#22C55E]' : displayUnrealizedPLPercent < -0.0001 ? 'text-[#EF4444]' : 'text-[#E5E7EB]'}`}>
+                  <span className={`ml-1 ${displayUnrealizedPLPercent > 0.0001 ? 'text-green-600 dark:text-green-400' : displayUnrealizedPLPercent < -0.0001 ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-gray-100'}`}>
                     ({displayUnrealizedPLPercent >= 0 ? '+' : ''}{displayUnrealizedPLPercent.toFixed(2)}%)
                   </span>
                 </p>
               )}
             </div>
             <div>
-              <p className="text-xs sm:text-sm text-white font-semibold">
+              <p className="text-xs sm:text-sm text-gray-900 dark:text-gray-100 font-semibold">
                 Stop-Loss: ${config.stopLossValue} | Take Profit: ${config.takeProfitValue}
               </p>
-              <p className="text-xs sm:text-sm text-white font-semibold mt-1">
+              <p className="text-xs sm:text-sm text-gray-900 dark:text-gray-100 font-semibold mt-1">
                 Cash: ${config.initialCash} | Margin: ${config.initialMargin}
               </p>
               {apiError && (
@@ -655,16 +652,16 @@ export default function Home() {
         {/* News Section - Full Width Below Grid */}
         <div className="mt-6 space-y-3 text-sm">
           {market.news?.map((n: any, index: number) => (
-            <div key={`news-${index}`} className="border-b border-neutral-800 pb-3 last:border-0">
+            <div key={`news-${index}`} className="border-b border-gray-200 dark:border-gray-700 pb-3 last:border-0">
               <a
                 href={n.url}
                 target="_blank"
                 rel="noopener"
-                className="font-medium text-blue-400 hover:underline block mb-1"
+                className="font-medium text-blue-600 dark:text-blue-400 hover:underline block mb-1"
               >
                 {n.title}
               </a>
-              <p className="text-xs text-[#9CA3AF]">{n.source} · {n.date}</p>
+              <p className="text-xs text-gray-600 dark:text-gray-400">{n.source} · {n.date}</p>
             </div>
           ))}
         </div>
@@ -692,11 +689,11 @@ export default function Home() {
               </div>
               <div className="ml-3 flex-1">
                 <h3 className={`text-sm font-medium ${
-                  apiError.type === 'rate_limit' ? 'text-yellow-400' :
-                  apiError.type === 'auth' ? 'text-red-400' :
-                  apiError.type === 'network' ? 'text-blue-400' :
-                  apiError.type === 'server' ? 'text-orange-400' :
-                  'text-gray-400'
+                  apiError.type === 'rate_limit' ? 'text-yellow-600 dark:text-yellow-400' :
+                  apiError.type === 'auth' ? 'text-red-600 dark:text-red-400' :
+                  apiError.type === 'network' ? 'text-blue-600 dark:text-blue-400' :
+                  apiError.type === 'server' ? 'text-orange-600 dark:text-orange-400' :
+                  'text-gray-600 dark:text-gray-400'
                 }`}>
                   {apiError.type === 'rate_limit' ? 'API Rate Limit Reached' :
                    apiError.type === 'auth' ? 'Authentication Error' :
@@ -705,11 +702,11 @@ export default function Home() {
                    'Error'}
                 </h3>
                 <p className={`mt-1 text-sm ${
-                  apiError.type === 'rate_limit' ? 'text-yellow-300' :
-                  apiError.type === 'auth' ? 'text-red-300' :
-                  apiError.type === 'network' ? 'text-blue-300' :
-                  apiError.type === 'server' ? 'text-orange-300' :
-                  'text-gray-300'
+                  apiError.type === 'rate_limit' ? 'text-yellow-700 dark:text-yellow-300' :
+                  apiError.type === 'auth' ? 'text-red-700 dark:text-red-300' :
+                  apiError.type === 'network' ? 'text-blue-700 dark:text-blue-300' :
+                  apiError.type === 'server' ? 'text-orange-700 dark:text-orange-300' :
+                  'text-gray-700 dark:text-gray-300'
                 }`}>
                   {apiError.message}
                   {lastCacheUpdate && (
@@ -746,7 +743,7 @@ export default function Home() {
                 onClick={() => setApiError(null)}
                 className="ml-3 flex-shrink-0"
               >
-                <svg className="h-5 w-5 text-[#9CA3AF] hover:text-[#E5E7EB]" fill="currentColor" viewBox="0 0 20 20">
+                <svg className="h-5 w-5 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd"/>
                 </svg>
               </button>
@@ -764,14 +761,14 @@ export default function Home() {
             onClick={() => setIsAiSidebarOpen(false)}
           />
           {/* Sidebar */}
-          <div className="fixed top-0 right-0 h-full w-full sm:w-[90%] md:w-[600px] lg:w-[700px] xl:w-[800px] bg-[#121212] z-50 shadow-2xl transform transition-transform duration-300 ease-in-out overflow-hidden animate-slideInRight">
+          <div className="fixed top-0 right-0 h-full w-full sm:w-[90%] md:w-[600px] lg:w-[700px] xl:w-[800px] bg-white dark:bg-gray-950 z-50 shadow-2xl transform transition-transform duration-300 ease-in-out overflow-hidden animate-slideInRight">
             {/* Close button */}
             <button
               onClick={() => setIsAiSidebarOpen(false)}
-              className="absolute top-4 right-4 z-[60] p-2 bg-[#1e1e1e] hover:bg-red-600 rounded-lg transition border border-gray-700"
+              className="absolute top-4 right-4 z-[60] p-2 bg-gray-200 dark:bg-gray-800 hover:bg-red-600 rounded-lg transition border border-gray-300 dark:border-gray-700"
               title="Close AI Co-Pilot"
             >
-              <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-6 h-6 text-gray-900 dark:text-gray-100" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
@@ -792,7 +789,6 @@ export default function Home() {
           </div>
         </>
       )}
-    </main>
-    </>
+    </div>
   );
 }

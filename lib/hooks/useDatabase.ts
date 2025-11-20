@@ -71,7 +71,7 @@ export interface InvestmentThesis {
   exitCriteria: ExitCriteria;
   thesisHealthScore: number;
   urgency: 'green' | 'yellow' | 'red';
-  lastValidated: string | null;
+  lastValidated: Date | null;
   validationHistory?: any[];
   status: string;
   createdAt: string;
@@ -121,14 +121,19 @@ export function usePortfolio(type: 'energy' | 'copper') {
       try {
         setLoading(true);
         setError(null);
-        
+
         // Fetch all portfolios and find by type
         const response = await fetch('/api/portfolio');
         if (!response.ok) throw new Error('Failed to fetch portfolios');
-        
+
         const portfolios: Portfolio[] = await response.json();
+        console.log('[usePortfolio] Fetched portfolios:', portfolios);
+        console.log('[usePortfolio] Looking for type:', type);
+        console.log('[usePortfolio] Portfolio types:', portfolios.map(p => ({ id: p.id, name: p.name, type: p.type })));
+
         const found = portfolios.find(p => p.type === type);
-        
+        console.log('[usePortfolio] Found portfolio:', found);
+
         if (found) {
           setPortfolio(found);
         } else {

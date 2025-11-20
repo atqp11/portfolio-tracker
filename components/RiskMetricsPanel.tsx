@@ -10,15 +10,15 @@ interface RiskMetricsPanelProps {
 export default function RiskMetricsPanel({ metrics, loading, error }: RiskMetricsPanelProps) {
   if (loading) {
     return (
-      <div className="bg-[#111111] border border-[#3B82F6]/20 rounded-lg p-6 text-center animate-fadeIn">
-        <span className="text-[#3B82F6] font-bold">Loading risk metrics...</span>
+      <div className="bg-white dark:bg-gray-800 border border-blue-200 dark:border-blue-700 rounded-lg p-6 text-center shadow">
+        <span className="text-blue-600 dark:text-blue-400 font-bold">Loading risk metrics...</span>
       </div>
     );
   }
   if (error) {
     return (
-      <div className="bg-[#111111] border border-[#EF4444]/20 rounded-lg p-6 text-center animate-fadeIn">
-        <span className="text-[#EF4444] font-bold">Error: {error}</span>
+      <div className="bg-white dark:bg-gray-800 border border-red-200 dark:border-red-700 rounded-lg p-6 text-center shadow">
+        <span className="text-red-600 dark:text-red-400 font-bold">Error: {error}</span>
       </div>
     );
   }
@@ -26,8 +26,8 @@ export default function RiskMetricsPanel({ metrics, loading, error }: RiskMetric
     return null;
   }
   return (
-    <div className="bg-[#111111] border border-[#1A1A1A] rounded-lg p-6 animate-fadeIn">
-      <h2 className="text-xl font-bold text-[#FAFAFA] mb-4">Risk Analytics</h2>
+    <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6 shadow">
+      <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4">Risk Analytics</h2>
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
         <MetricCard label="Sharpe Ratio" value={metrics.sharpe} />
         <MetricCard label="Sortino Ratio" value={metrics.sortino} />
@@ -49,9 +49,9 @@ function MetricCard({ label, value, format }: { label: string; value: number | n
     display = (value * 100).toFixed(2) + '%';
   }
   return (
-    <div className="bg-[#1A1A1A] rounded-lg p-4 text-center border border-[#27272A]">
-      <div className="text-sm text-[#A1A1AA] mb-1">{label}</div>
-      <div className="text-2xl font-mono text-[#FAFAFA]">{display}</div>
+    <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 text-center border border-gray-200 dark:border-gray-600">
+      <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">{label}</div>
+      <div className="text-2xl font-mono text-gray-900 dark:text-gray-100">{display}</div>
     </div>
   );
 }
