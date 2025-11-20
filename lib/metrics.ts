@@ -410,7 +410,7 @@ export function stopCompactionCleanupWorker() {
   } catch (err) {
     // On failure, push items back to the front of the queue so they're retried.
     telemetryQueue = batch.concat(telemetryQueue);
-    if (retries < TELEMETRY_MAX_RETRIES) {
+    if (retries < TELEMETRY_MAX_RETRIES + 1) {
       const delay = TELEMETRY_RETRY_BASE_MS * Math.pow(2, retries);
       await new Promise(r => setTimeout(r, delay));
       return flushTelemetryOnce(retries + 1);
