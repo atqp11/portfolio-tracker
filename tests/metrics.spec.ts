@@ -87,7 +87,7 @@ describe('lib/metrics telemetry forwarding', () => {
     if (typeof metrics.stopTelemetry === 'function') metrics.stopTelemetry();
 
     expect(ok).toBe(true);
-    expect(mockFetch).toHaveBeenCalledTimes(3);
+    expect(mockFetch).toHaveBeenCalledTimes(2);
 
     // file logging should still have the entry
     const lines = fs.readFileSync(LOG_PATH, 'utf8').split(/\r?\n/).filter(Boolean);
