@@ -17,6 +17,10 @@ export default function Navigation() {
     { href: '/checklist', label: 'Checklist', icon: '✅' },
   ];
 
+  const adminItems = [
+    { href: '/dashboard', label: 'Admin', icon: '⚙️' },
+  ];
+
   const isActive = (href: string) => {
     if (href === '/') {
       return pathname === '/';
@@ -59,6 +63,31 @@ export default function Navigation() {
                 </Link>
               );
             })}
+
+            {/* Admin Section */}
+            <div className="ml-2 pl-2 border-l border-neutral-700">
+              {adminItems.map((item) => {
+                const active = isActive(item.href);
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={`
+                      flex items-center gap-2 px-3 sm:px-4 py-2 rounded-lg
+                      transition-all duration-200 font-medium
+                      ${
+                        active
+                          ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/50'
+                          : 'text-[#9CA3AF] hover:bg-neutral-700/50 hover:text-[#E5E7EB]'
+                      }
+                    `}
+                  >
+                    <span className="text-lg">{item.icon}</span>
+                    <span className="hidden sm:inline">{item.label}</span>
+                  </Link>
+                );
+              })}
+            </div>
           </div>
         </div>
       </div>
