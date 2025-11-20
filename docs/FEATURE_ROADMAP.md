@@ -34,86 +34,182 @@ Transform the portfolio tracker from a personal tool into a professional SaaS pl
 
 ## 🔐 PHASE 1: Authentication & Tier System
 
-### 1.1 Authentication Infrastructure
-**Time:** 12-16 hours
+### 1.1 Authentication Infrastructure with Supabase
+**Time:** 6-8 hours (faster than NextAuth!)
 **Dependencies:** Next.js 15.x upgrade
+
+**Why Supabase:**
+- ✅ 50K MAU free tier (vs Clerk's 10K)
+- ✅ Database + Auth in one ($25/mo vs $24/mo Vercel Postgres + auth)
+- ✅ All auth methods on free tier (Google, Apple, SMS, email)
+- ✅ Real-time features for live portfolio updates
+- ✅ Built-in file storage (1GB free)
+- ✅ Open source, self-hostable, no vendor lock-in
 
 **Tasks:**
 
-**Setup NextAuth.js (Auth.js v5):**
-- [ ] Install: `npm install next-auth@beta @auth/prisma-adapter`
-- [ ] Create `lib/auth/auth.config.ts` - Auth configuration
-- [ ] Create `lib/auth/auth.ts` - Main auth setup
-- [ ] Update Prisma schema with auth models:
-  ```prisma
-  model User {
-    id            String    @id @default(cuid())
-    name          String?
-    email         String    @unique
-    emailVerified DateTime?
-    image         String?
-    tier          String    @default("free") // free, basic, pro, enterprise
-    createdAt     DateTime  @default(now())
-    updatedAt     DateTime  @updatedAt
+**Setup Supabase Project:**
+- [ ] Create account at https://supabase.com
+- [ ] Create new project (choose region closest to users)
+- [ ] Get API keys from project settings:
+  - `NEXT_PUBLIC_SUPABASE_URL`
+  - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+  - `SUPABASE_SERVICE_ROLE_KEY` (for admin operations)
+- [ ] Add to `.env.local`
 
-    accounts      Account[]
-    sessions      Session[]
-    portfolios    Portfolio[]
-  }
+**Install Supabase Client:**
+- [ ] Install: `npm install @supabase/supabase-js @supabase/ssr`
+- [ ] Create `lib/supabase/client.ts` - Browser client
+  ```typescript
+  import { createBrowserClient } from '@supabase/ssr'
 
-  model Account {
-    id                String  @id @default(cuid())
-    userId            String
-    type              String
-    provider          String
-    providerAccountId String
-    refresh_token     String?
-    access_token      String?
-    expires_at        Int?
-    token_type        String?
-    scope             String?
-    id_token          String?
-    session_state     String?
+  export const supabase = createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  )
+  ```
+- [ ] Create `lib/supabase/server.ts` - Server client (for Server Components)
+  ```typescript
+  import { createServerClient } from '@supabase/ssr'
+  import { cookies } from 'next/headers'
 
-    user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-    @@unique([provider, providerAccountId])
-  }
-
-  model Session {
-    id           String   @id @default(cuid())
-    sessionToken String   @unique
-    userId       String
-    expires      DateTime
-    user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  export const createClient = () => {
+    const cookieStore = cookies()
+    return createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          get(name) { return cookieStore.get(name)?.value },
+          set(name, value, options) { cookieStore.set({ name, value, ...options }) },
+          remove(name, options) { cookieStore.set({ name, value: '', ...options }) },
+        },
+      }
+    )
   }
   ```
-- [ ] Run migration: `npx prisma db push`
+- [ ] Create `lib/supabase/middleware.ts` - Middleware helper
 - [ ] Create `middleware.ts` - Route protection
-- [ ] Create `app/api/auth/[...nextauth]/route.ts` - Auth API routes
 
-**OAuth Providers:**
-- [ ] Configure Google OAuth (Google Cloud Console)
-- [ ] Configure Apple Sign In (Apple Developer Portal)
-- [ ] Add providers to auth config
-- [ ] Test OAuth flows
+**Configure Auth Providers in Supabase Dashboard:**
+- [ ] Enable Google OAuth:
+  - Get credentials from Google Cloud Console
+  - Add to Supabase dashboard → Authentication → Providers
+  - Configure redirect URL: `https://<project-ref>.supabase.co/auth/v1/callback`
 
-**Email/SMS Authentication:**
-- [ ] Install: `npm install @auth/sms-provider nodemailer`
-- [ ] Configure Twilio for SMS (or AWS SNS)
-- [ ] Configure email provider (SendGrid/Resend)
-- [ ] Implement magic link email flow
-- [ ] Implement SMS verification flow
-- [ ] Create verification code UI
+- [ ] Enable Apple Sign In:
+  - Get credentials from Apple Developer Portal
+  - Add to Supabase dashboard → Authentication → Providers
+
+- [ ] Enable Email Auth:
+  - Configure email templates in dashboard
+  - Set up custom SMTP (optional, uses Supabase default)
+
+- [ ] Enable Phone (SMS) Auth:
+  - Add Twilio credentials to Supabase dashboard
+  - Or use Supabase's built-in SMS (limited free quota)
+
+**Database Schema (Supabase handles auth tables automatically):**
+- [ ] Extend Supabase's `auth.users` with custom profile:
+  ```sql
+  -- Run in Supabase SQL Editor
+  CREATE TABLE public.profiles (
+    id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+    tier TEXT NOT NULL DEFAULT 'free', -- free, basic, pro, enterprise
+    stripe_customer_id TEXT,
+    stripe_subscription_id TEXT,
+    subscription_status TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  );
+
+  -- Enable Row Level Security
+  ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+
+  -- Policy: Users can only read their own profile
+  CREATE POLICY "Users can view own profile"
+    ON public.profiles FOR SELECT
+    USING (auth.uid() = id);
+
+  -- Policy: Users can update their own profile
+  CREATE POLICY "Users can update own profile"
+    ON public.profiles FOR UPDATE
+    USING (auth.uid() = id);
+
+  -- Trigger to create profile on user signup
+  CREATE FUNCTION public.handle_new_user()
+  RETURNS TRIGGER AS $$
+  BEGIN
+    INSERT INTO public.profiles (id)
+    VALUES (NEW.id);
+    RETURN NEW;
+  END;
+  $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+  CREATE TRIGGER on_auth_user_created
+    AFTER INSERT ON auth.users
+    FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+  ```
+
+**Auth Callback Route:**
+- [ ] Create `app/auth/callback/route.ts` - Handle OAuth redirects
+  ```typescript
+  import { createClient } from '@/lib/supabase/server'
+  import { NextResponse } from 'next/server'
+
+  export async function GET(request: Request) {
+    const { searchParams, origin } = new URL(request.url)
+    const code = searchParams.get('code')
+    const next = searchParams.get('next') ?? '/dashboard'
+
+    if (code) {
+      const supabase = createClient()
+      const { error } = await supabase.auth.exchangeCodeForSession(code)
+      if (!error) {
+        return NextResponse.redirect(`${origin}${next}`)
+      }
+    }
+
+    return NextResponse.redirect(`${origin}/auth/error`)
+  }
+  ```
 
 **Auth UI Components:**
-- [ ] Create `components/auth/SignInModal.tsx`
-- [ ] Create `components/auth/SignUpModal.tsx`
-- [ ] Create `components/auth/AuthButtons.tsx`
-- [ ] Create `components/auth/ProviderButtons.tsx` (Google, Apple, Email, SMS)
+- [ ] Create `components/auth/SignInWithGoogle.tsx`
+- [ ] Create `components/auth/SignInWithApple.tsx`
+- [ ] Create `components/auth/SignInWithEmail.tsx` (magic link)
+- [ ] Create `components/auth/SignInWithPhone.tsx` (SMS)
+- [ ] Create `components/auth/AuthModal.tsx` - Unified auth modal
 - [ ] Create `app/auth/signin/page.tsx` - Sign in page
 - [ ] Create `app/auth/signup/page.tsx` - Sign up page
 - [ ] Create `app/auth/verify/page.tsx` - Email/SMS verification
+- [ ] Create `app/auth/error/page.tsx` - Auth error page
+
+**Session Management:**
+- [ ] Create `lib/auth/session.ts` - Helper to get current user
+  ```typescript
+  import { createClient } from '@/lib/supabase/server'
+
+  export async function getUser() {
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    return user
+  }
+
+  export async function requireUser() {
+    const user = await getUser()
+    if (!user) throw new Error('Unauthorized')
+    return user
+  }
+  ```
+
+**Test Auth Flows:**
+- [ ] Test Google OAuth login
+- [ ] Test Apple Sign In
+- [ ] Test email magic link
+- [ ] Test SMS verification
+- [ ] Test sign out
+- [ ] Test session persistence
 
 ### 1.2 Tier System & Pricing
 **Time:** 8-10 hours
@@ -148,25 +244,225 @@ Transform the portfolio tracker from a personal tool into a professional SaaS pl
 - [ ] Add Stripe products and prices
 - [ ] Test subscription flow (upgrade/downgrade/cancel)
 
-### 1.3 Multi-User Data Architecture
-**Time:** 6-8 hours
-**Dependencies:** Auth setup
+### 1.3 Database Migration to Supabase
+**Time:** 10-12 hours
+**Dependencies:** Supabase auth setup
+
+**Decision: Migrate from Vercel Postgres + Prisma → Supabase PostgreSQL**
+
+**Why Migrate:**
+- ✅ Consolidate database + auth in one platform
+- ✅ Save $24/mo (Vercel Postgres cost)
+- ✅ Get Row-Level Security (RLS) built-in
+- ✅ Real-time subscriptions for live portfolio updates
+- ✅ 500MB free tier (8GB on Pro)
 
 **Tasks:**
-- [ ] Update Prisma schema - Add `userId` to all models:
-  ```prisma
-  model Portfolio {
-    userId String
-    user   User   @relation(fields: [userId], references: [id])
-    // ... existing fields
+
+**Export Existing Data:**
+- [ ] Export current portfolio data from Vercel Postgres:
+  ```bash
+  # Connect to Vercel Postgres and export
+  pg_dump $DATABASE_URL > portfolio_backup.sql
+  ```
+- [ ] Document current schema (`prisma/schema.prisma`)
+- [ ] Create mapping of Prisma types → PostgreSQL types
+
+**Recreate Schema in Supabase:**
+- [ ] Run in Supabase SQL Editor to create tables:
+  ```sql
+  -- Portfolios table
+  CREATE TABLE public.portfolios (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    type TEXT NOT NULL, -- 'energy' | 'copper'
+    initial_cash DECIMAL(12, 2) NOT NULL,
+    initial_margin DECIMAL(12, 2) NOT NULL,
+    stop_loss_value DECIMAL(12, 2),
+    take_profit_value DECIMAL(12, 2),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  );
+
+  -- Stocks table
+  CREATE TABLE public.stocks (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    portfolio_id UUID NOT NULL REFERENCES public.portfolios(id) ON DELETE CASCADE,
+    symbol TEXT NOT NULL,
+    shares INTEGER NOT NULL,
+    avg_price DECIMAL(10, 4) NOT NULL,
+    current_price DECIMAL(10, 4),
+    last_updated TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  );
+
+  -- Investment Theses table
+  CREATE TABLE public.investment_theses (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    portfolio_id UUID NOT NULL REFERENCES public.portfolios(id) ON DELETE CASCADE,
+    symbol TEXT NOT NULL,
+    thesis TEXT NOT NULL,
+    key_metrics JSONB,
+    bull_case TEXT,
+    bear_case TEXT,
+    risks TEXT,
+    health_score INTEGER,
+    last_validated TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  );
+
+  -- Daily Checklists table
+  CREATE TABLE public.daily_checklists (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    portfolio_id UUID NOT NULL REFERENCES public.portfolios(id) ON DELETE CASCADE,
+    date DATE NOT NULL,
+    completed BOOLEAN DEFAULT FALSE,
+    streak INTEGER DEFAULT 0,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  );
+
+  -- Checklist Tasks table
+  CREATE TABLE public.checklist_tasks (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    checklist_id UUID NOT NULL REFERENCES public.daily_checklists(id) ON DELETE CASCADE,
+    task TEXT NOT NULL,
+    completed BOOLEAN DEFAULT FALSE,
+    priority TEXT DEFAULT 'medium', -- 'low' | 'medium' | 'high'
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  );
+
+  -- Create indexes for performance
+  CREATE INDEX idx_portfolios_user_id ON public.portfolios(user_id);
+  CREATE INDEX idx_stocks_portfolio_id ON public.stocks(portfolio_id);
+  CREATE INDEX idx_stocks_symbol ON public.stocks(symbol);
+  CREATE INDEX idx_theses_portfolio_id ON public.investment_theses(portfolio_id);
+  CREATE INDEX idx_checklists_portfolio_id ON public.daily_checklists(portfolio_id);
+  ```
+
+**Enable Row-Level Security (RLS):**
+- [ ] Create RLS policies for each table:
+  ```sql
+  -- Portfolios RLS
+  ALTER TABLE public.portfolios ENABLE ROW LEVEL SECURITY;
+
+  CREATE POLICY "Users can view own portfolios"
+    ON public.portfolios FOR SELECT
+    USING (auth.uid() = user_id);
+
+  CREATE POLICY "Users can create own portfolios"
+    ON public.portfolios FOR INSERT
+    WITH CHECK (auth.uid() = user_id);
+
+  CREATE POLICY "Users can update own portfolios"
+    ON public.portfolios FOR UPDATE
+    USING (auth.uid() = user_id);
+
+  CREATE POLICY "Users can delete own portfolios"
+    ON public.portfolios FOR DELETE
+    USING (auth.uid() = user_id);
+
+  -- Stocks RLS (via portfolio ownership)
+  ALTER TABLE public.stocks ENABLE ROW LEVEL SECURITY;
+
+  CREATE POLICY "Users can view own stocks"
+    ON public.stocks FOR SELECT
+    USING (
+      EXISTS (
+        SELECT 1 FROM public.portfolios
+        WHERE portfolios.id = stocks.portfolio_id
+        AND portfolios.user_id = auth.uid()
+      )
+    );
+
+  CREATE POLICY "Users can manage own stocks"
+    ON public.stocks FOR ALL
+    USING (
+      EXISTS (
+        SELECT 1 FROM public.portfolios
+        WHERE portfolios.id = stocks.portfolio_id
+        AND portfolios.user_id = auth.uid()
+      )
+    );
+
+  -- Similar policies for theses, checklists, tasks
+  -- (See Supabase docs for complete RLS examples)
+  ```
+
+**Import Existing Data:**
+- [ ] Transform Prisma data to match Supabase schema
+- [ ] Assign all existing portfolios to your user ID (single-user → multi-user)
+- [ ] Import via Supabase SQL Editor or CSV upload
+- [ ] Verify data integrity
+
+**Update Application Code:**
+- [ ] Replace Prisma client with Supabase client in all API routes
+  ```typescript
+  // BEFORE (Prisma)
+  import { prisma } from '@/lib/prisma'
+  const portfolios = await prisma.portfolio.findMany()
+
+  // AFTER (Supabase)
+  import { createClient } from '@/lib/supabase/server'
+  const supabase = createClient()
+  const { data: portfolios } = await supabase
+    .from('portfolios')
+    .select('*')
+  ```
+
+- [ ] Update all API routes (`app/api/*/route.ts`):
+  - [ ] `app/api/portfolio/route.ts`
+  - [ ] `app/api/stocks/route.ts`
+  - [ ] `app/api/thesis/route.ts`
+  - [ ] `app/api/checklist/route.ts`
+  - [ ] `app/api/tasks/route.ts`
+
+- [ ] Update React hooks (`lib/hooks/useDatabase.ts`):
+  - Replace Prisma queries with Supabase queries
+  - RLS automatically filters by user (no need for manual `userId` checks!)
+
+- [ ] Remove Prisma dependencies:
+  ```bash
+  npm uninstall prisma @prisma/client
+  rm -rf prisma/
+  ```
+
+**Add Real-Time Subscriptions (Bonus!):**
+- [ ] Create `lib/supabase/subscriptions.ts`:
+  ```typescript
+  export function subscribeToPortfolio(portfolioId: string, callback: Function) {
+    const supabase = createBrowserClient(...)
+
+    return supabase
+      .channel(`portfolio:${portfolioId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'stocks',
+          filter: `portfolio_id=eq.${portfolioId}`
+        },
+        (payload) => callback(payload)
+      )
+      .subscribe()
   }
   ```
-- [ ] Create data migration script for existing portfolios
-- [ ] Update all API routes to filter by `userId`
-- [ ] Update React hooks to use authenticated user context
-- [ ] Add row-level security checks
-- [ ] Create `lib/auth/getUser.ts` - Server-side user helper
-- [ ] Test data isolation between users
+- [ ] Use in components for live updates (no polling needed!)
+
+**Test Data Isolation:**
+- [ ] Create test user #1, add portfolio
+- [ ] Create test user #2, add portfolio
+- [ ] Verify user #1 cannot see user #2's data
+- [ ] Test all CRUD operations
+- [ ] Test RLS policies work correctly
+
+**Update Environment Variables:**
+- [ ] Remove `DATABASE_URL` (Vercel Postgres)
+- [ ] Add Supabase URLs (already done in Phase 1.1)
+- [ ] Update Vercel environment variables
+- [ ] Test deployment
 
 ---
 
@@ -689,16 +985,19 @@ app/(dashboard)/
 - Next.js Upgrade
 - Navigation Structure
 
-### **Week 3-4: Authentication (Phase 1.1)**
-- NextAuth setup
-- OAuth providers
+### **Week 3-4: Authentication & Database (Phase 1.1 + 1.3)**
+- Supabase project setup
+- Database migration from Vercel Postgres
+- OAuth providers (Google, Apple)
 - Email/SMS auth
-- Auth UI
+- Auth UI components
+- Row-Level Security (RLS)
 
-### **Week 5: Tier System (Phase 1.2 + 1.3)**
-- Pricing tiers
+### **Week 5: Tier System & Payments (Phase 1.2)**
+- Pricing tiers configuration
 - Stripe integration
-- Multi-user data architecture
+- User profile management
+- Tier enforcement
 
 ### **Week 6-7: Landing Page (Phase 2.1)**
 - Marketing pages
@@ -757,20 +1056,47 @@ app/(dashboard)/
 
 ## 💰 Cost Estimates
 
-### Infrastructure
-- **Vercel Pro:** $20/month (needed for production)
-- **Database (Vercel Postgres):** $24/month (Starter tier)
-- **Auth (NextAuth):** Free (self-hosted)
-- **Stripe:** 2.9% + $0.30 per transaction
+### Infrastructure (With Supabase)
+
+**Free Tier (0-50K MAU):**
+- **Vercel Hobby:** $0/month (good for development)
+- **Supabase Free:** $0/month (database + auth, 50K MAU, 500MB storage)
+- **AI (OpenRouter):** ~$20/month (with smart routing)
+- **Stripe:** 2.9% + $0.30 per transaction (no monthly fee)
+- **Email (Resend Free):** $0/month (up to 3K emails)
+- **SMS (Twilio):** Pay-as-you-go (~$0.01/message)
+
+**Total Monthly (Free Tier): ~$20/month** ✅ Cost-effective for starting out!
+
+**Production Tier (50K+ MAU):**
+- **Vercel Pro:** $20/month (needed for better performance)
+- **Supabase Pro:** $25/month (database + auth, unlimited MAU, 8GB storage)
 - **AI (OpenRouter):** $20-50/month (depending on usage)
+- **Stripe:** 2.9% + $0.30 per transaction
 - **Email (Resend):** $20/month (up to 100K emails)
 - **SMS (Twilio):** Pay-as-you-go (~$0.01/message)
 
-**Total Monthly: ~$100-150/month** (before revenue)
+**Total Monthly (Production): ~$85-115/month** (before revenue)
+
+### Cost Comparison: Supabase vs Previous Stack
+
+| Service | Previous (Vercel Postgres + NextAuth) | New (Supabase) | Savings |
+|---------|--------------------------------------|----------------|---------|
+| **Database** | Vercel Postgres: $24/mo | Supabase: $25/mo | -$1/mo |
+| **Auth** | NextAuth: $0 (DIY) | Included in Supabase | +$0 |
+| **Free Tier MAU** | Unlimited (but small DB) | 50K MAU, 500MB DB | Better limits |
+| **Real-time** | Need to build | Included | Time saved |
+| **File Storage** | Vercel Blob: ~$5-10/mo | Included (1GB free) | +$5-10/mo |
+| **Setup Time** | 12-16 hours | 6-8 hours | 50% faster |
+
+**Net Result:** Similar cost (~$1/mo more), but **significantly** better features and developer experience.
 
 ### Break-even Analysis
-- At $9/month (Basic tier), need 12-17 paying users to break even
-- At $29/month (Pro tier), need 4-6 paying users to break even
+- **At $9/month (Basic tier):** Need 10-13 paying users to break even
+- **At $29/month (Pro tier):** Need 3-4 paying users to break even
+- **Mixed (60% Basic, 40% Pro):** Need ~8-10 paying users to break even
+
+**Target:** 50 paying users in first 3 months = ~$600-800/month revenue
 
 ---
 
