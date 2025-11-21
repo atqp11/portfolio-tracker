@@ -5,18 +5,13 @@
  * Provides company news and market data.
  */
 import { BaseDAO } from './base.dao';
+import { FinnhubNews } from '@/types/finnhub-news.dto';
 
 // ============================================================================
 // INTERFACES
 // ============================================================================
 
-export interface FinnhubNews {
-  headline: string;
-  link: string;
-  datetime: number;
-  source: string;
-  summary: string;
-}
+
 
 // ============================================================================
 // DAO CLASS
@@ -54,17 +49,52 @@ export class FinnhubDAO extends BaseDAO {
 
     console.log(`Fetching Finnhub news for: ${symbol}`);
 
-    const data = await this.fetchWithTimeout<FinnhubNews[]>(url, 10000);
-
-    if (!Array.isArray(data)) {
-      throw new Error(`Invalid Finnhub response for ${symbol}`);
-    }
+    const data = await this._fetchNews(url, symbol);
 
     console.log(`Finnhub news count for ${symbol}: ${data.length}`);
 
-    return data.map((article) => ({
+    return data;
+  }
+
+
+   /**
+   * Get general news for a category
+   */
+  async getGeneralNews(category: string = 'general'): Promise<FinnhubNews[]> {
+        console.log(`Fetching Finnhub general news for category: ${category}`);
+
+    const url = this.buildUrl(`${this.baseUrl}/news`, {
+      category,
+      token: this.apiKey
+    });
+    return await this._fetchNews(url, 'general');
+  }
+
+  /**
+   * Shared news fetch logic for company and general news
+   */
+  private async _fetchNews(url: string, context: string): Promise<FinnhubNews[]> {
+    let rawData: any[];
+    try {
+      rawData = await this.fetchWithTimeout<any[]>(url, 10000);
+    } catch (err: any) {
+      if (typeof err?.message === 'string') {
+        if (err.message.includes('HTTP 401')) {
+          throw new Error('Finnhub API unauthorized (401): Check API key');
+        }
+        if (err.message.includes('HTTP 429')) {
+          throw new Error('Finnhub API rate limit exceeded (429)');
+        }
+      }
+      throw err;
+    }
+    if (!Array.isArray(rawData)) {
+      throw new Error(`Invalid Finnhub response for ${context}`);
+    }
+    // Map raw API response to FinnhubNews DTO
+    return rawData.map((article) => ({
       headline: article.headline,
-      link: article.link,
+      link: article.url ?? article.link,
       datetime: article.datetime,
       source: article.source,
       summary: article.summary

@@ -4,7 +4,8 @@
  * Business logic layer for company and market news.
  * Aggregates news from multiple sources (Finnhub, Brave Search).
  */
-import { finnhubDAO, FinnhubNews } from '@/lib/dao/finnhub.dao';
+import { finnhubDAO } from '@/lib/dao/finnhub.dao';
+import { FinnhubNews } from '@/types/finnhub-news.dto';
 import { braveSearchDAO, BraveSearchResult } from '@/lib/dao/brave-search.dao';
 import { loadFromCache, saveToCache, getCacheAge } from '@/lib/cache';
 

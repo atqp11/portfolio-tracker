@@ -5,7 +5,7 @@ import { configs } from '@/lib/config';
 import { calculatePosition } from '@/lib/calculator';
 import { addDividend, reinvestDRIP } from '@/lib/drip';
 import { checkAlerts } from '@/lib/alerts';
-import { fetchEnergyCommodities, fetchCopperCommodity } from '@/lib/api';
+import { fetchEnergyCommodities, fetchCopperCommodity } from '@/lib/api/commodities';
 import { generateEnergySnapshot, generateCopperSnapshot } from '@/lib/api/snapshot';
 import { fetchEnergyNews, fetchCopperNews } from '@/lib/api/news';
 import { saveToCache, loadFromCache, classifyApiError, formatCacheAge, getCacheAge, ApiError } from '@/lib/cache';

@@ -2,12 +2,13 @@
 'use client';
 
 import { useState } from 'react';
-import { IncomeStatement, BalanceSheet, CashFlowStatement } from '@/lib/api/alphavantage';
+
+
 
 interface FinancialStatementTableProps {
-  income: IncomeStatement[];
-  balance: BalanceSheet[];
-  cashFlow: CashFlowStatement[];
+  income: any[];
+  balance: any[];
+  cashFlow: any[];
 }
 
 type TabType = 'income' | 'balance' | 'cashflow';

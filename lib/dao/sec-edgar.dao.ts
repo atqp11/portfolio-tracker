@@ -69,71 +69,52 @@ export class SecEdgarDAO extends BaseDAO {
   /**
    * Get company filings by CIK number
    */
-  async getCompanyFilings(cik: string): Promise<SECFiling[]> {
-    // Pad CIK to 10 digits
+  async getCompanyFilings(cik: string): Promise<any> {
+    if (!cik) throw new Error('CIK (Central Index Key) is required');
     const paddedCik = cik.padStart(10, '0');
-
     const url = `${this.baseUrl}/submissions/CIK${paddedCik}.json`;
-
-    console.log(`Fetching SEC filings for CIK: ${cik}`);
-
+    let res;
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 10000);
-
     try {
-      const response = await fetch(url, {
+      res = await fetch(url, {
         headers: {
           'User-Agent': this.userAgent,
           'Accept': 'application/json'
         },
         signal: controller.signal
       });
-
-      if (!response.ok) {
-        const bodyText = await response.text().catch(() => '');
-        throw new Error(`HTTP ${response.status}: ${response.statusText}${bodyText ? ` | ${bodyText}` : ''}`);
+    } catch (err) {
+      clearTimeout(timeoutId);
+      if (typeof err === 'object' && err !== null && 'name' in err && (err as any).name === 'AbortError') {
+        throw new Error('SEC EDGAR request timed out');
       }
-
-      const data: SECFilingsResponse = await response.json();
-
-      console.log(`SEC filings for CIK ${cik}:`, {
-        name: data.name,
-        tickers: data.tickers,
-        filingCount: data.filings.recent.accessionNumber.length
-      });
-
-      // Transform to array of filing objects
-      const filings: SECFiling[] = [];
-      const recent = data.filings.recent;
-
-      for (let i = 0; i < recent.accessionNumber.length; i++) {
-        filings.push({
-          accessionNumber: recent.accessionNumber[i],
-          filingDate: recent.filingDate[i],
-          reportDate: recent.reportDate[i],
-          acceptanceDateTime: recent.acceptanceDateTime?.[i] || '',
-          act: recent.act?.[i] || '',
-          form: recent.form[i],
-          fileNumber: recent.fileNumber?.[i] || '',
-          filmNumber: recent.filmNumber?.[i] || '',
-          items: recent.items?.[i] || '',
-          size: parseInt(recent.size?.[i] || '0'),
-          isXBRL: parseInt(recent.isXBRL?.[i] || '0'),
-          isInlineXBRL: parseInt(recent.isInlineXBRL?.[i] || '0'),
-          primaryDocument: recent.primaryDocument[i],
-          primaryDocDescription: recent.primaryDocDescription?.[i] || ''
-        });
-      }
-
-      return filings;
-    } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError') {
-        throw new Error('Request timeout');
-      }
-      throw error;
+      throw new Error('Network error when calling SEC EDGAR');
     } finally {
       clearTimeout(timeoutId);
     }
+    if (!res.ok) {
+      let errorMsg = `SEC EDGAR API error: ${res.status} ${res.statusText}`;
+      let errorBody = '';
+      try {
+        errorBody = await res.text();
+        errorMsg += ` | Body: ${errorBody}`;
+      } catch {}
+      if (res.status === 404 && errorBody.includes('NoSuchKey')) {
+        throw new Error('No filings found for this CIK or symbol.');
+      }
+      throw new Error(errorMsg);
+    }
+    let data;
+    try {
+      data = await res.json();
+    } catch (err) {
+      throw new Error('Invalid JSON response from SEC EDGAR');
+    }
+    if (!data || typeof data !== 'object' || !('cik' in data)) {
+      throw new Error('Unexpected SEC EDGAR API response structure');
+    }
+    return data;
   }
 
   /**
@@ -141,12 +122,8 @@ export class SecEdgarDAO extends BaseDAO {
    */
   async getCikByTicker(ticker: string): Promise<string | null> {
     const url = `${this.baseUrl}/files/company_tickers.json`;
-
-    console.log(`Searching for CIK by ticker: ${ticker}`);
-
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 10000);
-
     try {
       const response = await fetch(url, {
         headers: {
@@ -155,30 +132,16 @@ export class SecEdgarDAO extends BaseDAO {
         },
         signal: controller.signal
       });
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      if (!response.ok) return null;
+      const data = await response.json();
+      const entries = Array.isArray(data) ? data : Object.values(data);
+      const entry = entries.find((v: any) => v.ticker?.toUpperCase() === ticker.toUpperCase());
+      if (entry && entry.cik_str) {
+        return entry.cik_str.toString().padStart(10, '0');
       }
-
-      const data: Record<string, any> = await response.json();
-
-      // Find ticker in the company_tickers data
-      const upperTicker = ticker.toUpperCase();
-      for (const key in data) {
-        const company = data[key];
-        if (company.ticker === upperTicker) {
-          console.log(`Found CIK for ${ticker}: ${company.cik_str}`);
-          return company.cik_str.toString();
-        }
-      }
-
-      console.warn(`No CIK found for ticker: ${ticker}`);
       return null;
-    } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError') {
-        throw new Error('Request timeout');
-      }
-      throw error;
+    } catch {
+      return null;
     } finally {
       clearTimeout(timeoutId);
     }

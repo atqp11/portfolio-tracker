@@ -1,14 +1,5 @@
-/**
- * Yahoo Finance Data Access Object
- *
- * Handles all HTTP requests to Yahoo Finance API (via yh-finance package).
- * Provides fundamentals and financial data.
- */
-import { BaseDAO } from './base.dao';
 
-// ============================================================================
-// INTERFACES
-// ============================================================================
+import { BaseDAO } from './base.dao';
 
 export interface YahooFundamentals {
   symbol: string;
@@ -37,16 +28,62 @@ export interface YahooFundamentals {
   [key: string]: any;
 }
 
-// ============================================================================
-// DAO CLASS
-// ============================================================================
-
 export class YahooFinanceDAO extends BaseDAO {
-  private readonly baseUrl = 'https://query2.finance.yahoo.com/v10/finance/quoteSummary';
+  private readonly apiKey: string;
+  private readonly quoteUrl = 'https://yfapi.net/v6/finance/quote';
+  private readonly fundamentalsUrl = 'https://query2.finance.yahoo.com/v10/finance/quoteSummary';
 
-  /**
-   * Get stock fundamentals from Yahoo Finance
-   */
+  constructor() {
+    super();
+    this.apiKey = process.env.YAHOO_API_KEY || '';
+    if (!this.apiKey) {
+      console.warn('Yahoo Finance API key not configured');
+    }
+  }
+
+  async fetchQuote(ticker: string): Promise<any> {
+    if (!this.apiKey) throw new Error('Missing Yahoo Finance API key');
+    if (!ticker) throw new Error('Ticker symbol is required');
+    const url = this.buildUrl(this.quoteUrl, { symbols: ticker });
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+    let res;
+    try {
+      res = await fetch(url, {
+        headers: {
+          'x-api-key': this.apiKey,
+        },
+        signal: controller.signal,
+      });
+    } catch (err) {
+      clearTimeout(timeoutId);
+      if (typeof err === 'object' && err !== null && 'name' in err && (err as any).name === 'AbortError') {
+        throw new Error('Yahoo Finance API request timed out');
+      }
+      throw new Error('Network error when calling Yahoo Finance API');
+    } finally {
+      clearTimeout(timeoutId);
+    }
+    if (!res.ok) {
+      let errorMsg = `Yahoo Finance API error: ${res.status} ${res.statusText}`;
+      try {
+        const errorBody = await res.text();
+        errorMsg += ` | Body: ${errorBody}`;
+      } catch {}
+      throw new Error(errorMsg);
+    }
+    let data;
+    try {
+      data = await res.json();
+    } catch (err) {
+      throw new Error('Invalid JSON response from Yahoo Finance API');
+    }
+    if (!data || typeof data !== 'object' || !('quoteResponse' in data) || !Array.isArray(data.quoteResponse.result)) {
+      throw new Error('Unexpected Yahoo Finance API response structure');
+    }
+    return data;
+  }
+
   async getFundamentals(symbol: string): Promise<YahooFundamentals> {
     const modules = [
       'defaultKeyStatistics',
@@ -56,7 +93,7 @@ export class YahooFinanceDAO extends BaseDAO {
       'earningsTrend'
     ].join(',');
 
-    const url = this.buildUrl(this.baseUrl + `/${symbol}`, {
+    const url = this.buildUrl(this.fundamentalsUrl + `/${symbol}`, {
       modules: modules
     });
 
@@ -106,5 +143,4 @@ export class YahooFinanceDAO extends BaseDAO {
   }
 }
 
-// Export singleton instance
 export const yahooFinanceDAO = new YahooFinanceDAO();

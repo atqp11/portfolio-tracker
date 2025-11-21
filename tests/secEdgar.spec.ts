@@ -1,6 +1,6 @@
-import { fetchCompanyFilings } from '../lib/api/secEdgar';
+import { secEdgarService } from '../lib/services/sec-edgar.service';
 
-describe('fetchCompanyFilings', () => {
+describe('secEdgarService.getCompanyFilings', () => {
   const CIK = '0000320193'; // Example: Apple Inc.
 
   let consoleErrorSpy: jest.SpyInstance;
@@ -17,18 +17,18 @@ describe('fetchCompanyFilings', () => {
         json: () => Promise.resolve({ cik: CIK, name: 'Apple Inc.' }),
       })
     );
-    const data = await fetchCompanyFilings(CIK);
+    const data = await secEdgarService.getCompanyFilings(CIK);
     expect(data).toHaveProperty('cik', CIK);
     expect(data).toHaveProperty('name', 'Apple Inc.');
   });
 
   test('throws error for missing CIK', async () => {
-    await expect(fetchCompanyFilings('')).rejects.toThrow(/CIK/);
+    await expect(secEdgarService.getCompanyFilings('')).rejects.toThrow(/CIK/);
   });
 
   test('throws error for network failure', async () => {
     (global as any).fetch = jest.fn(() => Promise.reject(new Error('network')));
-    await expect(fetchCompanyFilings(CIK)).rejects.toThrow(/Network error/);
+    await expect(secEdgarService.getCompanyFilings(CIK)).rejects.toThrow(/Network error/);
   });
 
   test('throws error for non-ok response', async () => {
@@ -40,7 +40,7 @@ describe('fetchCompanyFilings', () => {
         text: () => Promise.resolve('Not Found'),
       })
     );
-    await expect(fetchCompanyFilings(CIK)).rejects.toThrow(/SEC EDGAR API error/);
+    await expect(secEdgarService.getCompanyFilings(CIK)).rejects.toThrow(/SEC EDGAR API error/);
   });
 
   test('throws error for invalid JSON', async () => {
@@ -50,7 +50,7 @@ describe('fetchCompanyFilings', () => {
         json: () => { throw new Error('bad json'); },
       })
     );
-    await expect(fetchCompanyFilings(CIK)).rejects.toThrow(/Invalid JSON/);
+    await expect(secEdgarService.getCompanyFilings(CIK)).rejects.toThrow(/Invalid JSON/);
   });
 
   test('throws error for unexpected response structure', async () => {
@@ -60,7 +60,7 @@ describe('fetchCompanyFilings', () => {
         json: () => Promise.resolve({ foo: 'bar' }),
       })
     );
-    await expect(fetchCompanyFilings(CIK)).rejects.toThrow(/Unexpected SEC EDGAR API response structure/);
+    await expect(secEdgarService.getCompanyFilings(CIK)).rejects.toThrow(/Unexpected SEC EDGAR API response structure/);
   });
   afterEach(() => {
     if (consoleErrorSpy) consoleErrorSpy.mockRestore();

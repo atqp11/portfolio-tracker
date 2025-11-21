@@ -1,4 +1,4 @@
-import { scrapeNewsHeadlines } from '../lib/api/braveSearch';
+import { finnhubService } from '../lib/services/finnhub.service';
 
 describe('scrapeNewsHeadlines', () => {
   beforeEach(() => {
@@ -18,7 +18,7 @@ describe('scrapeNewsHeadlines', () => {
       })
     );
     const url = 'AAPL'; // Use ticker to trigger Finnhub branch
-    const headlines = await scrapeNewsHeadlines(url);
+    const headlines = await finnhubService.scrapeNewsHeadlines(url);
     expect(Array.isArray(headlines)).toBe(true);
     expect(headlines.length).toBe(2);
     expect(headlines[0].headline).toBe('Headline 1');
@@ -31,7 +31,7 @@ describe('scrapeNewsHeadlines', () => {
     (global as any).fetch = jest.fn(() =>
       Promise.resolve({ ok: false, status: 404, statusText: 'Not Found', text: () => Promise.resolve('Not Found') })
     );
-    const headlines = await scrapeNewsHeadlines('AAPL');
+    const headlines = await finnhubService.scrapeNewsHeadlines('AAPL');
     expect(Array.isArray(headlines)).toBe(true);
     expect(headlines.length).toBe(0);
   });

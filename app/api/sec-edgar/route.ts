@@ -1,24 +1,6 @@
 import { NextResponse } from 'next/server';
-import { fetchCompanyFilings } from '@/lib/api/secEdgar';
+import { secEdgarService } from '@/lib/services/sec-edgar.service';
 
-// SEC CIK lookup using company_tickers.json
-async function fetchCikFromSec(symbol: string): Promise<string | null> {
-  try {
-    const url = 'https://www.sec.gov/files/company_tickers.json';
-    const res = await fetch(url);
-    if (!res.ok) return null;
-    const data = await res.json();
-    // Support both array and object formats
-    const entries = Array.isArray(data) ? data : Object.values(data);
-    const entry = entries.find((v: any) => v.ticker?.toUpperCase() === symbol.toUpperCase());
-    if (entry && entry.cik_str) {
-      return entry.cik_str.toString().padStart(10, '0');
-    }
-    return null;
-  } catch {
-    return null;
-  }
-}
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -27,7 +9,7 @@ export async function GET(request: Request) {
 
   // If cik is not valid and symbol is provided, resolve CIK from symbol
   if ((!cik || !/^\d{8,10}$/.test(cik.trim())) && symbol) {
-    cik = await fetchCikFromSec(symbol.trim().toUpperCase());
+    cik = await secEdgarService.getCik(symbol.trim().toUpperCase());
     if (!cik) {
       return NextResponse.json({ error: 'Could not resolve CIK for symbol using SEC lookup.' }, { status: 404 });
     }
@@ -38,7 +20,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Missing or invalid CIK. Provide a valid CIK (8-10 digits) or a symbol.' }, { status: 400 });
   }
   try {
-    const data = await fetchCompanyFilings(cik.trim());
+    const data = await secEdgarService.getCompanyFilings(cik.trim());
     return NextResponse.json(data);
   } catch (err: any) {
     // Graceful error handling for known cases
