@@ -408,43 +408,55 @@ export default function Home() {
           )}
         </div>
 
-        {/* Summary & Risk Metrics */}
-        <div className={`bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 p-4 sm:p-6 rounded-lg text-center sm:text-left ${portfolioTheme.containerHover}`}>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className={portfolioTheme.groupHoverScale}>
-              <p className="text-lg sm:text-xl font-bold">
-                <span className={`text-gray-900 dark:text-gray-100 ${portfolioTheme.groupHoverText}`}>Portfolio Value:</span>{' '}
-                <span className={metrics.unrealizedPL > 0.0001 ? 'text-green-600 dark:text-green-400' : metrics.unrealizedPL < -0.0001 ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-gray-100'}>
-                  {metrics.currentValue > 0 ? `$${metrics.currentValue.toFixed(0)}` : 'N/A'}
-                </span>
+        {/* Portfolio Metrics - Value Cards */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {/* Portfolio Value Card */}
+          <div className={`bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 p-4 rounded-lg ${portfolioTheme.metricCardHover}`}>
+            <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">Portfolio Value</p>
+            <p className={`text-xl font-bold ${metrics.unrealizedPL > 0.0001 ? 'text-green-600 dark:text-green-400' : metrics.unrealizedPL < -0.0001 ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-gray-100'}`}>
+              {metrics.currentValue > 0 ? `$${metrics.currentValue.toFixed(0)}` : 'N/A'}
+            </p>
+          </div>
+
+          {/* Cost Basis Card */}
+          <div className={`bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 p-4 rounded-lg ${portfolioTheme.metricCardHover}`}>
+            <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">Cost Basis</p>
+            <p className="text-xl font-bold text-gray-900 dark:text-gray-100">
+              ${metrics.costBasis.toFixed(0)}
+            </p>
+          </div>
+
+          {/* Unrealized P&L Card */}
+          <div className={`bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 p-4 rounded-lg ${portfolioTheme.metricCardHover}`}>
+            <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">Unrealized P&L</p>
+            {metrics.currentValue > 0 ? (
+              <div>
+                <p className={`text-xl font-bold ${metrics.unrealizedPL > 0.0001 ? 'text-green-600 dark:text-green-400' : metrics.unrealizedPL < -0.0001 ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-gray-100'}`}>
+                  {metrics.unrealizedPL >= 0 ? '+' : ''}${metrics.unrealizedPL.toFixed(2)}
+                </p>
+                <p className={`text-xs mt-1 ${metrics.unrealizedPLPercent > 0.0001 ? 'text-green-600 dark:text-green-400' : metrics.unrealizedPLPercent < -0.0001 ? 'text-red-600 dark:text-red-400' : 'text-gray-600 dark:text-gray-400'}`}>
+                  ({metrics.unrealizedPLPercent >= 0 ? '+' : ''}{metrics.unrealizedPLPercent.toFixed(2)}%)
+                </p>
+              </div>
+            ) : (
+              <p className="text-xl font-bold text-gray-900 dark:text-gray-100">N/A</p>
+            )}
+          </div>
+
+          {/* Target Value Card */}
+          {selectedPortfolio && (
+            <div className={`bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 p-4 rounded-lg ${portfolioTheme.metricCardHover}`}>
+              <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">Target Value</p>
+              <p className="text-xl font-bold text-gray-900 dark:text-gray-100">
+                ${selectedPortfolio.targetValue.toLocaleString()}
               </p>
-              <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 mt-1">
-                Cost Basis: ${metrics.costBasis.toFixed(0)}
-              </p>
-              {metrics.currentValue > 0 && (
-                <p className={`text-xs sm:text-sm mt-1 font-medium ${metrics.unrealizedPL > 0.0001 ? 'text-green-600 dark:text-green-400' : metrics.unrealizedPL < -0.0001 ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-gray-100'}`}>
-                  Unrealized P&L: {metrics.unrealizedPL >= 0 ? '+' : ''}${metrics.unrealizedPL.toFixed(2)}
-                  <span className={`ml-1 ${metrics.unrealizedPLPercent > 0.0001 ? 'text-green-600 dark:text-green-400' : metrics.unrealizedPLPercent < -0.0001 ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-gray-100'}`}>
-                    ({metrics.unrealizedPLPercent >= 0 ? '+' : ''}{metrics.unrealizedPLPercent.toFixed(2)}%)
-                  </span>
+              {selectedPortfolio.borrowedAmount > 0 && (
+                <p className="text-xs mt-1 text-orange-600 dark:text-orange-400">
+                  Borrowed: ${selectedPortfolio.borrowedAmount.toLocaleString()}
                 </p>
               )}
             </div>
-            <div className={portfolioTheme.groupHoverScale}>
-              {selectedPortfolio && (
-                <>
-                  <p className="text-xs sm:text-sm text-gray-900 dark:text-gray-100 font-semibold">
-                    Target: ${selectedPortfolio.targetValue.toLocaleString()}
-                  </p>
-                  {selectedPortfolio.borrowedAmount > 0 && (
-                    <p className="text-xs sm:text-sm text-gray-900 dark:text-gray-100 font-semibold mt-1">
-                      Borrowed: ${selectedPortfolio.borrowedAmount.toLocaleString()}
-                    </p>
-                  )}
-                </>
-              )}
-            </div>
-          </div>
+          )}
         </div>
       </div>
 
