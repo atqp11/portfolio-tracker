@@ -109,6 +109,39 @@ export interface ChecklistTask {
 }
 
 /**
+ * Hook to fetch all portfolios
+ */
+export function usePortfolios() {
+  const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchPortfolios = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const response = await fetch('/api/portfolio');
+      if (!response.ok) throw new Error('Failed to fetch portfolios');
+
+      const data: Portfolio[] = await response.json();
+      console.log('[usePortfolios] Fetched portfolios:', data);
+      setPortfolios(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unknown error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchPortfolios();
+  }, []);
+
+  return { portfolios, loading, error, refetch: fetchPortfolios };
+}
+
+/**
  * Hook to fetch portfolio by type (energy or copper)
  */
 export function usePortfolio(type: 'energy' | 'copper') {
@@ -148,6 +181,43 @@ export function usePortfolio(type: 'energy' | 'copper') {
 
     fetchPortfolio();
   }, [type]);
+
+  return { portfolio, loading, error, refetch: () => setLoading(true) };
+}
+
+/**
+ * Hook to fetch a single portfolio by ID
+ */
+export function usePortfolioById(portfolioId: string | null) {
+  const [portfolio, setPortfolio] = useState<Portfolio | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!portfolioId) {
+      setLoading(false);
+      return;
+    }
+
+    async function fetchPortfolio() {
+      try {
+        setLoading(true);
+        setError(null);
+
+        const response = await fetch(`/api/portfolio?id=${portfolioId}`);
+        if (!response.ok) throw new Error('Failed to fetch portfolio');
+
+        const data: Portfolio = await response.json();
+        setPortfolio(data);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Unknown error');
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchPortfolio();
+  }, [portfolioId]);
 
   return { portfolio, loading, error, refetch: () => setLoading(true) };
 }

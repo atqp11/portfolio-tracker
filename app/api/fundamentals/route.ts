@@ -41,6 +41,35 @@ export async function GET(request: NextRequest) {
       financialDataService.getFundamentals(ticker)
     ]);
 
+    // Transform fundamentals data to match expected format for stock detail page
+    const metrics = {
+      pe: fundamentals.trailingPE,
+      pb: fundamentals.priceToBook,
+      evToEbitda: null, // Not available in current data
+      grahamNumber: null, // Would need to calculate
+      roe: fundamentals.returnOnEquity ? fundamentals.returnOnEquity * 100 : null,
+      roic: null, // Not available
+      roa: fundamentals.returnOnAssets ? fundamentals.returnOnAssets * 100 : null,
+      netMargin: fundamentals.profitMargins ? fundamentals.profitMargins * 100 : null,
+      operatingMargin: fundamentals.operatingMargins ? fundamentals.operatingMargins * 100 : null,
+      debtToEquity: fundamentals.debtToEquity,
+      currentRatio: fundamentals.currentRatio,
+      marginOfSafety: null, // Would need to calculate
+    };
+
+    const overview = {
+      Name: ticker, // We don't have company name in fundamentals
+      Symbol: ticker,
+      Description: fundamentals.description || 'No description available',
+      Exchange: 'N/A',
+      Sector: fundamentals.sector || 'N/A',
+      Industry: fundamentals.industry || 'N/A',
+      MarketCapitalization: fundamentals.marketCap?.toString() || '0',
+      Beta: fundamentals.beta?.toString() || 'N/A',
+      '52WeekHigh': null, // Not in fundamentals
+      '52WeekLow': null, // Not in fundamentals
+    };
+
     const response: FundamentalsResponse = {
       ticker,
       price: quote.price,
@@ -51,9 +80,19 @@ export async function GET(request: NextRequest) {
       fetchedAt: new Date().toISOString()
     };
 
+    // Add transformed data for backwards compatibility with stock detail page
+    const fullResponse = {
+      ...response,
+      metrics,
+      overview,
+      income: { annualReports: [] }, // Financial statements not implemented yet
+      balance: { annualReports: [] },
+      cashFlow: { annualReports: [] },
+    };
+
     console.log(`[/api/fundamentals] Returning fundamentals for ${ticker} (source: ${fundamentals.source})`);
 
-    return NextResponse.json(response, {
+    return NextResponse.json(fullResponse, {
       headers: {
         'Cache-Control': 'public, max-age=3600' // 1 hour
       }

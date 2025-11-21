@@ -178,25 +178,25 @@ export default function StockDetailPage() {
                 {/* Valuation Metrics */}
                 <FundamentalMetricCard
                   name="P/E Ratio"
-                  value={fundamentals.metrics.pe}
-                  indicator={fundamentals.metrics.peIndicator}
+                  value={fundamentals.metrics?.pe ?? "N/A"}
+                  indicator={fundamentals.metrics?.peIndicator}
                   description="Price-to-Earnings ratio. Lower is generally better for value investors."
                 />
                 <FundamentalMetricCard
                   name="P/B Ratio"
-                  value={fundamentals.metrics.pb}
-                  indicator={fundamentals.metrics.pbIndicator}
+                  value={fundamentals.metrics?.pb ?? "N/A"}
+                  indicator={fundamentals.metrics?.pbIndicator}
                   description="Price-to-Book ratio. Below 1.0 suggests stock may be undervalued."
                 />
                 <FundamentalMetricCard
                   name="EV/EBITDA"
-                  value={fundamentals.metrics.evToEbitda}
-                  indicator={fundamentals.metrics.evEbitdaIndicator}
+                  value={fundamentals.metrics?.evToEbitda ?? "N/A"}
+                  indicator={fundamentals.metrics?.evEbitdaIndicator}
                   description="Enterprise Value to EBITDA. Measures company value relative to earnings."
                 />
                 <FundamentalMetricCard
                   name="Graham Number"
-                  value={fundamentals.metrics.grahamNumber}
+                  value={fundamentals.metrics?.grahamNumber ?? "N/A"}
                   unit=""
                   description="Intrinsic value estimate using Benjamin Graham's formula."
                 />
@@ -204,25 +204,25 @@ export default function StockDetailPage() {
                 {/* Profitability Metrics */}
                 <FundamentalMetricCard
                   name="ROE"
-                  value={fundamentals.metrics.roe}
+                  value={fundamentals.metrics?.roe ?? "N/A"}
                   unit="%"
                   description="Return on Equity. Measures profitability relative to shareholder equity."
                 />
                 <FundamentalMetricCard
                   name="ROIC"
-                  value={fundamentals.metrics.roic}
+                  value={fundamentals.metrics?.roic ?? "N/A"}
                   unit="%"
                   description="Return on Invested Capital. Warren Buffett's preferred metric."
                 />
                 <FundamentalMetricCard
                   name="ROA"
-                  value={fundamentals.metrics.roa}
+                  value={fundamentals.metrics?.roa ?? "N/A"}
                   unit="%"
                   description="Return on Assets. Measures how efficiently company uses assets."
                 />
                 <FundamentalMetricCard
                   name="Net Margin"
-                  value={fundamentals.metrics.netMargin}
+                  value={fundamentals.metrics?.netMargin ?? "N/A"}
                   unit="%"
                   description="Net profit margin. Higher margins indicate better profitability."
                 />
@@ -230,25 +230,25 @@ export default function StockDetailPage() {
                 {/* Leverage & Liquidity */}
                 <FundamentalMetricCard
                   name="Debt/Equity"
-                  value={fundamentals.metrics.debtToEquity}
+                  value={fundamentals.metrics?.debtToEquity ?? "N/A"}
                   description="Debt-to-Equity ratio. Lower values indicate less financial risk."
                 />
                 <FundamentalMetricCard
                   name="Current Ratio"
-                  value={fundamentals.metrics.currentRatio}
+                  value={fundamentals.metrics?.currentRatio ?? "N/A"}
                   description="Current assets / Current liabilities. Above 1.5 is healthy."
                 />
                 
                 {/* Value Investing */}
                 <FundamentalMetricCard
                   name="Margin of Safety"
-                  value={fundamentals.metrics.marginOfSafety}
+                  value={fundamentals.metrics?.marginOfSafety ?? "N/A"}
                   unit="%"
                   description="Difference between intrinsic value and current price. Higher is better."
                 />
                 <FundamentalMetricCard
                   name="Operating Margin"
-                  value={fundamentals.metrics.operatingMargin}
+                  value={fundamentals.metrics?.operatingMargin ?? "N/A"}
                   unit="%"
                   description="Operating profit margin. Indicates operational efficiency."
                 />

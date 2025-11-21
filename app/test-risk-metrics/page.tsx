@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import RiskMetricsPanel from '@/components/RiskMetricsPanel';
 import type { RiskMetrics } from '@/lib/calculator';
 import { usePortfolio, useStocks } from '@/lib/hooks/useDatabase';
+import { getPortfolioTheme } from '@/lib/utils/portfolioTheme';
 
 
 export default function TestRiskMetricsPage() {
@@ -35,6 +36,9 @@ export default function TestRiskMetricsPage() {
   }
 
   const riskFreeRate = 0.045;
+
+  // Use default blue theme for test page
+  const theme = getPortfolioTheme('test-portfolio-id', ['test-portfolio-id']);
 
   const fetchMetrics = async () => {
     setLoading(true);
@@ -85,7 +89,7 @@ export default function TestRiskMetricsPage() {
         )}
         {portfolioError && <div className="text-red-400 mb-4">Portfolio error: {portfolioError}</div>}
         {stocksError && <div className="text-red-400 mb-4">Stocks error: {stocksError}</div>}
-        <RiskMetricsPanel metrics={metrics} loading={loading} error={error} />
+        <RiskMetricsPanel metrics={metrics} loading={loading} error={error} theme={theme} />
         <div className="mt-8 text-sm text-gray-400">
           <div>Portfolio Returns: {JSON.stringify(getPortfolioReturns(stocks))}</div>
           <div>Market Returns: {JSON.stringify(getMarketReturns())}</div>

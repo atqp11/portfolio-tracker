@@ -35,7 +35,11 @@ export default function FundamentalMetricCard({
     } else if (Math.abs(val) >= 10) {
       return val.toFixed(1);
     } else {
-      return val.toFixed(2);
+      if (typeof val === "number" && !isNaN(val)) {
+        return val.toFixed(2);
+      } else {
+        return "N/A";
+      }
     }
   };
 
