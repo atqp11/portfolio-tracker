@@ -28,7 +28,17 @@ export default function AssetCard({
   gainLoss,
   gainLossPercent,
 }: AssetCardProps) {
-  const isUnavailable = !price || isNaN(price);
+  const isUnavailable = price === null || isNaN(price);
+
+  // Helper to display N/A for NaN or null
+  const displayValue = (val: number | null | undefined, digits = 2) => {
+    if (val === null || val === undefined || isNaN(val)) return 'N/A';
+    return `$${val.toFixed(digits)}`;
+  };
+  const displayPercent = (val: number | null | undefined, digits = 2) => {
+    if (val === null || val === undefined || isNaN(val)) return 'N/A';
+    return `${val >= 0 ? '+' : ''}${val.toFixed(digits)}%`;
+  };
 
   const getChangeColor = (value: number) => {
     if (value > 0.0001) return 'text-green-600 dark:text-green-400';
@@ -54,55 +64,31 @@ export default function AssetCard({
       <div className="flex items-baseline gap-4 mb-3 pb-3 border-b border-gray-200 dark:border-gray-700">
         <div>
           <span className="text-gray-600 dark:text-gray-400 text-xs block mb-1">Price</span>
-          {isUnavailable ? (
-            <span className="text-gray-600 dark:text-gray-400 text-base">N/A</span>
-          ) : (
-            <span className="text-gray-900 dark:text-gray-100 text-lg font-medium">
-              ${price.toFixed(2)}
-            </span>
-          )}
+          <span className={isUnavailable ? "text-gray-600 dark:text-gray-400 text-base" : "text-gray-900 dark:text-gray-100 text-lg font-medium"}>
+            {displayValue(price)}
+          </span>
         </div>
-        {!isUnavailable && (
-          <div className="flex items-baseline gap-1">
-            <span className="text-gray-600 dark:text-gray-400 text-xs">Δ</span>
-            <span className={`text-base font-medium ${getChangeColor(priceChange)}`}>
-              {priceChange >= 0 ? '+' : ''}${priceChange.toFixed(2)}
-            </span>
-          </div>
-        )}
+        <div className="flex items-baseline gap-1">
+          <span className="text-gray-600 dark:text-gray-400 text-xs">Δ</span>
+          <span className={`text-base font-medium ${getChangeColor(priceChange)}`}>{displayValue(priceChange)}</span>
+        </div>
       </div>
 
       {/* Values */}
       <div className="space-y-2">
         <div className="flex justify-between items-center">
           <span className="text-gray-600 dark:text-gray-400 text-sm">Mkt Value</span>
-          {isUnavailable ? (
-            <span className="text-gray-600 dark:text-gray-400 text-base">N/A</span>
-          ) : (
-            <span className="text-gray-900 dark:text-gray-100 text-base font-medium">
-              ${marketValue.toFixed(2)}
-            </span>
-          )}
+          <span className={isUnavailable ? "text-gray-600 dark:text-gray-400 text-base" : "text-gray-900 dark:text-gray-100 text-base font-medium"}>
+            {displayValue(marketValue)}
+          </span>
         </div>
         <div className="flex justify-between items-center">
           <span className="text-gray-600 dark:text-gray-400 text-sm">Day Chg</span>
-          {isUnavailable ? (
-            <span className="text-gray-600 dark:text-gray-400 text-base">N/A</span>
-          ) : (
-            <span className={`text-base font-medium ${getChangeColor(dayChange)}`}>
-              {dayChange >= 0 ? '+' : ''}${dayChange.toFixed(2)} ({dayChangePercent >= 0 ? '+' : ''}{dayChangePercent.toFixed(2)}%)
-            </span>
-          )}
+          <span className={`text-base font-medium ${getChangeColor(dayChange)}`}>{displayValue(dayChange)} ({displayPercent(dayChangePercent)})</span>
         </div>
         <div className="flex justify-between items-center">
           <span className="text-gray-600 dark:text-gray-400 text-sm">Gain/Loss</span>
-          {isUnavailable || isNaN(gainLoss) ? (
-            <span className="text-gray-600 dark:text-gray-400 text-base">N/A</span>
-          ) : (
-            <span className={`text-base font-medium ${getChangeColor(gainLoss)}`}>
-              {gainLoss >= 0 ? '+' : ''}${gainLoss.toFixed(2)} ({gainLossPercent >= 0 ? '+' : ''}{gainLossPercent.toFixed(2)}%)
-            </span>
-          )}
+          <span className={`text-base font-medium ${getChangeColor(gainLoss)}`}>{displayValue(gainLoss)} ({displayPercent(gainLossPercent)})</span>
         </div>
       </div>
 

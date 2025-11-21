@@ -6,7 +6,7 @@
  */
 import { alphaVantageDAO, AlphaVantageQuoteResponse } from '@/lib/dao/alpha-vantage.dao';
 import { fmpDAO, FMPQuoteResponse } from '@/lib/dao/fmp.dao';
-import { loadFromCache, saveToCache, getCacheAge } from '@/lib/cache';
+import { loadFromCache, saveToCache, getCacheAge } from '@/lib/serverCache';
 
 // ============================================================================
 // INTERFACES
@@ -114,7 +114,15 @@ export class StockDataService {
       };
     }
 
-    throw new Error(`Failed to fetch quote for ${symbol} from all providers`);
+    // Return a StockQuote with price: null and error info for UI to handle gracefully
+    return {
+      symbol,
+      price: null as any, // UI should check for null
+      change: null as any,
+      changePercent: 'N/A',
+      source: 'cache',
+      timestamp: Date.now(),
+    };
   }
 
   /**

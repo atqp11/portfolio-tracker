@@ -560,20 +560,20 @@ export default function Home() {
             {/* Holdings - Asset Cards */}
             <div className="space-y-4">
           {dbStocks.map(stock => {
-            const isUnavailable = !stock.currentPrice || isNaN(stock.currentPrice);
-            
+            const isUnavailable = stock.currentPrice === null || isNaN(stock.currentPrice);
+
             // Calculate cost basis from database
             const costBasis = stock.shares * stock.avgPrice;
-            
+
             // Calculate values
-            const currentPrice = isUnavailable ? 0 : (stock.currentPrice ?? 0);
-            const previousPrice = stock.previousPrice ?? currentPrice;
-            const priceChange = currentPrice - previousPrice;
-            const marketValue = stock.actualValue ?? 0;
-            const dayChangeValue = isUnavailable ? 0 : marketValue - (stock.shares * previousPrice);
-            const dayChangePercent = isUnavailable || previousPrice === 0 ? 0 : (dayChangeValue / (stock.shares * previousPrice)) * 100;
-            const gainLoss = isUnavailable ? NaN : marketValue - costBasis;
-            const gainLossPercent = isUnavailable || costBasis <= 0 ? NaN : (gainLoss / costBasis) * 100;
+            const currentPrice = isUnavailable ? null : stock.currentPrice;
+            const previousPrice = isUnavailable ? null : (stock.previousPrice ?? stock.currentPrice);
+            const priceChange = (currentPrice !== null && previousPrice !== null) ? currentPrice - previousPrice : null;
+            const marketValue = isUnavailable ? null : stock.actualValue ?? null;
+            const dayChangeValue = (isUnavailable || previousPrice === null || marketValue === null) ? null : marketValue - (stock.shares * previousPrice);
+            const dayChangePercent = (isUnavailable || previousPrice === null || previousPrice === 0) ? null : (dayChangeValue! / (stock.shares * previousPrice)) * 100;
+            const gainLoss = (isUnavailable || marketValue === null) ? null : marketValue - costBasis;
+            const gainLossPercent = (isUnavailable || costBasis <= 0 || gainLoss === null) ? null : (gainLoss / costBasis) * 100;
 
             return (
               <AssetCard
@@ -582,13 +582,13 @@ export default function Home() {
                 name={stock.name}
                 type="Stock"
                 shares={stock.shares}
-                price={currentPrice}
-                priceChange={priceChange}
-                marketValue={marketValue}
-                dayChange={dayChangeValue}
-                dayChangePercent={dayChangePercent}
-                gainLoss={gainLoss}
-                gainLossPercent={gainLossPercent}
+                price={currentPrice ?? NaN}
+                priceChange={priceChange ?? NaN}
+                marketValue={marketValue ?? NaN}
+                dayChange={dayChangeValue ?? NaN}
+                dayChangePercent={dayChangePercent ?? NaN}
+                gainLoss={gainLoss ?? NaN}
+                gainLossPercent={gainLossPercent ?? NaN}
               />
             );
           })}
