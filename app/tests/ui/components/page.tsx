@@ -20,6 +20,12 @@ export default function TestComponentsPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // NewsAPI test state
+  const [energyNews, setEnergyNews] = useState<any[]>([]);
+  const [copperNews, setCopperNews] = useState<any[]>([]);
+  const [newsApiLoading, setNewsApiLoading] = useState(false);
+  const [newsApiError, setNewsApiError] = useState<string | null>(null);
+
   // SEC EDGAR test state
   const [cik, setCik] = useState("");
   const [symbol, setSymbol] = useState("");
@@ -72,6 +78,36 @@ export default function TestComponentsPage() {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function fetchNewsAPI() {
+    setNewsApiLoading(true);
+    setNewsApiError(null);
+    setEnergyNews([]);
+    setCopperNews([]);
+    try {
+      // Fetch energy news
+      const energyRes = await fetch('/api/news/energy');
+      if (!energyRes.ok) {
+        const data = await energyRes.json();
+        throw new Error(data.error || `HTTP ${energyRes.status}`);
+      }
+      const energyData = await energyRes.json();
+      setEnergyNews(energyData);
+
+      // Fetch copper news
+      const copperRes = await fetch('/api/news/copper');
+      if (!copperRes.ok) {
+        const data = await copperRes.json();
+        throw new Error(data.error || `HTTP ${copperRes.status}`);
+      }
+      const copperData = await copperRes.json();
+      setCopperNews(copperData);
+    } catch (err) {
+      setNewsApiError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setNewsApiLoading(false);
     }
   }
   // ...existing code...
@@ -418,6 +454,87 @@ export default function TestComponentsPage() {
             )}
           </ul>
         </section>
+
+        {/* NewsAPI Test Section */}
+        <section className="bg-[#0E1114] border border-neutral-800 rounded-lg p-6 mb-8">
+          <h2 className="text-xl font-bold text-[#E5E7EB] mb-4">NewsAPI Market News Test</h2>
+          <div className="mb-4">
+            <button
+              onClick={fetchNewsAPI}
+              className="px-4 py-2 bg-green-600 hover:bg-green-500 text-white rounded"
+              disabled={newsApiLoading}
+            >
+              {newsApiLoading ? 'Loading...' : 'Fetch Market News'}
+            </button>
+          </div>
+          {newsApiError && (
+            <div className="text-red-500 mb-4">
+              <strong>Error:</strong> {newsApiError}
+              {newsApiError.includes('Rate limited') && (
+                <div>NewsAPI rate limit exceeded. Please wait and try again later.</div>
+              )}
+              {newsApiError.includes('Invalid NewsAPI key') && (
+                <div>API key error. Please check your NewsAPI key configuration.</div>
+              )}
+              {newsApiError.includes('disabled or forbidden') && (
+                <div>NewsAPI key is disabled. Please check your account status.</div>
+              )}
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Energy News */}
+            <div>
+              <h3 className="text-lg font-semibold text-[#E5E7EB] mb-3">Energy News</h3>
+              <ul className="space-y-2">
+                {energyNews.map((article, idx) => (
+                  <li key={idx} className="border-b border-neutral-700 pb-2">
+                    <a href={article.url} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline font-medium">
+                      {article.title}
+                    </a>
+                    <div className="text-sm text-neutral-400 mt-1">
+                      {article.source} • {new Date(article.publishedAt).toLocaleDateString()}
+                    </div>
+                    {article.description && (
+                      <div className="text-sm text-neutral-500 mt-1 line-clamp-2">
+                        {article.description}
+                      </div>
+                    )}
+                  </li>
+                ))}
+                {!newsApiLoading && energyNews.length === 0 && !newsApiError && (
+                  <li className="text-neutral-400">No energy news found.</li>
+                )}
+              </ul>
+            </div>
+
+            {/* Copper News */}
+            <div>
+              <h3 className="text-lg font-semibold text-[#E5E7EB] mb-3">Copper News</h3>
+              <ul className="space-y-2">
+                {copperNews.map((article, idx) => (
+                  <li key={idx} className="border-b border-neutral-700 pb-2">
+                    <a href={article.url} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline font-medium">
+                      {article.title}
+                    </a>
+                    <div className="text-sm text-neutral-400 mt-1">
+                      {article.source} • {new Date(article.publishedAt).toLocaleDateString()}
+                    </div>
+                    {article.description && (
+                      <div className="text-sm text-neutral-500 mt-1 line-clamp-2">
+                        {article.description}
+                      </div>
+                    )}
+                  </li>
+                ))}
+                {!newsApiLoading && copperNews.length === 0 && !newsApiError && (
+                  <li className="text-neutral-400">No copper news found.</li>
+                )}
+              </ul>
+            </div>
+          </div>
+        </section>
+
         {/* Shared Components Section */}
         <section className="bg-[#0E1114] border border-neutral-800 rounded-lg p-6">
           <h2 className="text-xl font-bold text-[#E5E7EB] mb-4">Shared UI Components</h2>

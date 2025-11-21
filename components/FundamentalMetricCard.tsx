@@ -28,6 +28,7 @@ export default function FundamentalMetricCard({
 }: FundamentalMetricCardProps) {
   const formatValue = (val: number | null): string => {
     if (val === null || val === undefined) return 'N/A';
+    if (typeof val !== 'number' || isNaN(val)) return 'N/A';
     
     // Format based on value magnitude
     if (Math.abs(val) >= 1000) {
@@ -35,11 +36,7 @@ export default function FundamentalMetricCard({
     } else if (Math.abs(val) >= 10) {
       return val.toFixed(1);
     } else {
-      if (typeof val === "number" && !isNaN(val)) {
-        return val.toFixed(2);
-      } else {
-        return "N/A";
-      }
+      return val.toFixed(2);
     }
   };
 

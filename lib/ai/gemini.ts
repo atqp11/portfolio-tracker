@@ -105,9 +105,37 @@ export async function generateChatResponse(
 }
 
 /**
- * Estimate confidence score based on response characteristics
- * Scoring logic from AI_MODEL_STRATEGY.md
+ * Generate simple text response using Gemini
+ * For basic text generation tasks like query generation
  */
+export async function generateText(
+  prompt: string,
+  options: GeminiOptions = {}
+): Promise<string> {
+  const {
+    temperature = 0.3,
+    maxTokens = 200,
+    model = 'gemini-2.5-flash',
+  } = options;
+
+  try {
+    const response = await genai.models.generateContent({
+      model,
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      generationConfig: {
+        temperature,
+        maxOutputTokens: maxTokens,
+      },
+    });
+
+    return response.text?.trim() || '';
+  } catch (error) {
+    console.error('Gemini text generation error:', error);
+    throw new Error(
+      `Gemini text generation failed: ${error instanceof Error ? error.message : String(error)}`
+    );
+  }
+}
 function estimateConfidence(response: string, context: string): number {
   let score = 0.5; // baseline
 
@@ -214,6 +242,7 @@ Tone Examples:
 
 export default {
   generateChatResponse,
+  generateText,
   calculateCost,
   DEFAULT_SYSTEM_INSTRUCTION,
 };

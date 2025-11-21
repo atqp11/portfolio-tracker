@@ -18,7 +18,7 @@ export default function Navigation() {
   ];
 
   const adminItems = [
-    { href: '/dashboard', label: 'Admin', icon: '⚙️' },
+    { href: '/admin-panel', label: 'Admin', icon: '⚙️' },
   ];
 
   const isActive = (href: string) => {

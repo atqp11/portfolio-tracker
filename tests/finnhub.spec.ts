@@ -62,25 +62,33 @@ describe('FinnhubDAO', () => {
   });
 
   test('dao returns company news', async () => {
-    dao.fetchWithTimeout = jest.fn(() => Promise.resolve([
+    const spy = jest.spyOn(FinnhubDAO.prototype as any, 'fetchWithTimeout');
+    spy.mockResolvedValue([
       { headline: 'DAO Headline', link: 'http://dao.com', datetime: 123456, source: 'Finnhub', summary: 'DAO Summary' }
-    ]));
+    ]);
     const news = await dao.getCompanyNews(symbol, from, to);
     expect(news[0]).toHaveProperty('headline', 'DAO Headline');
+    spy.mockRestore();
   });
 
   test('dao throws unauthorized error', async () => {
-    dao.fetchWithTimeout = jest.fn(() => { throw new Error('HTTP 401: Unauthorized'); });
+    const spy = jest.spyOn(FinnhubDAO.prototype as any, 'fetchWithTimeout');
+    spy.mockRejectedValue(new Error('HTTP 401: Unauthorized'));
     await expect(dao.getCompanyNews(symbol, from, to)).rejects.toThrow('Finnhub API unauthorized (401): Check API key');
+    spy.mockRestore();
   });
 
   test('dao throws rate limit error', async () => {
-    dao.fetchWithTimeout = jest.fn(() => { throw new Error('HTTP 429: Rate Limit'); });
+    const spy = jest.spyOn(FinnhubDAO.prototype as any, 'fetchWithTimeout');
+    spy.mockRejectedValue(new Error('HTTP 429: Rate Limit'));
     await expect(dao.getCompanyNews(symbol, from, to)).rejects.toThrow('Finnhub API rate limit exceeded (429)');
+    spy.mockRestore();
   });
 
   test('dao throws invalid response error', async () => {
-    dao.fetchWithTimeout = jest.fn(() => Promise.resolve({}));
+    const spy = jest.spyOn(FinnhubDAO.prototype as any, 'fetchWithTimeout');
+    spy.mockResolvedValue({});
     await expect(dao.getCompanyNews(symbol, from, to)).rejects.toThrow('Invalid Finnhub response for AAPL');
+    spy.mockRestore();
   });
 });

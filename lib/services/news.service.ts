@@ -7,7 +7,10 @@
 import { finnhubDAO } from '@/lib/dao/finnhub.dao';
 import { FinnhubNews } from '@/types/finnhub-news.dto';
 import { braveSearchDAO, BraveSearchResult } from '@/lib/dao/brave-search.dao';
-import { loadFromCache, saveToCache, getCacheAge } from '@/lib/cache';
+import { loadFromCache, saveToCache, getCacheAge } from '@/lib/serverCache';
+import { NewsDAO } from '@/lib/dao/news.dao';
+import { NewsArticle as NewsAPIArticle } from '@/types/news.dto';
+import { generateText } from '@/lib/ai/gemini';
 
 // ============================================================================
 // INTERFACES
@@ -35,6 +38,8 @@ export interface NewsResponse {
 
 export class NewsService {
   private readonly CACHE_TTL = 15 * 60 * 1000; // 15 minutes (news is time-sensitive)
+  private readonly MARKET_NEWS_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours for market news
+  private newsDAO: NewsDAO | null = null;
 
   /**
    * Get company news from multiple sources
@@ -279,6 +284,161 @@ export class NewsService {
 
     console.log(`[NewsService] Deduplicated ${articles.length} articles to ${unique.length} unique`);
     return unique;
+  }
+
+  /**
+   * Generate NewsAPI query using AI based on portfolio holdings
+   * Caches successful AI responses until portfolio changes
+   *
+   * @param portfolio - Portfolio with holdings to analyze
+   * @returns Optimized NewsAPI query string
+   */
+  static async generateNewsQueryForPortfolio(portfolio: any): Promise<string> {
+    const holdings = portfolio.holdings || [];
+    const portfolioType = portfolio.type || 'general';
+    const portfolioId = portfolio.id;
+
+    try {
+
+      // Create a cache key that includes portfolio ID and holdings hash
+      const holdingsHash = holdings
+        .map((h: any) => `${h.symbol}:${h.shares}`)
+        .sort()
+        .join('|');
+      const cacheKey = `ai-news-query-${portfolioId}-${holdingsHash}`;
+
+      // Check cache for existing AI-generated query
+      const cached = loadFromCache<string>(cacheKey);
+      if (cached && getCacheAge(cacheKey) < 7 * 24 * 60 * 60 * 1000) { // 7 days TTL
+        console.log(`[NewsService] Cache hit for AI query: ${cached}`);
+        return cached;
+      }
+
+      // Extract stock symbols and names
+      const stockInfo = holdings.map((holding: any) =>
+        `${holding.symbol}: ${holding.name}`
+      ).join(', ');
+
+      // Create AI prompt
+      const prompt = `You are a financial analyst. Based on this ${portfolioType} portfolio with holdings: ${stockInfo}
+
+Please generate an optimized NewsAPI search query that will find relevant market news for this portfolio. The query should:
+
+1. Include the main sectors/industries represented by these holdings
+2. Include key companies and their ticker symbols
+3. Include relevant market terms, commodities, or economic indicators
+4. Use OR operators to broaden the search
+5. Be optimized for NewsAPI's search syntax
+6. Focus on current market news, not historical
+7. IMPORTANT: Keep the query under 500 characters (current limit: ~${500 - stockInfo.length} remaining chars)
+
+Return ONLY the search query string, no explanation or quotes.
+
+Example format: "energy OR oil OR natural gas OR petroleum OR crude OR COP OR SU OR CNQ OR TRP"
+
+Generate a similar query for this portfolio:`;
+
+      // Use Gemini for news query generation
+      console.log(`[NewsService] Generating news query using Gemini for ${portfolioType} portfolio`);
+
+      // Call Gemini
+      const query = await generateText(prompt, {
+        temperature: 0.3,
+        maxTokens: 200
+      });
+
+      if (!query) {
+        console.warn('[NewsService] AI returned empty query, using fallback');
+        // Fallback to basic query based on portfolio type - DO NOT CACHE
+        return portfolioType === 'energy'
+          ? 'energy OR oil OR natural gas OR petroleum OR crude'
+          : portfolioType === 'copper'
+          ? 'copper OR mining OR metals'
+          : 'stocks OR markets OR finance';
+      }
+
+      // Validate query length (should be under 500 chars due to prompt instructions)
+      const validatedQuery = query.trim();
+      if (validatedQuery.length > 500) {
+        console.warn(`[NewsService] AI query still too long (${validatedQuery.length} chars), using fallback`);
+        return portfolioType === 'energy'
+          ? 'energy OR oil OR natural gas OR petroleum OR crude'
+          : portfolioType === 'copper'
+          ? 'copper OR mining OR metals'
+          : 'stocks OR markets OR finance';
+      }
+
+      // Cache successful AI response
+      saveToCache(cacheKey, validatedQuery);
+      console.log(`[NewsService] AI generated and cached query (${validatedQuery.length} chars): ${validatedQuery}`);
+      return validatedQuery;
+
+    } catch (error) {
+      console.error('Error generating AI news query:', error);
+
+      // Fallback to basic query using stock symbols and portfolio type - DO NOT CACHE when AI fails
+      const stockSymbols = holdings.map((h: any) => h.symbol).join(' OR ');
+      const portfolioTypeTerm = portfolioType.toLowerCase();
+
+      let fallbackQuery: string;
+      if (stockSymbols) {
+        fallbackQuery = `${stockSymbols} OR ${portfolioTypeTerm}`;
+      } else {
+        fallbackQuery = portfolioType === 'energy'
+          ? 'energy OR oil OR natural gas OR petroleum OR crude'
+          : portfolioType === 'copper'
+          ? 'copper OR mining OR metals'
+          : 'stocks OR markets OR finance';
+      }
+
+      // Ensure fallback query also respects 500 char limit
+      if (fallbackQuery.length > 500) {
+        console.warn(`[NewsService] Fallback query too long (${fallbackQuery.length} chars), using basic portfolio type query`);
+        fallbackQuery = portfolioType === 'energy'
+          ? 'energy OR oil OR natural gas OR petroleum OR crude'
+          : portfolioType === 'copper'
+          ? 'copper OR mining OR metals'
+          : 'stocks OR markets OR finance';
+      }
+
+      console.log(`[NewsService] Using fallback query (not cached): ${fallbackQuery}`);
+      return fallbackQuery;
+    }
+  }
+
+  /**
+   * Get news from NewsAPI with caching
+   *
+   * @param query - NewsAPI search query
+   * @param cacheKey - Cache key for this query
+   * @param pageSize - Number of articles to fetch
+   * @returns NewsAPI articles
+   */
+  async getNewsAPI(query: string, cacheKey: string, pageSize: number = 10): Promise<NewsAPIArticle[]> {
+    // Check cache
+    const cached = loadFromCache<NewsAPIArticle[]>(cacheKey);
+    if (cached && getCacheAge(cacheKey) < this.MARKET_NEWS_CACHE_TTL) {
+      console.log(`[NewsService] Cache hit for ${cacheKey}`);
+      return cached;
+    }
+
+    console.log(`[NewsService] Fetching fresh news from NewsAPI for query: ${query}`);
+
+    if (!this.newsDAO) {
+      this.newsDAO = new NewsDAO();
+    }
+
+    try {
+      const articles = await this.newsDAO.fetchNews(query, pageSize);
+
+      // Save to cache
+      saveToCache(cacheKey, articles);
+
+      return articles;
+    } catch (error) {
+      console.error(`Error fetching news for query "${query}":`, error);
+      throw error;
+    }
   }
 }
 

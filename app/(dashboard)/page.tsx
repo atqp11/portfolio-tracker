@@ -9,6 +9,7 @@ import PortfolioModal from '@/components/PortfolioModal';
 import PortfolioHeader from '@/components/PortfolioHeader';
 import AssetCard from '@/components/AssetCard';
 import RiskMetricsPanel from '@/components/RiskMetricsPanel';
+import NewsCard from '@/components/NewsCard';
 import StonksAI from '@/components/StonksAI/StonksAI';
 import { fetchAndUpdateStockPrice } from '@/lib/utils/priceUpdater';
 import { getPortfolioTheme } from '@/lib/utils/portfolioTheme';
@@ -40,12 +41,48 @@ export default function Home() {
   // Price refresh state
   const [isRefreshingPrices, setIsRefreshingPrices] = useState(false);
 
+  // News state
+  const [news, setNews] = useState<any[]>([]);
+  const [newsLoading, setNewsLoading] = useState(false);
+  const [newsError, setNewsError] = useState<string | null>(null);
+
   // Auto-select first portfolio on load
   useEffect(() => {
     if (!portfoliosLoading && portfolios.length > 0 && !selectedPortfolioId) {
       setSelectedPortfolioId(portfolios[0].id);
     }
   }, [portfolios, portfoliosLoading, selectedPortfolioId]);
+
+  // Fetch news when portfolio changes
+  useEffect(() => {
+    if (!selectedPortfolio) return;
+
+    const fetchNews = async () => {
+      setNewsLoading(true);
+      setNewsError(null);
+
+      try {
+        // Use generic portfolio news endpoint for all portfolio types
+        const endpoint = `/api/news/portfolio/${selectedPortfolioId}`;
+
+        const response = await fetch(endpoint);
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || `Failed to fetch news`);
+        }
+
+        const newsData = await response.json();
+        setNews(newsData);
+      } catch (err: any) {
+        console.error('Error fetching news:', err);
+        setNewsError(err.message || 'Failed to load news');
+      } finally {
+        setNewsLoading(false);
+      }
+    };
+
+    fetchNews();
+  }, [selectedPortfolio]);
 
   // Portfolio CRUD handlers
   const handleCreatePortfolio = async (portfolioData: Partial<Portfolio>) => {
@@ -459,6 +496,48 @@ export default function Home() {
           )}
         </div>
       </div>
+
+      {/* News Section - Show for all portfolios */}
+      {selectedPortfolio && (
+        <div className="max-w-5xl mx-auto mt-8">
+          <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">
+                {selectedPortfolio.name} Market News
+              </h2>
+              {newsLoading && (
+                <div className="text-sm text-gray-600 dark:text-gray-400">Loading news...</div>
+              )}
+            </div>
+
+            {newsError && (
+              <div className="text-red-600 dark:text-red-400 mb-4 p-3 bg-red-50 dark:bg-red-900/20 rounded-lg">
+                <strong>Error loading news:</strong> {newsError}
+              </div>
+            )}
+
+            {!newsLoading && !newsError && news.length === 0 && (
+              <div className="text-gray-600 dark:text-gray-400 text-center py-8">
+                No news available at this time.
+              </div>
+            )}
+
+            <div className="space-y-3">
+              {news.slice(0, 5).map((article, idx) => (
+                <NewsCard key={idx} article={article} />
+              ))}
+            </div>
+
+            {news.length > 5 && (
+              <div className="mt-4 text-center">
+                <span className="text-sm text-gray-600 dark:text-gray-400">
+                  Showing 5 of {news.length} articles
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Modals */}
       <AddStockModal

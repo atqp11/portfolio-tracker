@@ -10,7 +10,7 @@ export default function DashboardHome() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {/* Cost Tracking Dashboard */}
-          <Link href="/dashboard/costs">
+          <Link href="/admin-panel/costs">
             <div className="bg-gray-900 border border-gray-800 rounded-lg p-6 hover:border-indigo-500 transition cursor-pointer">
               <div className="text-4xl mb-4">💰</div>
               <h2 className="text-2xl font-bold mb-2">Cost Tracking</h2>
