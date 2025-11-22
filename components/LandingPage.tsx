@@ -5,7 +5,8 @@ import {
   Heart, Brain, BarChart3, MessageCircle, Zap,
   Menu, X, ArrowRight, Play, Shield, TrendingUp,
   Clock, CheckCircle, AlertTriangle, ChevronRight, Mic,
-  PieChart, Activity, Globe, Smartphone, Lock, Sparkles
+  PieChart, Activity, Globe, Smartphone, Lock, Sparkles,
+  type LucideIcon
 } from 'lucide-react';
 
 // --- CSS for High-End Visuals & 3D Effects ---
@@ -96,23 +97,37 @@ const styles = `
 `;
 
 // --- Canvas Component: Galaxy Flow ---
+
+interface Particle {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  size: number;
+  color: string;
+}
+
 const GalaxyCanvas = () => {
-  const canvasRef = useRef(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
     const canvas = canvasRef.current;
+    if (!canvas) return;
+
     const ctx = canvas.getContext('2d');
-    let animationFrameId;
-    let width, height;
+    if (!ctx) return;
+
+    let animationFrameId: number;
+    let width: number, height: number;
 
     // Configuration
     const PARTICLE_COUNT = 120;
     const CONNECTION_DISTANCE = 150;
     const MOUSE_DISTANCE = 200;
     // Extremely slow speed for majestic flow
-    const PARTICLE_SPEED = 0.05; 
+    const PARTICLE_SPEED = 0.05;
 
-    let particles = [];
+    let particles: Particle[] = [];
     let mouse = { x: -1000, y: -1000 };
 
     const resize = () => {
@@ -207,7 +222,7 @@ const GalaxyCanvas = () => {
       animationFrameId = requestAnimationFrame(draw);
     };
 
-    const handleMouseMove = (e) => {
+    const handleMouseMove = (e: MouseEvent) => {
       mouse.x = e.clientX;
       mouse.y = e.clientY;
     };
@@ -237,7 +252,13 @@ const GalaxyCanvas = () => {
 
 // --- Helper Components ---
 
-const ChatMessage = ({ isAi, text, emotion }) => (
+interface ChatMessageProps {
+  isAi: boolean;
+  text: string;
+  emotion?: string;
+}
+
+const ChatMessage: React.FC<ChatMessageProps> = ({ isAi, text, emotion }) => (
   <div className={`flex gap-3 mb-4 ${isAi ? 'flex-row' : 'flex-row-reverse'}`}>
     <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${isAi ? 'bg-gradient-to-br from-indigo-500 to-purple-600 shadow-lg shadow-indigo-500/30' : 'bg-gray-700'}`}>
       {isAi ? <Sparkles className="w-4 h-4 text-white" /> : <div className="w-full h-full rounded-full bg-gray-600" />}
@@ -255,7 +276,14 @@ const ChatMessage = ({ isAi, text, emotion }) => (
   </div>
 );
 
-const StockTicker = ({ symbol, price, change, isPositive }) => (
+interface StockTickerProps {
+  symbol: string;
+  price: string;
+  change: string;
+  isPositive: boolean;
+}
+
+const StockTicker: React.FC<StockTickerProps> = ({ symbol, price, change, isPositive }) => (
   <div className="flex justify-between items-center py-3 border-b border-white/5 last:border-0 group hover:bg-white/5 px-2 rounded-lg transition-colors duration-700 cursor-pointer">
     <div className="flex items-center gap-3">
       <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-xs font-bold shadow-inner ${isPositive ? 'bg-green-500/10 text-green-400 border border-green-500/20' : 'bg-red-500/10 text-red-400 border border-red-500/20'}`}>
@@ -275,7 +303,15 @@ const StockTicker = ({ symbol, price, change, isPositive }) => (
   </div>
 );
 
-const BentoCard = ({ title, description, icon: Icon, className, gradient }) => (
+interface BentoCardProps {
+  title: string;
+  description: string;
+  icon: LucideIcon;
+  className?: string;
+  gradient: string;
+}
+
+const BentoCard: React.FC<BentoCardProps> = ({ title, description, icon: Icon, className, gradient }) => (
   <div className={`glass-panel rounded-[2rem] p-8 relative overflow-hidden group glass-card-hover ${className}`}>
     {/* Background Gradient Blob */}
     <div className={`absolute top-0 right-0 w-64 h-64 bg-gradient-to-br ${gradient} opacity-10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 group-hover:opacity-20 transition-opacity duration-700`}></div>
