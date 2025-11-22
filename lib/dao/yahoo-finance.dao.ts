@@ -1,6 +1,17 @@
 
 import { BaseDAO } from './base.dao';
 
+// ============================================================================
+// INTERFACES
+// ============================================================================
+
+export interface YahooQuoteResponse {
+  symbol: string;
+  price: number;
+  change: number;
+  changePercent: string;
+}
+
 export interface YahooFundamentals {
   symbol: string;
   marketCap?: number | null;
@@ -82,6 +93,58 @@ export class YahooFinanceDAO extends BaseDAO {
       throw new Error('Unexpected Yahoo Finance API response structure');
     }
     return data;
+  }
+
+  /**
+   * Get real-time quote for a single symbol (standardized format)
+   *
+   * Parses Yahoo Finance response into standard format compatible with
+   * Alpha Vantage and FMP responses.
+   */
+  async getQuote(symbol: string): Promise<YahooQuoteResponse> {
+    console.log(`Fetching Yahoo Finance quote for symbol: ${symbol}`);
+
+    const data = await this.fetchQuote(symbol);
+
+    console.log(`Yahoo Finance raw data for ${symbol}:`, JSON.stringify(data, null, 2));
+
+    // Yahoo Finance returns data in quoteResponse.result array
+    const result = data.quoteResponse?.result;
+
+    if (!result || !Array.isArray(result) || result.length === 0) {
+      throw new Error(`No quote data for ${symbol}`);
+    }
+
+    const quote = result[0];
+
+    // Validate required fields
+    if (!quote.symbol) {
+      throw new Error(`Invalid quote response for ${symbol}: missing symbol`);
+    }
+
+    // regularMarketPrice is the current price
+    const price = quote.regularMarketPrice;
+    if (typeof price !== 'number' || isNaN(price)) {
+      throw new Error(`Invalid price data for ${symbol}: ${price}`);
+    }
+
+    // regularMarketChange is the dollar change
+    const change = quote.regularMarketChange || 0;
+
+    // regularMarketChangePercent is the percentage change
+    const changePercent = quote.regularMarketChangePercent || 0;
+    const changePercentStr = changePercent.toFixed(2) + '%';
+
+    const parsed: YahooQuoteResponse = {
+      symbol: quote.symbol,
+      price: price,
+      change: change,
+      changePercent: changePercentStr
+    };
+
+    console.log(`Parsed Yahoo Finance quote for ${symbol}:`, parsed);
+
+    return parsed;
   }
 
   async getFundamentals(symbol: string): Promise<YahooFundamentals> {
