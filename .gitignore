@@ -191,4 +191,5 @@ debug-env.js
 
 # Telemetry and application logs
 logs/
+next-env.d.ts
 nul
