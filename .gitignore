@@ -191,3 +191,4 @@ debug-env.js
 
 # Telemetry and application logs
 logs/
+nul

@@ -11,7 +11,7 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
-  { label: 'Dashboard', href: '/', icon: '📊' },
+  { label: 'Dashboard', href: '/dashboard', icon: '📊' },
   { label: 'Fundamentals', href: '/fundamentals', icon: '📈' },
   { label: 'Risk Analytics', href: '/risk', icon: '⚠️' },
   { label: 'Thesis Tracker', href: '/thesis', icon: '📝' },
@@ -24,8 +24,8 @@ export default function Sidebar() {
   const pathname = usePathname();
 
   const isActive = (href: string) => {
-    if (href === '/') {
-      return pathname === '/';
+    if (href === '/dashboard') {
+      return pathname === '/dashboard';
     }
     return pathname.startsWith(href);
   };

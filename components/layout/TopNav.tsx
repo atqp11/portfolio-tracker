@@ -8,7 +8,7 @@ interface TopNavProps {
 
 const getPageTitle = (pathname: string): string => {
   const titles: Record<string, string> = {
-    '/': 'Dashboard',
+    '/dashboard': 'Dashboard',
     '/holdings': 'Holdings',
     '/fundamentals': 'Fundamentals',
     '/risk': 'Risk Analytics',
@@ -29,6 +29,10 @@ export default function TopNav({ title }: TopNavProps) {
     month: 'short',
     day: 'numeric',
   });
+
+  const handleSignOut = () => {
+    window.location.href = '/';
+  };
 
   return (
     <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4">
@@ -96,6 +100,28 @@ export default function TopNav({ title }: TopNavProps) {
               <p className="text-xs text-gray-500 dark:text-gray-400">Free Tier</p>
             </div>
           </div>
+
+          {/* Sign Out Button */}
+          <button
+            onClick={handleSignOut}
+            className="p-2 text-gray-600 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+            aria-label="Sign out"
+            title="Sign out"
+          >
+            <svg
+              className="w-5 h-5"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
+              />
+            </svg>
+          </button>
         </div>
       </div>
     </header>
