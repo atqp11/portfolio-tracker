@@ -23,6 +23,20 @@ export default function DashboardHome() {
             </div>
           </Link>
 
+          {/* Waitlist Management */}
+          <Link href="/admin-panel/waitlist">
+            <div className="bg-gray-900 border border-gray-800 rounded-lg p-6 hover:border-indigo-500 transition cursor-pointer">
+              <div className="text-4xl mb-4">📧</div>
+              <h2 className="text-2xl font-bold mb-2">Waitlist</h2>
+              <p className="text-gray-400">
+                View and manage waitlist signups
+              </p>
+              <div className="mt-4 text-indigo-400 font-semibold">
+                View Waitlist →
+              </div>
+            </div>
+          </Link>
+
           {/* User Management (Coming Soon) */}
           <div className="bg-gray-900 border border-gray-800 rounded-lg p-6 opacity-50">
             <div className="text-4xl mb-4">👥</div>

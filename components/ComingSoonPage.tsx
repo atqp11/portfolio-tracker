@@ -1,5 +1,6 @@
 "use client";
 import React, { useState, useEffect, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { Mail, Zap } from 'lucide-react';
 
 // --- CSS for High-End Visuals & 3D Effects ---
@@ -178,18 +179,62 @@ const GalaxyCanvas: React.FC = () => {
 
 // --- Main Application Component (Coming Soon) ---
 
-const ComingSoonPage: React.FC = () => { 
+const ComingSoonPage: React.FC = () => {
+  const router = useRouter();
+
   // Explicitly typing state variables
   const [email, setEmail] = useState<string>('');
+  const [name, setName] = useState<string>('');
+  const [loading, setLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState<boolean>(false);
 
+  // Client-side email validation
+  const isValidEmail = (email: string): boolean => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
+
   // Typing the form submission event
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (email) {
-        // Mock submission
-        console.log("Email submitted:", email);
+    setError(null);
+
+    // Client-side validation
+    if (!email.trim()) {
+      setError('Please enter your email address');
+      return;
+    }
+
+    if (!isValidEmail(email)) {
+      setError('Please enter a valid email address');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const response = await fetch('/api/waitlist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim(), name: name.trim() || null }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
         setSubmitted(true);
+        // Redirect to thank you page after a brief delay
+        setTimeout(() => {
+          router.push(`/thank-you?email=${encodeURIComponent(email)}`);
+        }, 1500);
+      } else {
+        setError(data.error || 'Something went wrong. Please try again.');
+      }
+    } catch (err) {
+      setError('Network error. Please check your connection and try again.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -222,27 +267,58 @@ const ComingSoonPage: React.FC = () => {
         </p>
 
         {/* Email Capture Form (Glassmorphism) */}
-        <form onSubmit={handleSubmit} className="glass-panel p-4 rounded-3xl max-w-md mx-auto">
+        <form onSubmit={handleSubmit} className="glass-panel p-6 rounded-3xl max-w-lg mx-auto">
             {submitted ? (
                 <div className="p-4 text-center text-lg font-medium text-green-300 flex items-center justify-center gap-3">
                     <Mail className="w-6 h-6" /> You're on the list! Thank you.
                 </div>
             ) : (
-                <div className="flex flex-col sm:flex-row gap-3">
+                <div className="flex flex-col gap-4">
+                    {/* Name Field (Optional) */}
+                    <input
+                        type="text"
+                        placeholder="Your name (optional)"
+                        value={name}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setName(e.target.value)}
+                        className="w-full px-5 py-3 rounded-xl bg-black/30 border border-white/10 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors"
+                    />
+
+                    {/* Email Field */}
                     <input
                         type="email"
                         placeholder="Enter your best email address"
                         value={email}
-                        // Typing the input change event
                         onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)}
                         required
-                        className="flex-1 px-5 py-3 rounded-xl bg-black/30 border border-white/10 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors"
+                        className="w-full px-5 py-3 rounded-xl bg-black/30 border border-white/10 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors"
                     />
+
+                    {/* Error Message */}
+                    {error && (
+                        <div className="bg-red-500/10 border border-red-500/30 text-red-300 px-4 py-3 rounded-xl text-sm">
+                            {error}
+                        </div>
+                    )}
+
+                    {/* Submit Button */}
                     <button
                         type="submit"
-                        className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-bold text-base hover:bg-indigo-500 transition-colors duration-300 flex items-center justify-center gap-2"
+                        disabled={loading}
+                        className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-bold text-base hover:bg-indigo-500 transition-colors duration-300 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                        Notify Me <Zap className="w-4 h-4 fill-current" />
+                        {loading ? (
+                            <>
+                                <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                                Joining...
+                            </>
+                        ) : (
+                            <>
+                                Notify Me <Zap className="w-4 h-4 fill-current" />
+                            </>
+                        )}
                     </button>
                 </div>
             )}
