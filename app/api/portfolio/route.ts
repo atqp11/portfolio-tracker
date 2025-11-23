@@ -67,6 +67,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const {
+      userId,
       name,
       type,
       initialValue,
@@ -76,15 +77,16 @@ export async function POST(request: NextRequest) {
     } = body;
 
     // Validation
-    if (!name || !type) {
+    if (!userId || !name || !type) {
       return NextResponse.json(
-        { error: 'Name and type are required' },
+        { error: 'User ID, name and type are required' },
         { status: 400 }
       );
     }
 
     const portfolio = await prisma.portfolio.create({
       data: {
+        userId,
         name,
         type,
         initialValue: initialValue || 0,

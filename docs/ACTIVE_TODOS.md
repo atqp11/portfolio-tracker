@@ -1,14 +1,209 @@
 # 📋 Active TODOs
 
-**Last Updated:** November 19, 2025
-**Status:** 60-70% Complete | Focus on completing Sprint 1 before new features
+**Last Updated:** November 22, 2025
+**Status:** 40-50% Complete | **CRITICAL: Auth/User Tiers + AI Features must be done before MVP Launch**
 
 ---
 
 
-## 🔴 CRITICAL (Must Do Before Production)
+## 🔴 CRITICAL (Must Do Before MVP Launch)
 
-### 1. Multi-Model AI Router ✅ COMPLETE
+### 1. Authentication System
+**Why:** Required for user tiers, monetization, and multi-user support
+**Time:** 8-12 hours
+**Blocker:** No (but blocks items 2-3)
+**Priority:** **HIGHEST - Start here**
+
+**Tasks:**
+- [ ] Choose auth provider: NextAuth.js or Clerk
+  - NextAuth: Self-hosted, flexible, free
+  - Clerk: Managed, easier setup, has free tier
+- [ ] Install chosen provider: `npm install next-auth` or `npm install @clerk/nextjs`
+- [ ] Set up authentication configuration
+- [ ] Create sign-up/sign-in pages
+- [ ] Add protected route middleware
+- [ ] Create user session management
+- [ ] Add user profile to database (Prisma schema)
+- [ ] Test authentication flow (sign up, sign in, sign out)
+- [ ] Add authentication to API routes
+
+**Database Changes:**
+```prisma
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  tier      String   @default("free") // "free" | "pro" | "premium"
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  portfolios Portfolio[]
+  usage      UsageTracking[]
+}
+```
+
+---
+
+### 2. User Tier Management & Quota System
+**Why:** Enable monetization, control AI costs, prevent abuse
+**Time:** 10-15 hours
+**Blocker:** Item 1 (Authentication)
+**Priority:** **HIGHEST**
+
+**Tasks:**
+- [ ] Database-backed usage tracking (replace in-memory)
+  - [ ] Create `UsageTracking` model in Prisma schema
+  - [ ] Migrate existing in-memory logic to database
+  - [ ] Add daily/monthly reset logic
+- [ ] Integrate quota checks into AI chat route (`/api/ai/chat`)
+  - [ ] Check user tier before processing request
+  - [ ] Return 429 when quota exceeded
+  - [ ] Add "Upgrade to Pro" message in error response
+- [ ] Create user dashboard (`/dashboard/usage`)
+  - [ ] Display current tier and quota limits
+  - [ ] Show quota consumption (progress bars)
+  - [ ] Add usage graphs (daily/weekly trends)
+  - [ ] "Upgrade" button when approaching limits
+- [ ] Tier badge in UI (show "Free", "Pro", "Premium")
+- [ ] Email notifications for quota warnings
+  - [ ] 80% quota used
+  - [ ] 100% quota exceeded
+- [ ] Admin panel for tier management
+  - [ ] View all users and their tiers
+  - [ ] Manually adjust tiers (for testing/support)
+  - [ ] View usage statistics by tier
+
+**Prisma Schema Updates:**
+```prisma
+model UsageTracking {
+  id              String   @id @default(cuid())
+  userId          String
+  tier            String
+  chatQueries     Int      @default(0)
+  portfolioAnalysis Int    @default(0)
+  secFilings      Int      @default(0)
+  periodStart     DateTime
+  periodEnd       DateTime
+  createdAt       DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([periodStart, periodEnd])
+}
+```
+
+---
+
+### 3. Payment Integration (Stripe)
+**Why:** Collect revenue from Pro/Premium users
+**Time:** 12-16 hours
+**Blocker:** Items 1-2 (Auth + Tiers)
+**Priority:** **HIGH**
+
+**Tasks:**
+- [ ] Create Stripe account and get API keys
+- [ ] Install Stripe SDK: `npm install stripe @stripe/stripe-js`
+- [ ] Create Stripe products for Pro ($9.99) and Premium ($29.99)
+- [ ] Create checkout flow
+  - [ ] `/pricing` page showing tier comparison
+  - [ ] Checkout session creation API route
+  - [ ] Success/cancel redirect pages
+- [ ] Webhook handler for subscription events
+  - [ ] `customer.subscription.created`
+  - [ ] `customer.subscription.updated`
+  - [ ] `customer.subscription.deleted`
+  - [ ] Update user tier in database based on webhook
+- [ ] Customer portal integration
+  - [ ] Allow users to manage subscription
+  - [ ] Cancel/upgrade/downgrade flows
+  - [ ] View billing history
+- [ ] Handle trial periods (7-day Pro trial)
+- [ ] Test with Stripe test mode
+- [ ] Add payment method management
+
+**Environment Variables:**
+```bash
+STRIPE_SECRET_KEY=sk_test_...
+STRIPE_PUBLISHABLE_KEY=pk_test_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_...
+```
+
+---
+
+### 4. AI Features - Phase 2 Implementation
+**Why:** Complete AI pipeline system as designed in mvp_ai_system_design.md
+**Time:** 15-20 hours
+**Blocker:** No (but benefits from items 1-3 for tier-based routing)
+**Priority:** **HIGH**
+
+**Tasks:**
+- [ ] Implement 4-layer caching system
+  - [x] L1: Redis Query Cache (already exists via Vercel KV)
+  - [ ] L2: Company Fact Sheets (Supabase + Redis)
+  - [ ] L3: Filing Summaries (Supabase)
+  - [x] L4: Vercel Edge Cache (already configured)
+- [ ] Create Supabase tables for caching
+  - [ ] `company_fact_sheets` table
+  - [ ] `filing_summaries` table
+  - [ ] Run SQL schema from mvp_ai_system_design.md
+- [ ] Implement lazy loading for SEC filings
+  - [ ] Generate summaries on-demand (first request)
+  - [ ] Cache summaries for 30 days
+  - [ ] Integrate with existing SEC EDGAR API
+- [ ] Tier-based AI model routing
+  - [x] Flash only for Free tier
+  - [ ] Flash + Pro escalation for Pro tier
+  - [ ] Flash + Pro (priority) for Premium tier
+  - [ ] Update router to check user tier
+- [ ] Monitoring and cost tracking integration
+  - [ ] Track cache hit rates (L1, L2, L3, L4)
+  - [ ] Monitor costs by tier
+  - [ ] Alert when costs exceed projections
+- [ ] Performance optimization
+  - [ ] Ensure <200ms response from cache
+  - [ ] Stream responses for long-running queries
+  - [ ] Implement request deduplication
+
+**Database Schema (Supabase):**
+```sql
+-- Company fact sheets
+CREATE TABLE company_fact_sheets (
+  ticker VARCHAR(10) PRIMARY KEY,
+  cik VARCHAR(20) NOT NULL,
+  company_name VARCHAR(255) NOT NULL,
+  sector VARCHAR(100),
+  industry VARCHAR(100),
+  ceo VARCHAR(100),
+  description TEXT,
+  fundamental_metrics JSONB,
+  latest_financials JSONB,
+  last_updated TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX idx_fact_sheets_cik ON company_fact_sheets(cik);
+
+-- Filing summaries
+CREATE TABLE filing_summaries (
+  id SERIAL PRIMARY KEY,
+  cik VARCHAR(20) NOT NULL,
+  ticker VARCHAR(10) NOT NULL,
+  filing_type VARCHAR(10) NOT NULL,
+  period_end DATE NOT NULL,
+  summary_text TEXT NOT NULL,
+  kpis_json JSONB,
+  cached_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  UNIQUE(cik, filing_type, period_end)
+);
+
+CREATE INDEX idx_filing_summaries_lookup
+  ON filing_summaries(cik, filing_type, period_end);
+```
+
+---
+
+### 5. Multi-Model AI Router ✅ COMPLETE
 **Why:** Reduce costs, add fallback reliability
 **Time:** 4-6 hours
 **Blocker:** No
@@ -30,8 +225,7 @@
 
 ---
 
-
-### 2. Cost Tracking Dashboard ✅ COMPLETE
+### 6. Cost Tracking Dashboard ✅ COMPLETE
 **Why:** Monitor $20/month budget, prevent overruns
 **Time:** 3-4 hours
 **Blocker:** No
@@ -55,9 +249,9 @@
 
 ---
 
-## 🟡 HIGH PRIORITY (Improves UX & Maintainability)
+## 🟡 HIGH PRIORITY (After Critical Items)
 
-### 3. Upgrade to Latest Next.js ✅ COMPLETE
+### 7. Upgrade to Latest Next.js ✅ COMPLETE
 **Why:** Security updates, performance improvements, bug fixes
 **Time:** 2-3 hours → **Actual: 1.5 hours**
 **Blocker:** No
@@ -84,7 +278,7 @@
 
 ---
 
-### 4. Navigation Structure ✅ COMPLETE
+### 8. Navigation Structure ✅ COMPLETE
 **Why:** Better UX, scalability for new features
 **Time:** 4-6 hours
 **Blocker:** No
@@ -109,7 +303,7 @@
 
 ---
 
-### 5. Refactor app/page.tsx ✅ COMPLETE
+### 9. Refactor app/page.tsx ✅ COMPLETE
 **Why:** Maintainability, performance
 **Time:** 6-8 hours
 **Blocker:** Navigation structure recommended first
@@ -127,10 +321,11 @@
 
 ---
 
-### 6. Performance Optimization Pass
+### 10. Performance Optimization Pass
 **Why:** Better UX, meet <1.5s page load target
 **Time:** 6-8 hours
-**Blocker:** No
+**Blocker:** Complete Auth/Tiers/AI features first
+**Priority:** **MEDIUM** (do this AFTER items 1-4)
 
 **Tasks:**
 - [ ] Install React Query: `npm install @tanstack/react-query`
@@ -147,7 +342,7 @@
 
 ## 🟢 MEDIUM PRIORITY (Quality & Polish)
 
-### 7. Testing Infrastructure
+### 11. Testing Infrastructure
 **Time:** 8-12 hours
 **Blocker:** No
 
@@ -161,12 +356,13 @@
   - [ ] Stock quote fetching
   - [ ] AI copilot interaction
   - [ ] Checklist completion
+  - [ ] Subscription checkout flow
 - [ ] Setup CI/CD for tests
 - [ ] Aim for >70% code coverage
 
 ---
 
-### 8. Mobile UX Improvements
+### 12. Mobile UX Improvements
 **Time:** 4-6 hours
 **Blocker:** Navigation structure
 
@@ -182,12 +378,12 @@
 
 ---
 
-### 9. Security & Production Prep
+### 13. Security & Production Prep
 **Time:** 4-6 hours
-**Blocker:** No
+**Blocker:** Authentication must be complete first
 
 **Tasks:**
-- [ ] Review all API routes for auth (if multi-user)
+- [ ] Review all API routes for auth (require user session)
 - [ ] Add rate limiting to public endpoints
 - [ ] Implement CSP headers in `next.config.js`
 - [ ] Sanitize all user input
@@ -200,7 +396,7 @@
 
 ## ⚪ LOW PRIORITY (Nice to Have)
 
-### 10. Additional Features
+### 14. Additional Features
 **Time:** Varies
 **Blocker:** Complete critical items first
 
@@ -231,6 +427,11 @@
 - [x] Check all API endpoints work
 - [x] Verify caching works as expected
 - [x] Test with rate-limited API keys
+- [ ] Test authentication flow (sign up, login, logout)
+- [ ] Test tier upgrade/downgrade flow
+- [ ] Test quota enforcement (reach limits, verify blocked)
+- [ ] Test Stripe checkout flow (test mode)
+- [ ] Test AI caching layers (L1, L2, L3, L4)
 
 ---
 
@@ -239,119 +440,169 @@
 ### Overall Status
 - **Database & Core:** ✅ 100% Complete
 - **Features (Sprint 2-4):** ✅ 75% Complete
-- **AI Infrastructure (Sprint 1):** ❌ 30% Complete ← Focus here
+- **Auth & Monetization:** ❌ 0% Complete ← **CRITICAL BLOCKER**
+- **AI Infrastructure (Sprint 1):** ⚠️ 50% Complete (router done, caching partial)
 - **UX & Polish (Sprint 5):** ⚠️ 20% Complete
 - **Testing (Sprint 6):** ❌ 10% Complete
 
-### Critical Path to Production
+### Critical Path to MVP Launch (Updated)
+
 ```
-1. Multi-Model AI Router (6h)
+1. Authentication System (12h)                    ← START HERE
    ↓
-2. Cost Tracking (4h)
+2. User Tier Management (15h)
    ↓
-3. Navigation Structure (6h)
+3. Payment Integration (16h)
    ↓
-4. Refactor page.tsx (8h)
+4. AI Features Phase 2 (20h)
    ↓
-5. Performance Pass (8h)
+5. Performance Optimization (8h)
    ↓
-6. Testing Infrastructure (12h)
+6. Security & Production Prep (6h)
    ↓
-7. Security Audit (6h)
+7. Testing Infrastructure (12h)
    ↓
-🚀 Production Ready
+🚀 MVP LAUNCH READY
 ```
 
-**Total Time to Production:** ~50 hours (~2-3 weeks full-time, 4-6 weeks part-time)
+**Total Time to MVP Launch:** ~89 hours (~3-4 weeks full-time, 6-8 weeks part-time)
 
 ---
 
 ## 🎯 THIS WEEK'S FOCUS
 
-**Top 3 Priorities:**
+**NEW Top 3 Priorities (Updated for MVP Launch):**
 
-1. ✅ **Multi-Model AI Router** (4-6 hours)
-   - Reduces costs
-   - Adds reliability
-   - Enables fallbacks
+1. **🔴 Authentication System** (12 hours)
+   - Enables multi-user support
+   - Required for user tiers
+   - Blocks all monetization features
+   - **Decision needed:** NextAuth vs Clerk
 
-2. ✅ **Cost Tracking Dashboard** (3-4 hours)
-   - Prevents budget overruns
-   - Monitors usage
-   - Alerts before problems
+2. **🔴 User Tier Management** (15 hours)
+   - Enable monetization
+   - Control AI costs
+   - Prevent abuse
+   - Database-backed quota tracking
 
-3. ✅ **Verify Existing Features** (2 hours)
-   - Test thesis scoring
-   - Check event tasks
-   - Measure performance
+3. **🔴 Payment Integration** (16 hours)
+   - Stripe checkout
+   - Subscription management
+   - Revenue collection
+   - Customer portal
 
-**Weekly Goal:** Complete AI infrastructure (items 1-2) + verification
+**Weekly Goal:** Complete Authentication + User Tiers (items 1-2)
 
 ---
 
-## 📅 SPRINT PLAN
+## 📅 SPRINT PLAN (Updated)
 
-### Week 1 (Current)
-- [ ] Multi-Model AI Router
-- [ ] Cost Tracking Dashboard
-- [ ] Feature verification
+### Week 1 (Current) - **CRITICAL: Auth & Tiers**
+- [ ] Authentication System (item 1)
+- [ ] User Tier Management (item 2)
+- [ ] Start Payment Integration (item 3)
 
-### Week 2
-- [ ] Navigation Structure
-- [ ] Refactor app/page.tsx
-- [ ] Performance optimization
+### Week 2 - **Payment & AI Features**
+- [ ] Complete Payment Integration (item 3)
+- [ ] AI Features Phase 2 (item 4)
+- [ ] Cache layer implementation
 
-### Week 3
-- [ ] Testing infrastructure
-- [ ] Mobile UX improvements
+### Week 3 - **Performance & Security**
+- [ ] Performance Optimization (item 10)
+- [ ] Security & Production Prep (item 13)
+- [ ] Testing Infrastructure (item 11)
 
-**Before Starting Any Task:**
-1. ✅ Create git branch: `git checkout -b feature/task-name`
-2. ✅ Commit frequently with clear messages
-3. ✅ Test thoroughly before merging
-4. ✅ Update this TODO when complete
+### Week 4 - **Polish & Launch**
+- [ ] Mobile UX Improvements (item 12)
+- [ ] Final testing and bug fixes
+- [ ] Production deployment
+- [ ] 🚀 **MVP LAUNCH**
 
-**Cost Management:**
-- Keep AI costs under $20/month
-- Use Tier 1 models (cheap) for simple queries
-- Use Tier 2/3 models only for complex reasoning
-- Cache aggressively (already done ✅)
+---
 
-**Quality Standards:**
-- Write tests for new features
-- Document complex logic
-- Follow conventions in CLAUDE.md
-- Mobile-first responsive design
-- Performance: page load <1.5s
+## 💡 DECISION POINTS
+
+### 1. Authentication Provider Choice
+
+**NextAuth.js:**
+- ✅ Free, open-source
+- ✅ Self-hosted, full control
+- ✅ Flexible, customizable
+- ❌ More setup required
+- ❌ Need to manage sessions
+
+**Clerk:**
+- ✅ Managed service, easier setup
+- ✅ Beautiful pre-built UI components
+- ✅ Free tier: 10,000 MAU
+- ❌ Vendor lock-in
+- ❌ Paid after 10k users
+
+**Recommendation:** Start with **Clerk** for faster MVP, migrate to NextAuth later if needed.
+
+### 2. Payment Processing
+
+**Stripe** (Recommended):
+- ✅ Industry standard
+- ✅ Excellent documentation
+- ✅ Easy webhook integration
+- ✅ Customer portal built-in
+
+**Alternative:** Paddle (if international tax handling is critical)
+
+---
+
+## 🚨 BLOCKERS & RISKS
+
+### Current Blockers
+1. **No authentication system** → Can't implement user tiers
+2. **No user tiers** → Can't monetize
+3. **No payment system** → Can't collect revenue
+
+### Risks
+1. **Auth provider choice** → Wrong choice could require migration later
+2. **Stripe integration complexity** → Webhooks can be tricky
+3. **Database schema changes** → Need migrations for User model
+4. **AI cost explosion** → Without tiers, hard to control costs
 
 ---
 
 ## 🔗 Related Documents
 
 - **CLAUDE.md** - Comprehensive development guide
+- **USER_TIER_LIMITS.md** - Complete tier system documentation
+- **mvp_ai_system_design.md** - AI pipeline Phase 2 architecture
 - **REFACTORING_STATUS_ANALYSIS.md** - Detailed progress analysis
 - **docs/archive/REFACTORING_PLAN_ORIGINAL.md** - Original 12-week plan
-- **DOCUMENTATION_CLEANUP_RECOMMENDATIONS.md** - Doc cleanup strategy
 
 ---
 
 ## ✨ QUICK WINS (Easy Items)
 
 If you have 30 minutes:
-- [ ] Add skeleton loading states to one component
-- [ ] Write one unit test
-- [ ] Optimize one image with next/image
-- [ ] Add one loading.tsx file
-- [ ] Document one complex function
+- [ ] Add Clerk account and get API keys
+- [ ] Create Stripe account
+- [ ] Draft pricing page mockup
+- [ ] Write Prisma schema for User model
+- [ ] Document authentication flow
 
 If you have 1 hour:
-- [ ] Add breadcrumbs to current pages
-- [ ] Write tests for calculator functions
-- [ ] Create one reusable component
-- [ ] Optimize one slow API route
+- [ ] Install and configure Clerk
+- [ ] Create sign-up/sign-in pages
+- [ ] Add protected route middleware
+- [ ] Test authentication flow locally
+- [ ] Create Stripe products (Pro, Premium)
 
 ---
 
-**Remember:** Focus on completing AI infrastructure (items 1-2) before adding new features!
+**Remember:**
+- **DO NOT start Performance Optimization until Auth/Tiers/Payment are done!**
+- **Auth + Tiers + Payment = Foundation for MVP monetization**
+- **Focus on revenue-generating features first**
 
-🎯 **Current Priority:** Multi-Model AI Router → Cost Tracking → Navigation
+🎯 **NEW Priority Order:**
+1. Authentication (item 1)
+2. User Tiers (item 2)
+3. Payment Integration (item 3)
+4. AI Phase 2 (item 4)
+5. THEN Performance Optimization (item 10)

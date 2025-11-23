@@ -199,9 +199,14 @@ async function main() {
 
   // Test 7: Relationships - Cascade Delete
   await testSection('🔗 TEST 7: Relationship Integrity - Cascade Delete', async () => {
+    // Get userId from an existing portfolio
+    const existingPortfolio = await prisma.portfolio.findFirst();
+    assert(!!existingPortfolio, 'Existing portfolio found for test');
+
     // Create test portfolio with stock
     const testPortfolio = await prisma.portfolio.create({
       data: {
+        userId: existingPortfolio!.userId,
         name: 'Test Portfolio',
         type: 'test',
         initialValue: 10000,

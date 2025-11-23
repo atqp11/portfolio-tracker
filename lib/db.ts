@@ -10,7 +10,7 @@ import { configs } from './config';
  * Get or create a portfolio by ID (energy or copper)
  * Creates portfolio from config if it doesn't exist
  */
-export async function getOrCreatePortfolio(portfolioType: 'energy' | 'copper') {
+export async function getOrCreatePortfolio(portfolioType: 'energy' | 'copper', userId: string) {
   const config = configs.find(c => c.id === portfolioType);
   if (!config) {
     throw new Error(`Config not found for ${portfolioType}`);
@@ -19,6 +19,7 @@ export async function getOrCreatePortfolio(portfolioType: 'energy' | 'copper') {
   let portfolio = await prisma.portfolio.findFirst({
     where: {
       type: portfolioType,
+      userId,
     },
     include: {
       stocks: true,
@@ -39,9 +40,10 @@ export async function getOrCreatePortfolio(portfolioType: 'energy' | 'copper') {
     // Create portfolio from config
     const targetValue = portfolioType === 'energy' ? 30000 : 15000;
     const borrowedAmount = config.initialMargin || 0;
-    
+
     portfolio = await prisma.portfolio.create({
       data: {
+        userId,
         name: config.name,
         type: portfolioType,
         initialValue: config.initialValue,
@@ -152,9 +154,10 @@ export async function updateChecklistStats(checklistId: string) {
  */
 export async function syncPortfolioFromLocalStorage(
   portfolioType: 'energy' | 'copper',
+  userId: string,
   cachedData: any[]
 ) {
-  const portfolio = await getOrCreatePortfolio(portfolioType);
+  const portfolio = await getOrCreatePortfolio(portfolioType, userId);
 
   // Delete existing stocks
   await prisma.stock.deleteMany({

@@ -2227,12 +2227,12 @@ export async function updatePortfolio(portfolioId: string, data: any) {
   revalidatePath('/portfolio');
 }
 
-// ✅ GOOD - Middleware for route protection
-// middleware.ts
+// ✅ GOOD - Proxy for route protection
+// proxy.ts
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const token = request.cookies.get('session');
 
   if (!token && request.nextUrl.pathname.startsWith('/dashboard')) {

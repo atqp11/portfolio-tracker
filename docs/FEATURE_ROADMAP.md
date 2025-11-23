@@ -97,7 +97,7 @@ Transform the portfolio tracker from a personal tool into a professional SaaS pl
   }
   ```
 - [ ] Create `lib/supabase/middleware.ts` - Middleware helper
-- [ ] Create `middleware.ts` - Route protection
+- [ ] Create `proxy.ts` - Route protection
 
 **Configure Auth Providers in Supabase Dashboard:**
 - [ ] Enable Google OAuth:

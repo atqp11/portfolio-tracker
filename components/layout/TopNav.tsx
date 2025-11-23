@@ -1,9 +1,17 @@
 'use client';
 
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import { createClient } from '@/lib/supabase/client';
 
 interface TopNavProps {
   title?: string;
+}
+
+interface UserData {
+  email: string;
+  name?: string;
+  tier: string;
 }
 
 const getPageTitle = (pathname: string): string => {
@@ -22,6 +30,7 @@ const getPageTitle = (pathname: string): string => {
 
 export default function TopNav({ title }: TopNavProps) {
   const pathname = usePathname();
+  const router = useRouter();
   const pageTitle = title || getPageTitle(pathname);
   const currentDate = new Date().toLocaleDateString('en-US', {
     weekday: 'short',
@@ -30,8 +39,49 @@ export default function TopNav({ title }: TopNavProps) {
     day: 'numeric',
   });
 
-  const handleSignOut = () => {
-    window.location.href = '/';
+  const [user, setUser] = useState<UserData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const supabase = createClient();
+
+  useEffect(() => {
+    async function fetchUser() {
+      try {
+        // Get auth user from Supabase
+        const { data: { user: authUser } } = await supabase.auth.getUser();
+
+        if (authUser) {
+          // Fetch user profile from database
+          const response = await fetch(`/api/auth/user?id=${authUser.id}`);
+          if (response.ok) {
+            const userData = await response.json();
+            setUser(userData);
+          } else {
+            // Fallback to auth user data
+            setUser({
+              email: authUser.email || 'Unknown',
+              name: authUser.user_metadata?.name,
+              tier: 'free',
+            });
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching user:', error);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchUser();
+  }, [supabase]);
+
+  const handleSignOut = async () => {
+    try {
+      await fetch('/api/auth/signout', { method: 'POST' });
+      router.push('/auth/signin');
+      router.refresh();
+    } catch (error) {
+      console.error('Error signing out:', error);
+    }
   };
 
   return (
@@ -93,11 +143,15 @@ export default function TopNav({ title }: TopNavProps) {
           {/* User Menu */}
           <div className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer transition-colors">
             <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-sm font-medium">
-              U
+              {loading ? '...' : (user?.name?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || 'U')}
             </div>
             <div className="hidden sm:block">
-              <p className="text-sm font-medium text-gray-900 dark:text-gray-100">User</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">Free Tier</p>
+              <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                {loading ? 'Loading...' : (user?.name || user?.email?.split('@')[0] || 'User')}
+              </p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 capitalize">
+                {loading ? '...' : `${user?.tier || 'free'} Tier`}
+              </p>
             </div>
           </div>
 

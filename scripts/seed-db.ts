@@ -10,10 +10,30 @@ async function seedDatabase() {
   console.log('🌱 Seeding Database from Config...\n');
 
   try {
+    // Create or get a seed user
+    const seedEmail = process.env.SEED_USER_EMAIL || 'seed@example.com';
+    let user = await prisma.user.findUnique({
+      where: { email: seedEmail },
+    });
+
+    if (!user) {
+      user = await prisma.user.create({
+        data: {
+          email: seedEmail,
+          name: 'Seed User',
+          tier: 'free',
+        },
+      });
+      console.log(`✅ Created seed user: ${user.email}\n`);
+    } else {
+      console.log(`✅ Using existing user: ${user.email}\n`);
+    }
+
     // Create Energy Portfolio
     const energyConfig = configs.find(c => c.id === 'energy')!;
     const energyPortfolio = await prisma.portfolio.create({
       data: {
+        userId: user.id,
         name: energyConfig.name,
         type: 'energy',
         initialValue: energyConfig.initialValue,
@@ -28,6 +48,7 @@ async function seedDatabase() {
     const copperConfig = configs.find(c => c.id === 'copper')!;
     const copperPortfolio = await prisma.portfolio.create({
       data: {
+        userId: user.id,
         name: copperConfig.name,
         type: 'copper',
         initialValue: copperConfig.initialValue,
