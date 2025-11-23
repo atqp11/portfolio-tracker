@@ -76,9 +76,18 @@ export default function TopNav({ title }: TopNavProps) {
 
   const handleSignOut = async () => {
     try {
+      // Sign out from Supabase client-side first
+      await supabase.auth.signOut();
+
+      // Then call the server-side signout endpoint
       await fetch('/api/auth/signout', { method: 'POST' });
-      router.push('/auth/signin');
-      router.refresh();
+
+      // Clear local state
+      setUser(null);
+
+      // Use window.location for a hard redirect to force full page reload
+      // This ensures all cached state is cleared
+      window.location.href = '/auth/signin';
     } catch (error) {
       console.error('Error signing out:', error);
     }
