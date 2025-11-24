@@ -37,17 +37,20 @@ export async function proxy(request: NextRequest) {
     }
   )
 
-  // SECURITY: Use getUser() for authentication check in proxy
-  // This validates the JWT token from the request cookies
-  const { data: { user }, error } = await supabase.auth.getUser()
+  // SECURITY: Use getClaims() for authentication check in proxy
+  // This validates JWT signatures against published public keys (cached JWKS)
+  // More performant than getUser() which makes network requests every time
+  const { data, error } = await supabase.auth.getClaims()
+  const user = !error && data?.claims?.sub ? { id: data.claims.sub } : null
 
   // Protected routes - redirect to sign-in if not authenticated
   if (!user && (
     request.nextUrl.pathname.startsWith('/dashboard') ||
-    request.nextUrl.pathname.startsWith('/portfolio') ||
-    request.nextUrl.pathname.startsWith('/stocks') ||
     request.nextUrl.pathname.startsWith('/thesis') ||
-    request.nextUrl.pathname.startsWith('/checklist')
+    request.nextUrl.pathname.startsWith('/checklist') ||
+    request.nextUrl.pathname.startsWith('/fundamentals') ||
+    request.nextUrl.pathname.startsWith('/risk') ||
+    request.nextUrl.pathname.startsWith('/settings')
   )) {
     const url = request.nextUrl.clone()
     url.pathname = '/auth/signin'

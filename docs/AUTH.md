@@ -49,9 +49,11 @@ const user = !error && data ? { id: data.sub } : null
 ```
 
 **Why getClaims() instead of getUser():**
-- `getClaims()` validates JWT signatures against published public keys
-- `getUser()` doesn't guarantee token revalidation in proxy/middleware
-- Required by Supabase for secure authentication in proxy layer
+- `getClaims()` validates JWT signatures against published public keys (cached JWKS endpoint)
+- `getUser()` makes network requests to Supabase Auth server on every request, adding unnecessary latency
+- `getClaims()` is significantly more performant - uses cached JWT validation
+- `getClaims()` automatically refreshes sessions when tokens are about to expire
+- Recommended by Supabase for middleware/proxy authentication in Next.js
 
 ---
 
@@ -94,16 +96,17 @@ Run these SQL scripts in Supabase Dashboard → SQL Editor:
 
 **proxy.ts** handles:
 - Session refresh on every request
-- JWT validation with `getClaims()`
+- JWT validation with `getClaims()` (performant, cached validation)
 - Route protection (redirects unauthenticated users)
 - Auth page redirects (redirects authenticated users away from login)
 
 **Protected Routes:**
-- `/dashboard`
-- `/portfolio`
-- `/stocks`
+- `/dashboard` (includes all sub-routes like `/dashboard/stocks/[ticker]`)
 - `/thesis`
 - `/checklist`
+- `/fundamentals`
+- `/risk`
+- `/settings`
 
 **Excluded from Proxy:**
 - Static files (`_next/static`, `_next/image`)
