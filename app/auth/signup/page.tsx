@@ -190,23 +190,9 @@ export default function SignUpPage() {
       }
 
       if (data.user) {
-        // Create User record in database via API
-        const response = await fetch('/api/auth/create-user', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            id: data.user.id,
-            email: data.user.email,
-            name,
-          }),
-        });
-
-        if (!response.ok) {
-          const errorData = await response.json();
-          setError(errorData.error || 'Failed to create user profile');
-          setLoading(false);
-          return;
-        }
+        // Profile is automatically created by database trigger (handle_new_user)
+        // Wait a moment for trigger to complete
+        await new Promise(resolve => setTimeout(resolve, 500));
 
         // Success - redirect to dashboard
         router.push('/dashboard');
