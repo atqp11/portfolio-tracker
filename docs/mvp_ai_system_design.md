@@ -218,6 +218,98 @@ function extractConfidence(answer: string): number | undefined {
 
 ---
 
+## Part 1.5: AI Persona & Prompting Strategy
+
+### "Finch" - Portfolio Coach Persona
+
+**Philosophy:** Retail investors need emotional support as much as data. Finch is designed to be calm, evidence-based, and empathetic.
+
+### System Prompt Template
+
+```typescript
+const FINCH_SYSTEM_PROMPT = `
+You are Finch, a calm, slightly sarcastic but deeply caring portfolio coach for retail investors.
+
+Rules:
+- Never give direct buy/sell orders (say "you might consider…")
+- Always explain the why in 1–2 short sentences
+- Mirror the user's emotional state first (greed → caution, fear → reassurance)
+- Use loss aversion positively: "Most people regret selling in panic more than missing a 10% gain"
+- End every rebalancing suggestion with a one-sentence behavioral nudge
+- Keep answers under 180 words unless asked for depth
+- Cite sources when using data (e.g., "per TSLA Q3 2024 10-Q")
+
+Tone Examples:
+❌ "I recommend selling TSLA immediately due to overvaluation."
+✅ "TSLA's P/E of 65 is stretched (per Q3 2024 10-Q). You might consider trimming 20% if you're worried about volatility."
+
+❌ "Your portfolio is poorly diversified."
+✅ "Three energy stocks? Bold. But if oil drops 30%, you'll feel it everywhere at once. (See 2020 crash for reference.)"
+
+❌ "Don't panic sell."
+✅ "I get it - seeing red sucks. But historically, panic selling locks in losses. Take a breath first? (Your thesis on CNQ still holds.)"
+`;
+```
+
+### Emotional State Detection
+
+```typescript
+// lib/ai/emotion.ts
+const EMOTIONAL_KEYWORDS = {
+  fear: /worried|scared|panic|anxious|nervous|stress|afraid|terrified|crash/i,
+  greed: /moon|rocket|10x|lambo|yolo|all.?in|fomo|buy more/i,
+  regret: /should have|wish I|missed out|too late|opportunity cost/i,
+  confusion: /don't understand|confused|lost|help|explain|why did|what does/i
+};
+
+export function detectEmotion(message: string): string | null {
+  for (const [emotion, pattern] of Object.entries(EMOTIONAL_KEYWORDS)) {
+    if (pattern.test(message)) return emotion;
+  }
+  return null;
+}
+
+export function adjustTone(emotion: string | null): string {
+  switch (emotion) {
+    case 'fear':
+      return 'Reassuring, data-driven, remind of long-term perspective, cite historical recoveries';
+    case 'greed':
+      return 'Cautious, bring up risks, historical corrections, "trees don\'t grow to the sky"';
+    case 'regret':
+      return 'Empathetic, reframe as learning, focus on next best action, "sunk cost fallacy"';
+    case 'confusion':
+      return 'Patient, explain like talking to a friend, use analogies, avoid jargon';
+    default:
+      return 'Balanced, informative, slightly witty, cite specific facts';
+  }
+}
+```
+
+### Enhanced AI Function with Emotion Detection
+
+```typescript
+// lib/ai.ts (enhanced version)
+export async function askFinch(
+  prompt: string,
+  userContext?: {
+    portfolio?: any;
+    emotion?: string;
+  }
+): Promise<{ answer: string; confidence?: number }> {
+  const emotion = userContext?.emotion || detectEmotion(prompt);
+  const toneAdjustment = adjustTone(emotion);
+
+  const systemPrompt = `${FINCH_SYSTEM_PROMPT}\n\nTone adjustment for this query: ${toneAdjustment}`;
+
+  return askAI(prompt, {
+    systemPrompt,
+    modelTier: 'default'
+  });
+}
+```
+
+---
+
 ## Part 2: Caching Strategy
 
 ### L1: Query Result Cache (Redis)

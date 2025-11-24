@@ -4,23 +4,36 @@
 
 ---
 
-## 📚 Active Documentation
+## 🚀 AI System Documentation - Start Here
 
-### Core Strategy & Architecture
+### 👉 For MVP Implementation (0-5K users)
 
-**🎯 [`AI_MODEL_STRATEGY.md`](./AI_MODEL_STRATEGY.md)** ⭐ **Production-Ready**
-- Cloud-based AI model strategy (Groq GPT-OSS 20B, Gemini Flash)
-- Two-pipeline architecture (batch processing + RAG for chat)
-- Lazy indexing strategy for cost optimization
-- Budget: $35-78/month
-- **Last updated:** Nov 19, 2025
+**⭐ [`mvp_ai_system_design.md`](./mvp_ai_system_design.md)** ← **START HERE**
+- Complete implementation guide ready to ship in 7-14 days
+- Single model approach (Llama-3.3-70B via OpenRouter)
+- 4-layer caching strategy (Query → Fact sheets → Filing summaries → Edge)
+- "Finch" AI persona with emotional state detection
+- Budget: ~$107/month (1K users)
+- **Status:** ✅ Production-ready
+- **Last updated:** Nov 23, 2025
 
-**🏗️ [`retail_stock_ai_pipeline_system_design_recommendations.md`](./retail_stock_ai_pipeline_system_design_recommendations.md)** ⭐ **Source of Truth**
-- Comprehensive system design for 1,000 users, 500 stocks
-- SEC filing ingestion, news/social sentiment, RAG pipeline
-- Model recommendations with cost breakdown
-- Caching strategy (Redis, S3, FAISS)
-- **Last updated:** Nov 19, 2025
+### 📚 For Phase 2+ (10K+ users, advanced features)
+
+**📖 [`retail_stock_ai_pipeline_system_design_recommendations.md`](./retail_stock_ai_pipeline_system_design_recommendations.md)** ← **REFERENCE**
+- Comprehensive RAG architecture with vector DB + embeddings
+- Multi-model routing strategy for cost optimization
+- Query classification and routing logic
+- Company fact sheet management and versioning
+- Enhanced security & compliance guidelines
+- **Status:** 📚 Reference for future scaling
+- **Last updated:** Nov 23, 2025
+
+### 🗑️ Deprecated
+
+**~~[`AI_MODEL_STRATEGY.md`](./AI_MODEL_STRATEGY.md)~~** - **DEPRECATED**
+- Content consolidated into mvp_ai_system_design.md and retail doc
+- **Status:** ⚠️ Will be deleted - do not use for new development
+- Unique content (Finch persona, security) extracted and merged
 
 **🧠 [`CLAUDE.md`](./CLAUDE.md)** ⭐ **Development Guidelines**
 - Guidance for Claude Code AI assistant
@@ -80,8 +93,8 @@ Outdated or superseded documentation
 
 | Need | Document |
 |------|----------|
-| **AI strategy overview** | `AI_MODEL_STRATEGY.md` |
-| **System design details** | `retail_stock_ai_pipeline_system_design_recommendations.md` |
+| **🚀 Build MVP AI system** | `mvp_ai_system_design.md` ← **START HERE** |
+| **📚 Phase 2 architecture** | `retail_stock_ai_pipeline_system_design_recommendations.md` |
 | **Current tasks** | `ACTIVE_TODOS.md` |
 | **Long-term roadmap** | `FEATURE_ROADMAP.md` |
 | **Development guidelines** | `CLAUDE.md` |
@@ -112,29 +125,24 @@ Outdated or superseded documentation
 
 ## 📦 Key Documents by Phase
 
-**Phase 1: Current Implementation (Week 1-2)**
-- `AI_MODEL_STRATEGY.md` - Model selection and routing
+**Phase 1: MVP Implementation (Week 1-2) ← YOU ARE HERE**
+- `mvp_ai_system_design.md` - Complete implementation guide
 - `SERVICE_LAYER_ARCHITECTURE.md` - Code refactoring
 - `ACTIVE_TODOS.md` - Sprint tasks
 
-**Phase 2: SEC Filing Pipeline (Week 2-3)**
-- `retail_stock_ai_pipeline_system_design_recommendations.md` - EDGAR integration
-- `AI_MODEL_STRATEGY.md` - Embeddings & vector store section
+**Phase 2: Advanced Features (Only when MRR > $20K or 5K+ users)**
+- `retail_stock_ai_pipeline_system_design_recommendations.md` - Vector DB + RAG
+- `mvp_ai_system_design.md` - Migration triggers and thresholds
 
-**Phase 3: News & Social (Week 3-4)**
-- `retail_stock_ai_pipeline_system_design_recommendations.md` - Batch processing
-- `AI_MODEL_STRATEGY.md` - Caching strategy
-
-**Phase 4: RAG Chat (Week 4-5)**
-- `AI_MODEL_STRATEGY.md` - Investor chat implementation
-- `AI_COPILOT_INTEGRATION.md` - UI integration
-
-**Phase 5: Monitoring (Week 5-6)**
-- `AI_MODEL_STRATEGY.md` - Telemetry and cost tracking
-- `ACTIVE_TODOS.md` - Cost dashboard task
+**Decision Point: When to Move to Phase 2?**
+Check these triggers:
+- ✅ MRR > $20K/month (can afford optimization time)
+- ✅ Inference costs > $500/month (meaningful savings available)
+- ✅ "Deep filing" queries > 5% of traffic (currently <2%)
+- ✅ 5K+ active users (scale concerns)
 
 ---
 
 *For questions or documentation improvements, see `CLAUDE.md` for contribution guidelines.*
 
-*Last updated: November 19, 2025*
+*Last updated: November 23, 2025*

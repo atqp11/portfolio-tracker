@@ -963,10 +963,43 @@ Feedback loop:
 ---
 
 ## Security, compliance & governance
-- Encrypt S3 buckets at rest, use signed URLs.
-- PII handling: strip user PII from logs; separate telemetry and content storage.
-- Retention: filings and parsed KPIs kept per TTL policy; keep an audit log of LLM outputs for 90 days.
-- Rate limit API keys, use service accounts and least-privilege IAM roles.
+
+### Data Encryption
+- **At rest:** S3 buckets encrypted with AES-256
+- **In transit:** HTTPS only (TLS 1.2+)
+- **API keys:** Stored in environment variables, never committed to git
+- **Database:** Encrypt sensitive fields (portfolio holdings, user PII)
+
+### PII Handling
+- **User data:** Strip PII from logs (no email/name in telemetry)
+- **Portfolio data:** Encrypted in database with user-specific encryption keys
+- **Separate storage:** Telemetry and content stored separately
+- **Compliance:** GDPR-compliant data export and deletion workflows
+
+### Retention Policy
+- **SEC filings:** 30 days in cache, persistent in S3 (historical analysis)
+- **News digests:** 24-72 hours in cache, then purged
+- **LLM outputs:** Audit log for 90 days (compliance and quality monitoring)
+- **User portfolio:** Persistent (user controls deletion via UI)
+- **Query logs:** 30 days for debugging, then anonymized/aggregated
+
+### Rate Limiting
+- **API routes:** 100 requests/hour per IP (client-side), 1000 requests/hour per authenticated user
+- **LLM providers:** Respect provider limits (Groq: 100k tokens/min, OpenRouter: model-specific)
+- **EDGAR:** Max 10 requests/second per SEC rules
+- **Filing requests:** Max 10 new filing fetches per user per day (prevent abuse)
+
+### Access Control
+- **Service accounts:** Least-privilege IAM roles
+- **API keys:** Rotate every 90 days
+- **Database:** Row-level security (RLS) for multi-tenant architecture
+- **Admin panel:** IP whitelist + 2FA required
+
+### Monitoring & Alerts
+- **Failed auth attempts:** Alert after 5 failures from same IP
+- **Unusual query patterns:** Flag users making >50 queries/hour
+- **Data export requests:** Log all GDPR data exports for audit trail
+- **Cost anomalies:** Alert if daily inference cost >2x average
 
 ---
 
