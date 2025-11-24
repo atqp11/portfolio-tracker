@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { getProfile } from '@/lib/supabase/db';
 
 export const dynamic = 'force-dynamic';
 
+/**
+ * Get User Profile API Route
+ *
+ * Fetches user profile from Supabase profiles table
+ * RLS policies ensure users can only fetch their own profile
+ */
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
@@ -15,30 +21,28 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Fetch user from database
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        tier: true,
-        createdAt: true,
-      },
-    });
+    // Fetch profile from Supabase (RLS enforced)
+    const profile = await getProfile(userId);
 
-    if (!user) {
+    if (!profile) {
       return NextResponse.json(
-        { error: 'User not found' },
+        { error: 'Profile not found' },
         { status: 404 }
       );
     }
 
-    return NextResponse.json(user);
+    // Return profile data
+    return NextResponse.json({
+      id: profile.id,
+      email: profile.email,
+      name: profile.name,
+      tier: profile.tier,
+      created_at: profile.created_at,
+    });
   } catch (error) {
-    console.error('Error fetching user:', error);
+    console.error('Error fetching profile:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch user' },
+      { error: 'Failed to fetch profile' },
       { status: 500 }
     );
   }

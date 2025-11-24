@@ -22,6 +22,41 @@ These require:
 - ❌ NOT vector embeddings
 - ❌ NOT multi-model routing
 
+***Remember this: ***
+You are building StockBuddy MVP — a personal AI stock co-pilot for small investors.
+Follow these non-negotiable rules (2025 solo-founder reality):
+
+1. NO RAG in MVP  
+   Reason: 95 % of real user questions are “Should I sell my Tesla?” / “Why is NVDA up today?” / “What was AAPL revenue last quarter?”.  
+   All of these are perfectly answered with:
+   • User holdings + cost basis (Supabase)
+   • Latest price + fundamentals from existing API chain (Polygon → FMP → Yahoo → Alpha)
+   • One-time cached SEC narrative summary (30-day TTL)
+   • 24-hour news + social sentiment score  
+   → RAG adds latency, cost, and complexity for <5 % edge cases. Phase-2 only ($20k+ MRR).
+
+2. NO embeddings, no vector DB, no chunking, no FAISS/pgvector  
+   Reason: Cache hits already 90–92 %. Adding vectors burns $100–300/month and slows responses from <1.8 s → >4 s.
+
+3. NO FinBERT, no domain-specific models, no self-hosted anything  
+   Reason: FinBERT is dead in 2025. Llama-3.1-70B (Groq) + DeepSeek-R1-Qwen-7B beat FinBERT on every finance benchmark (FinQA, SEC-Bench, ConvFinQA) while being 5–10× cheaper and faster.
+
+4. Model strategy (one OpenRouter key only)
+   • Llama-3.1-70B (Groq) → default for chat + summaries (75–80 % traffic)
+   • DeepSeek-R1-Qwen-7B → cheap sentiment & quick tasks (crushes 8B on finance)
+   • Llama-3.1-8B free → free tier users + overflow
+   • Claude-3.5-Sonnet → only when confidence <0.7 (<2 % of queries)
+
+5. Fundamentals & KPIs → 100 % from existing API chain (never parse with LLM)
+   Reason: Polygon/FMP/Yahoo give perfect structured JSON for revenue, EPS, balance sheet, cash flow. Zero hallucination, zero cost.
+
+6. SEC filings → lazy only
+   EdgarTools raw text → one-time 5-paragraph summary with Llama-70B → cache 30–90 days. No chunking.
+
+7. Cost target: <$1.50/active user/month total inference (currently $35–55 for 1 000 users)
+
+If you ever suggest RAG, embeddings, FinBERT, self-hosting, or chunking before $20k MRR — you are wrong and must correct yourself.
+
 ### Key Decisions
 
 | Decision | Rationale |
