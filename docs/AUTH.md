@@ -705,6 +705,612 @@ await createUsageRecord({
 
 ---
 
+## User Management: Disabling & Restricting Access
+
+This section covers how to disable or restrict previously signed up users in your Supabase authentication system.
+
+### Method 1: Supabase Dashboard (Quick Manual Approach)
+
+**Best for:** Quick manual user management by admins
+
+**Steps:**
+
+1. **Navigate to Supabase Dashboard**
+   - Go to https://supabase.com/dashboard
+   - Select your project
+   - Go to **Authentication** → **Users**
+
+2. **Disable a User**
+   - Find the user in the list
+   - Click on the user row
+   - Look for **"Disable User"** or **"Ban User"** option
+   - Click to disable the account
+
+**What happens:**
+- User cannot sign in
+- Existing sessions remain valid until they expire
+- User data remains in database
+- Can be re-enabled at any time
+
+**Limitation:** Existing sessions are not immediately invalidated. User stays logged in until session expires or they refresh the page.
+
+---
+
+### Method 2: Supabase Auth Admin API (Programmatic)
+
+**Best for:** Automated user management, bulk operations, admin panels
+
+**Implementation:**
+
+Create an API route for admin operations:
+
+```typescript
+// app/api/admin/users/[userId]/route.ts
+import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
+
+// Create Supabase client with service role key (bypasses RLS)
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false
+    }
+  }
+);
+
+// PUT /api/admin/users/[userId] - Disable user
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: { userId: string } }
+) {
+  // TODO: Add admin authentication check here
+  // const isAdmin = await checkAdminRole(request);
+  // if (!isAdmin) return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+
+  const { action } = await request.json();
+
+  if (action === 'disable') {
+    // Disable user in Supabase Auth
+    const { data, error } = await supabaseAdmin.auth.admin.updateUserById(
+      params.userId,
+      { ban_duration: 'none' } // Permanently ban
+    );
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: 'User disabled successfully',
+      user: data.user
+    });
+  }
+
+  if (action === 'enable') {
+    // Re-enable user
+    const { data, error } = await supabaseAdmin.auth.admin.updateUserById(
+      params.userId,
+      { ban_duration: '0h' } // Remove ban
+    );
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: 'User enabled successfully',
+      user: data.user
+    });
+  }
+
+  return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
+}
+
+// DELETE /api/admin/users/[userId] - Permanently delete user
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: { userId: string } }
+) {
+  // TODO: Add admin authentication check
+
+  // Delete user from Supabase Auth (cascades to profiles table via ON DELETE CASCADE)
+  const { error } = await supabaseAdmin.auth.admin.deleteUser(
+    params.userId
+  );
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  return NextResponse.json({
+    success: true,
+    message: 'User deleted successfully'
+  });
+}
+```
+
+**Usage from client:**
+
+```typescript
+// Disable user
+await fetch(`/api/admin/users/${userId}`, {
+  method: 'PUT',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ action: 'disable' })
+});
+
+// Re-enable user
+await fetch(`/api/admin/users/${userId}`, {
+  method: 'PUT',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ action: 'enable' })
+});
+
+// Permanently delete user
+await fetch(`/api/admin/users/${userId}`, {
+  method: 'DELETE'
+});
+```
+
+**Important:** This approach requires implementing admin authentication. See "Admin Authentication" section below.
+
+---
+
+### Method 3: Database Status Field (Custom Approach)
+
+**Best for:** Fine-grained control, custom restriction reasons, audit trails
+
+**Step 1: Update Database Schema**
+
+Add status field to profiles table:
+
+```sql
+-- Run in Supabase SQL Editor
+
+-- Add status column to profiles table
+ALTER TABLE public.profiles
+ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'active'
+CHECK (status IN ('active', 'suspended', 'banned', 'pending_review'));
+
+-- Add blocked_reason column for audit trail
+ALTER TABLE public.profiles
+ADD COLUMN IF NOT EXISTS blocked_reason TEXT;
+
+-- Add blocked_at timestamp
+ALTER TABLE public.profiles
+ADD COLUMN IF NOT EXISTS blocked_at TIMESTAMPTZ;
+
+-- Add blocked_by for admin tracking
+ALTER TABLE public.profiles
+ADD COLUMN IF NOT EXISTS blocked_by UUID REFERENCES auth.users(id);
+
+-- Add index for status lookups
+CREATE INDEX IF NOT EXISTS idx_profiles_status ON public.profiles(status);
+```
+
+**Step 2: Update RLS Policies**
+
+Modify existing policies to check status:
+
+```sql
+-- Run in Supabase SQL Editor
+
+-- Drop and recreate "Users can view own profile" policy with status check
+DROP POLICY IF EXISTS "Users can view own profile" ON public.profiles;
+
+CREATE POLICY "Users can view own profile"
+  ON public.profiles FOR SELECT
+  USING (
+    auth.uid() = id AND status = 'active'
+  );
+
+-- Drop and recreate update policy
+DROP POLICY IF EXISTS "Users can update own profile" ON public.profiles;
+
+CREATE POLICY "Users can update own profile"
+  ON public.profiles FOR UPDATE
+  USING (
+    auth.uid() = id AND status = 'active'
+  )
+  WITH CHECK (
+    auth.uid() = id AND status = 'active'
+  );
+```
+
+**Step 3: Update Proxy to Check Status**
+
+Modify `proxy.ts` to check user status:
+
+```typescript
+// proxy.ts
+import { createServerClient } from '@supabase/ssr'
+import { NextResponse, type NextRequest } from 'next/server'
+
+export async function proxy(request: NextRequest) {
+  let supabaseResponse = NextResponse.next({ request })
+
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY!,
+    {
+      cookies: {
+        getAll() { return request.cookies.getAll() },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value, options }) => request.cookies.set(name, value))
+          supabaseResponse = NextResponse.next({ request })
+          cookiesToSet.forEach(({ name, value, options }) =>
+            supabaseResponse.cookies.set(name, value, options)
+          )
+        },
+      },
+    }
+  )
+
+  const { data: { user }, error } = await supabase.auth.getUser()
+
+  // Check if user account is active (NEW)
+  if (user) {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('status, blocked_reason')
+      .eq('id', user.id)
+      .single();
+
+    if (profile && profile.status !== 'active') {
+      // User is blocked/suspended - redirect to restricted page
+      const url = request.nextUrl.clone()
+      url.pathname = '/auth/restricted'
+      url.searchParams.set('reason', profile.blocked_reason || 'Account suspended')
+      return NextResponse.redirect(url)
+    }
+  }
+
+  // Protected routes - redirect to sign-in if not authenticated
+  if (!user && (
+    request.nextUrl.pathname.startsWith('/dashboard') ||
+    request.nextUrl.pathname.startsWith('/portfolio') ||
+    request.nextUrl.pathname.startsWith('/stocks') ||
+    request.nextUrl.pathname.startsWith('/thesis') ||
+    request.nextUrl.pathname.startsWith('/checklist')
+  )) {
+    const url = request.nextUrl.clone()
+    url.pathname = '/auth/signin'
+    url.searchParams.set('redirect', request.nextUrl.pathname)
+    return NextResponse.redirect(url)
+  }
+
+  // Redirect authenticated users away from auth pages
+  if (user && (
+    request.nextUrl.pathname.startsWith('/auth/signin') ||
+    request.nextUrl.pathname.startsWith('/auth/signup')
+  )) {
+    const url = request.nextUrl.clone()
+    url.pathname = '/dashboard'
+    return NextResponse.redirect(url)
+  }
+
+  return supabaseResponse
+}
+
+export const config = {
+  matcher: [
+    '/((?!_next/static|_next/image|favicon.ico|api|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+  ],
+}
+```
+
+**Step 4: Create Restricted Page**
+
+```typescript
+// app/auth/restricted/page.tsx
+'use client';
+
+import { useSearchParams } from 'next/navigation';
+import { createClient } from '@/lib/supabase/client';
+import { useRouter } from 'next/navigation';
+
+export default function RestrictedPage() {
+  const searchParams = useSearchParams();
+  const reason = searchParams.get('reason') || 'Your account has been restricted';
+  const supabase = createClient();
+  const router = useRouter();
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    router.push('/auth/signin');
+  };
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="max-w-md w-full bg-white shadow-lg rounded-lg p-8">
+        <div className="text-center">
+          <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100">
+            <svg className="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </div>
+          <h2 className="mt-4 text-2xl font-bold text-gray-900">Account Restricted</h2>
+          <p className="mt-2 text-sm text-gray-600">{reason}</p>
+          <p className="mt-4 text-sm text-gray-500">
+            If you believe this is an error, please contact support.
+          </p>
+          <button
+            onClick={handleSignOut}
+            className="mt-6 w-full bg-gray-800 text-white py-2 px-4 rounded-lg hover:bg-gray-700"
+          >
+            Sign Out
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+```
+
+**Step 5: Admin API Route to Update Status**
+
+```typescript
+// app/api/admin/users/[userId]/status/route.ts
+import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
+
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false
+    }
+  }
+);
+
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: { userId: string } }
+) {
+  // TODO: Add admin authentication check
+
+  const { status, reason } = await request.json();
+
+  // Validate status
+  const validStatuses = ['active', 'suspended', 'banned', 'pending_review'];
+  if (!validStatuses.includes(status)) {
+    return NextResponse.json({ error: 'Invalid status' }, { status: 400 });
+  }
+
+  // Update profile status
+  const { data, error } = await supabaseAdmin
+    .from('profiles')
+    .update({
+      status,
+      blocked_reason: status !== 'active' ? reason : null,
+      blocked_at: status !== 'active' ? new Date().toISOString() : null,
+      // blocked_by: adminUserId, // TODO: Get from auth
+    })
+    .eq('id', params.userId)
+    .select()
+    .single();
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  return NextResponse.json({ success: true, profile: data });
+}
+```
+
+**Usage:**
+
+```typescript
+// Suspend user
+await fetch(`/api/admin/users/${userId}/status`, {
+  method: 'PUT',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    status: 'suspended',
+    reason: 'Violation of terms of service'
+  })
+});
+
+// Reactivate user
+await fetch(`/api/admin/users/${userId}/status`, {
+  method: 'PUT',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    status: 'active',
+    reason: null
+  })
+});
+```
+
+---
+
+### Admin Authentication
+
+**IMPORTANT:** The admin API routes above need proper authentication. Here are recommended approaches:
+
+#### Option 1: Environment Variable Check (Simple, for MVP)
+
+```typescript
+// app/api/admin/users/[userId]/route.ts
+export async function PUT(request: NextRequest) {
+  const adminKey = request.headers.get('x-admin-key');
+
+  if (adminKey !== process.env.ADMIN_API_KEY) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+  }
+
+  // Admin operation
+}
+```
+
+**Usage:**
+```typescript
+await fetch(`/api/admin/users/${userId}`, {
+  method: 'PUT',
+  headers: {
+    'Content-Type': 'application/json',
+    'x-admin-key': process.env.NEXT_PUBLIC_ADMIN_KEY
+  },
+  body: JSON.stringify({ action: 'disable' })
+});
+```
+
+#### Option 2: Role-Based Access Control (Production)
+
+Add admin role to profiles:
+
+```sql
+-- Add role column
+ALTER TABLE public.profiles
+ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'user'
+CHECK (role IN ('user', 'admin', 'super_admin'));
+
+-- Create index
+CREATE INDEX IF NOT EXISTS idx_profiles_role ON public.profiles(role);
+```
+
+Check role in API routes:
+
+```typescript
+// lib/auth/admin.ts
+import { createClient } from '@/lib/supabase/server';
+
+export async function requireAdmin() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
+    throw new Error('Not authenticated');
+  }
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single();
+
+  if (profile?.role !== 'admin' && profile?.role !== 'super_admin') {
+    throw new Error('Not authorized - admin access required');
+  }
+
+  return { user, profile };
+}
+
+// Use in API routes
+export async function PUT(request: NextRequest) {
+  try {
+    await requireAdmin();
+    // Admin operation
+  } catch (error) {
+    return NextResponse.json(
+      { error: error.message },
+      { status: 403 }
+    );
+  }
+}
+```
+
+---
+
+### Comparison of Methods
+
+| Method | Pros | Cons | Use Case |
+|--------|------|------|----------|
+| **Dashboard** | Quick, no code needed | Manual, no automation | Quick bans, testing |
+| **Auth Admin API** | Official Supabase method, sessions invalidated | Limited customization | Standard user bans |
+| **Database Status** | Fine-grained control, custom reasons, audit trail | More code, custom implementation | Enterprise features |
+
+---
+
+### Recommended Workflow
+
+**For production apps, combine approaches:**
+
+1. **Use Database Status Field** for application-level restrictions
+   - Allows custom statuses (suspended, banned, pending_review)
+   - Provides audit trail (who blocked, when, why)
+   - Enforced in middleware for immediate effect
+
+2. **Use Supabase Auth Admin API** for permanent bans
+   - Completely disables authentication
+   - Use when user should never access system again
+
+3. **Use Dashboard** for emergency situations
+   - Quick manual intervention
+   - Testing restrictions
+
+**Example combined workflow:**
+
+```typescript
+async function suspendUser(userId: string, reason: string) {
+  // 1. Update database status (immediate effect via middleware)
+  await fetch(`/api/admin/users/${userId}/status`, {
+    method: 'PUT',
+    body: JSON.stringify({ status: 'suspended', reason })
+  });
+
+  // 2. If permanent ban, also ban in Supabase Auth
+  if (reason.includes('permanent')) {
+    await fetch(`/api/admin/users/${userId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ action: 'disable' })
+    });
+  }
+}
+```
+
+---
+
+### Testing User Restrictions
+
+**Manual Testing Checklist:**
+
+1. Create test user account via signup
+2. Get user ID from Supabase Dashboard → Authentication → Users
+3. Suspend user using one of the methods above
+4. Try to:
+   - [ ] Access protected pages (should redirect to /auth/restricted)
+   - [ ] Sign in again (should fail if using Auth API ban)
+   - [ ] Make API calls (should fail due to RLS policies)
+   - [ ] View profile data (should be blocked by RLS)
+5. Reactivate user
+6. Verify user can access app again
+
+**Automated Testing:**
+
+```typescript
+// tests/user-restrictions.test.ts
+describe('User Restrictions', () => {
+  it('should block suspended users from accessing protected pages', async () => {
+    // Create test user
+    const user = await createTestUser();
+
+    // Suspend user
+    await fetch(`/api/admin/users/${user.id}/status`, {
+      method: 'PUT',
+      body: JSON.stringify({ status: 'suspended', reason: 'Test' })
+    });
+
+    // Try to access protected page
+    const response = await fetch('/dashboard', {
+      headers: { Authorization: `Bearer ${user.token}` }
+    });
+
+    expect(response.status).toBe(307); // Redirect
+    expect(response.headers.get('location')).toContain('/auth/restricted');
+  });
+});
+```
+
+---
+
 ## Resources
 
 - **Supabase Docs:** https://supabase.com/docs
@@ -712,6 +1318,7 @@ await createUsageRecord({
 - **Auth Guide:** https://supabase.com/docs/guides/auth
 - **RLS Guide:** https://supabase.com/docs/guides/auth/row-level-security
 - **Next.js SSR:** https://supabase.com/docs/guides/auth/server-side/nextjs
+- **Supabase Auth Admin API:** https://supabase.com/docs/reference/javascript/auth-admin-updateuserbyid
 
 ---
 

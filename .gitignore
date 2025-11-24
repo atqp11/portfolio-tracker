@@ -192,3 +192,5 @@ debug-env.js
 # Telemetry and application logs
 logs/
 nul
+.claude/settings.local.json
+next-env.d.ts
