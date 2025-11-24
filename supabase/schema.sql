@@ -5,6 +5,28 @@
 -- Run this in Supabase SQL Editor: https://supabase.com/dashboard/project/_/sql
 -- ============================================================================
 
+-- ============================================================================
+-- DROP EXISTING TABLES (for clean recreation)
+-- ============================================================================
+-- Drop tables in reverse order (child tables first to avoid FK conflicts)
+
+DROP TABLE IF EXISTS public.checklist_tasks CASCADE;
+DROP TABLE IF EXISTS public.daily_checklists CASCADE;
+DROP TABLE IF EXISTS public.investment_theses CASCADE;
+DROP TABLE IF EXISTS public.stocks CASCADE;
+DROP TABLE IF EXISTS public.portfolios CASCADE;
+DROP TABLE IF EXISTS public.usage_tracking CASCADE;
+DROP TABLE IF EXISTS public.waitlist CASCADE;
+DROP TABLE IF EXISTS public.profiles CASCADE;
+
+-- Drop functions (triggers will be automatically dropped with tables)
+DROP FUNCTION IF EXISTS public.handle_new_user() CASCADE;
+DROP FUNCTION IF EXISTS public.handle_updated_at() CASCADE;
+
+-- ============================================================================
+-- CREATE SCHEMA
+-- ============================================================================
+
 -- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
@@ -72,9 +94,7 @@ CREATE TABLE public.usage_tracking (
 
   period_start TIMESTAMPTZ NOT NULL,
   period_end TIMESTAMPTZ NOT NULL,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-
-  CONSTRAINT usage_tracking_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id) ON DELETE CASCADE
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX idx_usage_tracking_user_id ON public.usage_tracking(user_id);

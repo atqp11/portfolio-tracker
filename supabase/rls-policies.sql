@@ -6,6 +6,64 @@
 -- ============================================================================
 
 -- ============================================================================
+-- DROP EXISTING POLICIES (for clean recreation)
+-- ============================================================================
+
+-- Profiles policies
+DROP POLICY IF EXISTS "Users can view own profile" ON public.profiles;
+DROP POLICY IF EXISTS "Users can update own profile" ON public.profiles;
+DROP POLICY IF EXISTS "Service role can manage all profiles" ON public.profiles;
+
+-- Usage tracking policies
+DROP POLICY IF EXISTS "Users can view own usage" ON public.usage_tracking;
+DROP POLICY IF EXISTS "Users can insert own usage" ON public.usage_tracking;
+DROP POLICY IF EXISTS "Users can update own usage" ON public.usage_tracking;
+DROP POLICY IF EXISTS "Service role can manage all usage" ON public.usage_tracking;
+
+-- Portfolio policies
+DROP POLICY IF EXISTS "Users can view own portfolios" ON public.portfolios;
+DROP POLICY IF EXISTS "Users can insert own portfolios" ON public.portfolios;
+DROP POLICY IF EXISTS "Users can update own portfolios" ON public.portfolios;
+DROP POLICY IF EXISTS "Users can delete own portfolios" ON public.portfolios;
+DROP POLICY IF EXISTS "Service role can manage all portfolios" ON public.portfolios;
+
+-- Stocks policies
+DROP POLICY IF EXISTS "Users can view own stocks" ON public.stocks;
+DROP POLICY IF EXISTS "Users can insert own stocks" ON public.stocks;
+DROP POLICY IF EXISTS "Users can update own stocks" ON public.stocks;
+DROP POLICY IF EXISTS "Users can delete own stocks" ON public.stocks;
+DROP POLICY IF EXISTS "Service role can manage all stocks" ON public.stocks;
+
+-- Investment theses policies
+DROP POLICY IF EXISTS "Users can view own theses" ON public.investment_theses;
+DROP POLICY IF EXISTS "Users can insert own theses" ON public.investment_theses;
+DROP POLICY IF EXISTS "Users can update own theses" ON public.investment_theses;
+DROP POLICY IF EXISTS "Users can delete own theses" ON public.investment_theses;
+DROP POLICY IF EXISTS "Service role can manage all theses" ON public.investment_theses;
+
+-- Checklist policies
+DROP POLICY IF EXISTS "Users can view own checklists" ON public.daily_checklists;
+DROP POLICY IF EXISTS "Users can insert own checklists" ON public.daily_checklists;
+DROP POLICY IF EXISTS "Users can update own checklists" ON public.daily_checklists;
+DROP POLICY IF EXISTS "Users can delete own checklists" ON public.daily_checklists;
+DROP POLICY IF EXISTS "Service role can manage all checklists" ON public.daily_checklists;
+
+-- Tasks policies
+DROP POLICY IF EXISTS "Users can view own tasks" ON public.checklist_tasks;
+DROP POLICY IF EXISTS "Users can insert own tasks" ON public.checklist_tasks;
+DROP POLICY IF EXISTS "Users can update own tasks" ON public.checklist_tasks;
+DROP POLICY IF EXISTS "Users can delete own tasks" ON public.checklist_tasks;
+DROP POLICY IF EXISTS "Service role can manage all tasks" ON public.checklist_tasks;
+
+-- Waitlist policies
+DROP POLICY IF EXISTS "Anyone can insert waitlist" ON public.waitlist;
+DROP POLICY IF EXISTS "Service role can manage waitlist" ON public.waitlist;
+
+-- ============================================================================
+-- CREATE POLICIES
+-- ============================================================================
+
+-- ============================================================================
 -- PROFILES
 -- ============================================================================
 
