@@ -37,10 +37,9 @@ export async function proxy(request: NextRequest) {
     }
   )
 
-  // SECURITY: Use getClaims() instead of getUser() in middleware
-  // getClaims() validates JWT signatures, getUser() doesn't guarantee revalidation
-  const { data, error } = await supabase.auth.getClaims()
-  const user = !error && data ? { id: data.sub } : null
+  // SECURITY: Use getUser() for authentication check in proxy
+  // This validates the JWT token from the request cookies
+  const { data: { user }, error } = await supabase.auth.getUser()
 
   // Protected routes - redirect to sign-in if not authenticated
   if (!user && (
