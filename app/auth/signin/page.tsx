@@ -161,6 +161,7 @@ export default function SignInPage() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showEmailForm, setShowEmailForm] = useState(false);
   const router = useRouter();
   const supabase = createClient();
 
@@ -220,18 +221,17 @@ export default function SignInPage() {
             <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-indigo-500 to-purple-600 opacity-10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
 
             <div className="relative z-10">
-              <div>
-                <h2 className="text-center text-3xl font-bold text-white mb-2">
-                  Welcome back
-                </h2>
-                <p className="text-center text-sm text-gray-400">
-                  Sign in to your account
-                </p>
-              </div>
+              <h2 className="text-center text-3xl font-bold text-white mb-2">
+                Welcome back
+              </h2>
+              <p className="text-center text-sm text-gray-400 mb-6">
+                Sign in to your account
+              </p>
 
-              <form className="mt-8 space-y-6" onSubmit={handleSignIn}>
-                <div className="space-y-4">
-                  {/* Email Field */}
+              {/* Collapsible Buttons */}
+              <div className="space-y-4">
+                {/* Email Sign-In Form (always visible) */}
+                <form id="email-signin-form" className="mt-6 space-y-4" onSubmit={handleSignIn}>
                   <div>
                     <label htmlFor="email" className="block text-sm font-medium text-gray-300 mb-2">
                       Email address
@@ -248,8 +248,6 @@ export default function SignInPage() {
                       placeholder="you@example.com"
                     />
                   </div>
-
-                  {/* Password Field */}
                   <div>
                     <label htmlFor="password" className="block text-sm font-medium text-gray-300 mb-2">
                       Password
@@ -266,44 +264,49 @@ export default function SignInPage() {
                       placeholder="••••••••"
                     />
                   </div>
-                </div>
-
-                {/* Error Message */}
-                {error && (
-                  <div className="bg-red-500/10 border border-red-500/30 text-red-300 px-4 py-3 rounded-xl text-sm backdrop-blur-sm">
-                    {error}
-                  </div>
-                )}
-
-                {/* Submit Button */}
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="w-full flex justify-center py-3 px-4 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-[#0a001f] disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-[0_0_20px_rgba(99,102,241,0.3)] hover:shadow-[0_0_30px_rgba(99,102,241,0.5)]"
-                >
-                  {loading ? (
-                    <span className="flex items-center">
-                      <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                      </svg>
-                      Signing in...
-                    </span>
-                  ) : (
-                    'Sign in'
+                  {/* Error Message */}
+                  {error && (
+                    <div className="bg-red-500/10 border border-red-500/30 text-red-300 px-4 py-3 rounded-xl text-sm backdrop-blur-sm">
+                      {error}
+                    </div>
                   )}
-                </button>
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="w-full flex justify-center py-3 px-4 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-[#0a001f] disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow"
+                  >
+                    {loading ? (
+                      <span className="flex items-center">
+                        <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Signing in...
+                      </span>
+                    ) : (
+                      'Sign in'
+                    )}
+                  </button>
+                </form>
 
-                {/* Sign Up Link */}
-                <div className="text-center pt-2">
-                  <p className="text-sm text-gray-400">
-                    Don't have an account?{' '}
-                    <Link href="/auth/signup" className="font-medium text-indigo-400 hover:text-indigo-300 transition-colors">
-                      Sign up
-                    </Link>
-                  </p>
+                {/* Google Sign-In Button (with logo and text, white bg, black text) */}
+                <div className="flex justify-center my-4">
+                  <div style={{ width: '100%' }}>
+                    {/* @ts-ignore-next-line */}
+                    {require('@/components/auth/SignInWithGoogle').default()}
+                  </div>
                 </div>
-              </form>
+              </div>
+
+              {/* Sign Up Link */}
+              <div className="text-center pt-2">
+                <p className="text-sm text-gray-400">
+                  Don't have an account?{' '}
+                  <Link href="/auth/signup" className="font-medium text-indigo-400 hover:text-indigo-300 transition-colors">
+                    Sign up
+                  </Link>
+                </p>
+              </div>
             </div>
           </div>
         </div>
