@@ -8,12 +8,12 @@
 
 ## 🔴 CRITICAL (Must Do Before MVP Launch)
 
-### 1. Authentication System ✅ **80% COMPLETE**
+### 1. Authentication System ✅ **COMPLETE**
 **Why:** Required for user tiers, monetization, and multi-user support
 **Time:** 8-12 hours → **Actual: ~10 hours**
 **Blocker:** No (but blocks items 2-3)
-**Priority:** **HIGH** (Core complete, OAuth pending)
-**Status:** Email auth functional, Google/Apple OAuth not yet configured
+**Priority:** **HIGH**
+**Status:** Email auth and Google OAuth fully functional
 
 **Tasks:**
 - [x] Choose auth provider: Supabase ✅
@@ -44,17 +44,12 @@
 - [x] Add authentication to API routes ✅
   - All routes can use `getUser()` for auth checks
 
-**Remaining Tasks (OAuth Providers):**
-- [ ] Enable Google OAuth in Supabase dashboard
-  - [ ] Get Google Cloud credentials
-  - [ ] Configure in Supabase → Authentication → Providers
-  - [ ] Add Google sign-in button to `/auth/signin` and `/auth/signup`
-  - [ ] Test Google OAuth flow
-- [ ] Enable Apple Sign In in Supabase dashboard
-  - [ ] Get Apple Developer credentials
-  - [ ] Configure in Supabase → Authentication → Providers
-  - [ ] Add Apple sign-in button to `/auth/signin` and `/auth/signup`
-  - [ ] Test Apple OAuth flow
+**OAuth Integration:**
+- [x] Enable Google OAuth in Supabase dashboard ✅
+  - [x] Get Google Cloud credentials ✅
+  - [x] Configure in Supabase → Authentication → Providers ✅
+  - [x] Add Google sign-in button to `/auth/signin` and `/auth/signup` ✅
+  - [x] Test Google OAuth flow ✅
 
 **Database Schema:** ✅ **COMPLETE**
 ```prisma
@@ -480,13 +475,12 @@ CREATE INDEX idx_filing_summaries_lookup
 ### Overall Status
 - **Database & Core:** ✅ 100% Complete
 - **Features (Sprint 2-4):** ✅ 75% Complete
-- **Auth & Monetization:** ⚠️ 60% Complete ← **Email auth done, OAuth + payments pending**
+- **Auth & Monetization:** ⚠️ 70% Complete ← **Auth complete, payments pending**
   - ✅ Email/Password Authentication (80% of use cases)
+  - ✅ Google OAuth (fully integrated)
   - ✅ User & UsageTracking models in database
   - ✅ Session management helpers
   - ✅ Protected route middleware
-  - ❌ Google OAuth (pending)
-  - ❌ Apple Sign In (pending)
   - ❌ Stripe payment integration (pending)
 - **AI Infrastructure (Sprint 1):** ⚠️ 50% Complete (router done, caching partial)
 - **UX & Polish (Sprint 5):** ✅ 70% Complete
@@ -499,8 +493,8 @@ CREATE INDEX idx_filing_summaries_lookup
 ### Critical Path to MVP Launch (Updated)
 
 ```
-1. Authentication System (12h)                    ✅ 80% COMPLETE (8h done)
-   ↓                                               ⚠️ OAuth pending (~2h)
+1. Authentication System (12h)                    ✅ COMPLETE (10h done)
+   ↓
 2. User Tier Management (15h)                     ← START HERE
    ↓
 3. Payment Integration (16h)
@@ -517,8 +511,8 @@ CREATE INDEX idx_filing_summaries_lookup
 ```
 
 **Total Time to MVP Launch:** ~89 hours total
-**Completed:** ~18 hours (auth core + landing page + navigation)
-**Remaining:** ~71 hours (~3 weeks full-time, 5-6 weeks part-time)
+**Completed:** ~20 hours (auth complete + landing page + navigation)
+**Remaining:** ~69 hours (~3 weeks full-time, 5-6 weeks part-time)
 
 ---
 
@@ -526,15 +520,7 @@ CREATE INDEX idx_filing_summaries_lookup
 
 **NEW Top 3 Priorities (Updated for MVP Launch):**
 
-1. **🟡 Complete OAuth Providers** (2-4 hours) ⚠️ **OPTIONAL** (Email auth functional)
-   - Add Google OAuth sign-in button
-   - Add Apple Sign In button
-   - Get credentials and configure in Supabase
-   - Test OAuth flows
-   - **Note:** Email auth is functional and covers 80% of use cases
-   - This can be done later if time-constrained
-
-2. **🔴 User Tier Management** (15 hours) ← **START HERE**
+1. **🔴 User Tier Management** (15 hours) ← **START HERE**
    - Enable monetization
    - Control AI costs
    - Prevent abuse
@@ -542,22 +528,22 @@ CREATE INDEX idx_filing_summaries_lookup
    - Tier enforcement in AI routes
    - Usage dashboard
 
-3. **🔴 Payment Integration** (16 hours)
+2. **🔴 Payment Integration** (16 hours)
    - Stripe checkout
    - Subscription management
    - Revenue collection
    - Customer portal
    - Webhook handlers
 
-**Weekly Goal:** Complete User Tiers + Start Payment Integration (items 2-3)
+**Weekly Goal:** Complete User Tiers + Start Payment Integration
 
 ---
 
 ## 📅 SPRINT PLAN (Updated)
 
-### Week 1 (Current) - **CRITICAL: Auth & Tiers**
-- [ ] Authentication System (item 1)
-- [ ] User Tier Management (item 2)
+### Week 1 (Current) - **CRITICAL: Tiers & Payments**
+- [x] Authentication System (item 1) ✅ **COMPLETE**
+- [ ] User Tier Management (item 2) ← **IN PROGRESS**
 - [ ] Start Payment Integration (item 3)
 
 ### Week 2 - **Payment & AI Features**
@@ -613,15 +599,13 @@ CREATE INDEX idx_filing_summaries_lookup
 ## 🚨 BLOCKERS & RISKS
 
 ### Current Blockers
-1. **No authentication system** → Can't implement user tiers
-2. **No user tiers** → Can't monetize
-3. **No payment system** → Can't collect revenue
+1. **No user tiers** → Can't monetize or control AI costs
+2. **No payment system** → Can't collect revenue
 
 ### Risks
-1. **Auth provider choice** → Wrong choice could require migration later
-2. **Stripe integration complexity** → Webhooks can be tricky
-3. **Database schema changes** → Need migrations for User model
-4. **AI cost explosion** → Without tiers, hard to control costs
+1. **Stripe integration complexity** → Webhooks can be tricky
+2. **AI cost explosion** → Without tiers, hard to control costs
+3. **User adoption** → Need effective marketing strategy
 
 ---
 
@@ -654,13 +638,13 @@ If you have 1 hour:
 ---
 
 **Remember:**
-- **DO NOT start Performance Optimization until Auth/Tiers/Payment are done!**
-- **Auth + Tiers + Payment = Foundation for MVP monetization**
+- **DO NOT start Performance Optimization until Tiers/Payment are done!**
+- **Tiers + Payment = Foundation for MVP monetization**
 - **Focus on revenue-generating features first**
 
 🎯 **NEW Priority Order:**
-1. Authentication (item 1)
-2. User Tiers (item 2)
+1. ✅ Authentication (item 1) - **COMPLETE**
+2. User Tiers (item 2) ← **NEXT**
 3. Payment Integration (item 3)
 4. AI Phase 2 (item 4)
 5. THEN Performance Optimization (item 10)

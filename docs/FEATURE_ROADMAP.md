@@ -42,10 +42,10 @@ Transform the portfolio tracker from a personal tool into a professional SaaS pl
 
 ## 🔐 PHASE 1: Authentication & Tier System ⚠️ **PARTIALLY COMPLETE**
 
-### 1.1 Authentication Infrastructure with Supabase ✅ **80% COMPLETE**
+### 1.1 Authentication Infrastructure with Supabase ✅ **COMPLETE**
 **Time:** 6-8 hours (faster than NextAuth!)
 **Dependencies:** Next.js 15.x upgrade ✅
-**Status:** Core auth infrastructure complete, OAuth providers pending
+**Status:** Core auth infrastructure complete, Google OAuth integrated
 
 **Why Supabase:**
 - ✅ 50K MAU free tier (vs Clerk's 10K)
@@ -81,16 +81,11 @@ Transform the portfolio tracker from a personal tool into a professional SaaS pl
   - `signOut()` - Sign out user
 
 **Configure Auth Providers in Supabase Dashboard:**
-- [ ] Enable Google OAuth: ⚠️ **PENDING**
+- [x] Enable Google OAuth: ✅ **COMPLETE**
   - Get credentials from Google Cloud Console
   - Add to Supabase dashboard → Authentication → Providers
   - Configure redirect URL: `https://<project-ref>.supabase.co/auth/v1/callback`
   - Add Google sign-in button to `/auth/signin` and `/auth/signup` pages
-
-- [ ] Enable Apple Sign In: ⚠️ **PENDING**
-  - Get credentials from Apple Developer Portal
-  - Add to Supabase dashboard → Authentication → Providers
-  - Add Apple sign-in button to `/auth/signin` and `/auth/signup` pages
 
 - [x] Enable Email Auth: ✅ **COMPLETE**
   - Email/password authentication fully functional
@@ -169,9 +164,8 @@ Transform the portfolio tracker from a personal tool into a professional SaaS pl
   }
   ```
 
-**Auth UI Components:** ⚠️ **PARTIAL (Email complete, OAuth pending)**
-- [ ] Create `components/auth/SignInWithGoogle.tsx` ⚠️ **PENDING**
-- [ ] Create `components/auth/SignInWithApple.tsx` ⚠️ **PENDING**
+**Auth UI Components:** ✅ **COMPLETE**
+- [x] Create `components/auth/SignInWithGoogle.tsx` ✅ **COMPLETE**
 - [x] Email/Password auth implemented in sign in/up pages ✅
 - [ ] Create `components/auth/SignInWithPhone.tsx` (SMS) - Phase 2
 - [x] Create `app/auth/signin/page.tsx` - Sign in page ✅
@@ -200,8 +194,7 @@ Transform the portfolio tracker from a personal tool into a professional SaaS pl
 - [x] Test email/password sign in ✅
 - [x] Test sign out ✅
 - [x] Test session persistence ✅
-- [ ] Test Google OAuth login ⚠️ **PENDING** (OAuth not configured)
-- [ ] Test Apple Sign In ⚠️ **PENDING** (OAuth not configured)
+- [x] Test Google OAuth login ✅ **COMPLETE**
 - [ ] Test SMS verification ❌ (Phase 2)
 
 ### 1.2 Tier System & Pricing
