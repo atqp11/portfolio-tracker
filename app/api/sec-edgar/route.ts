@@ -1,11 +1,41 @@
 import { NextResponse } from 'next/server';
 import { secEdgarService } from '@/lib/services/sec-edgar.service';
+import { checkAndTrackUsage, type TierName } from '@/lib/tiers';
+import { getUserProfile } from '@/lib/auth/session';
 
+export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   let cik = searchParams.get('cik');
   const symbol = searchParams.get('symbol');
+
+  // Authenticate user
+  const profile = await getUserProfile();
+  if (!profile) {
+    return NextResponse.json(
+      { error: 'Authentication required' },
+      { status: 401 }
+    );
+  }
+
+  // Check and track usage (monthly quota for SEC filings)
+  const quotaCheck = await checkAndTrackUsage(
+    profile.id,
+    'secFiling',
+    profile.tier as TierName
+  );
+
+  if (!quotaCheck.allowed) {
+    return NextResponse.json(
+      {
+        error: 'Monthly SEC filing quota exceeded',
+        reason: quotaCheck.reason,
+        upgradeUrl: '/pricing',
+      },
+      { status: 429 }
+    );
+  }
 
   // If cik is not valid and symbol is provided, resolve CIK from symbol
   if ((!cik || !/^\d{8,10}$/.test(cik.trim())) && symbol) {
@@ -20,6 +50,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Missing or invalid CIK. Provide a valid CIK (8-10 digits) or a symbol.' }, { status: 400 });
   }
   try {
+    console.log(`📄 Fetching SEC filings for CIK: ${cik} (user: ${profile.id}, tier: ${profile.tier})`);
     const data = await secEdgarService.getCompanyFilings(cik.trim());
     return NextResponse.json(data);
   } catch (err: any) {

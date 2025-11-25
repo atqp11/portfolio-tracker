@@ -112,16 +112,16 @@ export async function requireUserProfile(): Promise<Profile> {
 
 /**
  * Check if user has a specific tier or higher
- * Tier hierarchy: free < pro < premium
+ * Tier hierarchy: free < basic < premium
  *
  * @example
- * const hasAccess = await userHasTier('pro');
+ * const hasAccess = await userHasTier('basic');
  * if (!hasAccess) {
  *   // Show paywall
  * }
  */
 export async function userHasTier(
-  requiredTier: 'free' | 'pro' | 'premium'
+  requiredTier: 'free' | 'basic' | 'premium'
 ): Promise<boolean> {
   const profile = await getUserProfile();
 
@@ -129,7 +129,7 @@ export async function userHasTier(
     return false;
   }
 
-  const tierHierarchy = { free: 0, pro: 1, premium: 2 };
+  const tierHierarchy = { free: 0, basic: 1, premium: 2 };
   const userTierLevel = tierHierarchy[profile.tier as keyof typeof tierHierarchy] || 0;
   const requiredTierLevel = tierHierarchy[requiredTier];
 
@@ -146,11 +146,11 @@ export async function userHasTier(
  * }
  */
 export async function requireTier(
-  requiredTier: 'pro' | 'premium'
+  requiredTier: 'basic' | 'premium'
 ): Promise<Profile> {
   const profile = await requireUserProfile();
 
-  const tierHierarchy = { free: 0, pro: 1, premium: 2 };
+  const tierHierarchy = { free: 0, basic: 1, premium: 2 };
   const userTierLevel = tierHierarchy[profile.tier as keyof typeof tierHierarchy] || 0;
   const requiredTierLevel = tierHierarchy[requiredTier];
 

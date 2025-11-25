@@ -330,7 +330,7 @@ export default function SignUpPage() {
                   </button>
 
                   {/* Google Sign-In Button (moved below form) */}
-                  <div className="flex justify-center my-4">
+                  <div className="flex flex-col gap-2 my-4">
                     <div style={{ width: '100%' }}>
                       {/* @ts-ignore-next-line */}
                       {require('@/components/auth/SignInWithGoogle').default()}

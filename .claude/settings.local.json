@@ -5,7 +5,9 @@
       "Bash(npx prisma:*)",
       "Bash(cat:*)",
       "Bash(nul)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(mv:*)",
+      "Bash(npm run build:*)"
     ],
     "deny": [],
     "ask": []

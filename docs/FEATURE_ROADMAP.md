@@ -207,7 +207,7 @@ Transform the portfolio tracker from a personal tool into a professional SaaS pl
 |------|-------|----------|
 | **Free** | $0/mo | 1 portfolio, 10 stocks, basic AI (50 queries/month), daily checklist |
 | **Basic** | $9/mo | 3 portfolios, 50 stocks, advanced AI (500 queries/month), risk metrics, charts |
-| **Pro** | $29/mo | Unlimited portfolios, unlimited stocks, unlimited AI, technical analysis, Monte Carlo, alerts |
+| **Pro** | $19/mo | Unlimited portfolios, unlimited stocks, unlimited AI, technical analysis, Monte Carlo, alerts |
 | **Enterprise** | $99/mo | All Pro + priority support, custom models, API access, advanced scenarios |
 
 **Tasks:**

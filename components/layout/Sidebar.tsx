@@ -16,6 +16,7 @@ const navItems: NavItem[] = [
   { label: 'Risk Analytics', href: '/risk', icon: '⚠️' },
   { label: 'Thesis Tracker', href: '/thesis', icon: '📝' },
   { label: 'Checklist', href: '/checklist', icon: '✓' },
+  { label: 'Usage & Quotas', href: '/usage', icon: '📉' },
   { label: 'Settings', href: '/settings', icon: '⚙️' },
 ];
 

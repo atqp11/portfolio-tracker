@@ -2,16 +2,13 @@
  * User Quota API
  *
  * Provides quota information for different subscription tiers.
- * Used to enforce rate limits and display usage to users.
+ * Uses database-backed usage tracking for reliability.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import {
-  getUserUsageStats,
-  TIER_CONFIGS,
-  calculateBreakEvenMetrics,
-  type UserTier,
-} from '@/lib/auth/tier-limits';
+import { getTierConfig, TIER_CONFIG, EXAMPLE_SCENARIOS, type TierName } from '@/lib/tiers';
+import { getUserProfile } from '@/lib/auth/session';
+import { getCurrentUserUsage } from '@/lib/supabase/db';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -19,40 +16,86 @@ export const runtime = 'nodejs';
 /**
  * GET /api/user/quota
  *
- * Query params:
- * - userId: string (required)
- * - tier: 'free' | 'pro' | 'premium' (optional, defaults to 'free')
+ * Returns quota information for authenticated user
+ * Uses RLS-protected database queries
  */
 export async function GET(req: NextRequest) {
-  const searchParams = req.nextUrl.searchParams;
-  const userId = searchParams.get('userId');
-  const tier = (searchParams.get('tier') as UserTier) || 'free';
+  try {
+    // Get authenticated user
+    const profile = await getUserProfile();
 
-  if (!userId) {
-    return NextResponse.json({ error: 'Missing userId parameter' }, { status: 400 });
+    if (!profile) {
+      return NextResponse.json(
+        { error: 'Authentication required' },
+        { status: 401 }
+      );
+    }
+
+    const tier = profile.tier as TierName;
+    const tierConfig = getTierConfig(tier);
+    const usage = await getCurrentUserUsage(profile.id);
+
+    // Calculate quotas
+    const chatUsed = usage.daily?.chat_queries || 0;
+    const analysisUsed = usage.daily?.portfolio_analysis || 0;
+    const filingsUsed = usage.monthly?.sec_filings || 0;
+
+    const chatRemaining =
+      tierConfig.chatQueriesPerDay === Infinity
+        ? Infinity
+        : Math.max(0, tierConfig.chatQueriesPerDay - chatUsed);
+
+    const analysisRemaining =
+      tierConfig.portfolioAnalysisPerDay === Infinity
+        ? Infinity
+        : Math.max(0, tierConfig.portfolioAnalysisPerDay - analysisUsed);
+
+    const filingsRemaining =
+      tierConfig.secFilingsPerMonth === Infinity
+        ? Infinity
+        : Math.max(0, tierConfig.secFilingsPerMonth - filingsUsed);
+
+    return NextResponse.json({
+      userId: profile.id,
+      tier,
+      limits: {
+        chatQueriesPerDay: tierConfig.chatQueriesPerDay,
+        portfolioAnalysisPerDay: tierConfig.portfolioAnalysisPerDay,
+        secFilingsPerMonth: tierConfig.secFilingsPerMonth,
+      },
+      quotas: {
+        chatQueries: {
+          used: chatUsed,
+          limit: tierConfig.chatQueriesPerDay,
+          remaining: chatRemaining,
+        },
+        portfolioAnalysis: {
+          used: analysisUsed,
+          limit: tierConfig.portfolioAnalysisPerDay,
+          remaining: analysisRemaining,
+        },
+        secFilings: {
+          used: filingsUsed,
+          limit: tierConfig.secFilingsPerMonth,
+          remaining: filingsRemaining,
+        },
+      },
+      resetAt: {
+        daily: getNextMidnight(),
+        monthly: getNextMonthStart(),
+      },
+    });
+  } catch (error) {
+    console.error('Error fetching quota:', error);
+    return NextResponse.json(
+      { error: 'Failed to fetch quota information' },
+      { status: 500 }
+    );
   }
-
-  // Get user's current usage and limits
-  const stats = getUserUsageStats(userId, tier);
-
-  return NextResponse.json({
-    userId,
-    tier: stats.tier,
-    limits: stats.limits,
-    quotas: stats.quotas,
-    usage: {
-      today: stats.usage.today,
-      thisMonth: stats.usage.thisMonth,
-    },
-    resetAt: {
-      daily: stats.quotas.chatQueries.remaining > 0 ? getNextMidnight() : null,
-      monthly: stats.quotas.secFilings.remaining > 0 ? getNextMonthStart() : null,
-    },
-  });
 }
 
 /**
- * GET /api/user/quota/tiers
+ * POST /api/user/quota
  *
  * Returns all tier configurations and pricing
  */
@@ -61,11 +104,9 @@ export async function POST(req: NextRequest) {
   const { action } = body;
 
   if (action === 'get-tiers') {
-    const breakEven = calculateBreakEvenMetrics();
-
     return NextResponse.json({
-      tiers: TIER_CONFIGS,
-      breakEvenAnalysis: breakEven,
+      tiers: TIER_CONFIG,
+      breakEvenAnalysis: EXAMPLE_SCENARIOS,
     });
   }
 

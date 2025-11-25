@@ -16,6 +16,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { routeQueryWithConfidence, type RouterContext } from '@/lib/ai/confidence-router';
 import { logInference } from '@/lib/telemetry/ai-logger';
+import { checkAndTrackUsage, type TierName } from '@/lib/tiers';
+import { getUserProfile } from '@/lib/auth/session';
 import crypto from 'crypto';
 
 export const dynamic = 'force-dynamic';
@@ -70,17 +72,26 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Get user profile
+    const profile = await getUserProfile();
+    if (!profile) {
+      return NextResponse.json(
+        { error: 'Authentication required' },
+        { status: 401 }
+      );
+    }
+
     // Generate cache key
     const cacheKey = generateCacheKey(message, portfolioId);
 
-    // Check cache (unless bypassed)
+    // Check cache FIRST (unless bypassed) - cached responses don't count against quota
     if (!bypassCache) {
       const cached = chatCache.get(cacheKey);
       if (cached) {
         const age = Date.now() - cached.timestamp;
         if (age < CHAT_CACHE_TTL) {
           console.log(
-            `♻️ Returning cached chat response (age: ${Math.floor(age / 1000)}s, model: ${cached.model})`
+            `♻️ Returning cached chat response (age: ${Math.floor(age / 1000)}s, model: ${cached.model}) - NO QUOTA USED`
           );
 
           // Log cache hit
@@ -110,6 +121,24 @@ export async function POST(req: NextRequest) {
           chatCache.delete(cacheKey);
         }
       }
+    }
+
+    // Check and track usage (only for non-cached requests)
+    const quotaCheck = await checkAndTrackUsage(
+      profile.id,
+      'chatQuery',
+      profile.tier as TierName
+    );
+
+    if (!quotaCheck.allowed) {
+      return NextResponse.json(
+        {
+          error: 'Quota exceeded',
+          reason: quotaCheck.reason,
+          upgradeUrl: '/pricing',
+        },
+        { status: 429 }
+      );
     }
 
     // Route query with confidence-based escalation

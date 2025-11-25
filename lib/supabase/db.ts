@@ -15,7 +15,7 @@ export interface Profile {
   id: string;
   email: string;
   name: string | null;
-  tier: 'free' | 'pro' | 'premium';
+  tier: 'free' | 'basic' | 'premium';
   stripe_customer_id?: string | null;
   stripe_subscription_id?: string | null;
   subscription_status?: string | null;
@@ -482,4 +482,49 @@ export async function createUsageRecord(
   }
 
   return data;
+}
+
+/**
+ * Get current usage for the authenticated user (RLS-protected)
+ * For use in user-facing dashboard/UI
+ */
+export async function getCurrentUserUsage(userId: string): Promise<{
+  daily: UsageTracking | null;
+  monthly: UsageTracking | null;
+}> {
+  const supabase = await createClient();
+
+  const now = new Date();
+
+  // Get daily usage (current day)
+  const dailyStart = new Date(now);
+  dailyStart.setUTCHours(0, 0, 0, 0);
+
+  const dailyEnd = new Date(dailyStart);
+  dailyEnd.setUTCHours(23, 59, 59, 999);
+
+  const { data: dailyUsage } = await supabase
+    .from('usage_tracking')
+    .select('*')
+    .eq('user_id', userId)
+    .gte('period_start', dailyStart.toISOString())
+    .lte('period_end', dailyEnd.toISOString())
+    .single();
+
+  // Get monthly usage (current month)
+  const monthlyStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+  const monthlyEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0, 23, 59, 59, 999));
+
+  const { data: monthlyUsage } = await supabase
+    .from('usage_tracking')
+    .select('*')
+    .eq('user_id', userId)
+    .gte('period_start', monthlyStart.toISOString())
+    .lte('period_end', monthlyEnd.toISOString())
+    .single();
+
+  return {
+    daily: dailyUsage || null,
+    monthly: monthlyUsage || null,
+  };
 }
