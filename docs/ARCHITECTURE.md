@@ -1358,6 +1358,344 @@ if (!result.allowed) {
 
 ---
 
-**Last Updated**: 2025-01-25
-**Version**: 1.0
+## External API Integration
+
+### API Providers
+
+The application integrates with multiple external APIs for market data, financial information, and news.
+
+#### Stock Quote Providers
+
+**Primary Provider: Alpha Vantage**
+- Free Tier: 25 requests/day, 5 requests/minute
+- Real-time US stock quotes
+- Canadian stocks (TSX) support
+- Used by default in `/api/quote/route.ts`
+
+**Fallback Provider: Financial Modeling Prep (FMP)**
+- Free Tier: 250 requests/day
+- Batch support for multiple symbols
+- International stocks (TSX, LSE, etc.)
+- Faster response times than Alpha Vantage
+
+**Provider Selection Strategy:**
+```typescript
+// lib/services/stock-data.service.ts
+// 1. Check cache (5min TTL)
+// 2. Try Alpha Vantage (primary)
+// 3. Fallback to FMP on failure
+// 4. Return stale cache as last resort
+```
+
+**Configuration:**
+```bash
+# .env.local
+ALPHAVANTAGE_API_KEY=your_key
+FMP_API_KEY=your_key
+STOCK_API_PROVIDER=alphavantage  # or 'fmp'
+```
+
+#### Other Data Providers
+
+| Provider | Purpose | Files |
+|----------|---------|-------|
+| **Yahoo Finance** | Fundamentals, financial statements | `lib/dao/yahoo-finance.dao.ts` |
+| **Finnhub** | News feeds | `lib/dao/finnhub.dao.ts` |
+| **Brave Search** | Alternative news source | `lib/dao/brave-search.dao.ts` |
+| **SEC EDGAR** | SEC filings lookup | `lib/dao/sec-edgar.dao.ts` |
+
+---
+
+## Authentication System
+
+### Overview
+
+Authentication is handled by **Supabase** with session-based auth using `proxy.ts` (not middleware.ts, following Supabase's Next.js 16+ recommendation).
+
+### Authentication Architecture
+
+```
+User Request
+    ↓
+proxy.ts (Session validation via getClaims())
+    ↓
+Route Protection (redirect if unauthenticated)
+    ↓
+Server Components / API Routes
+    ↓
+Supabase Client (SSR or Admin)
+    ↓
+Database (RLS-protected)
+```
+
+### Key Components
+
+**Proxy Configuration:** `proxy.ts`
+- Session refresh on every request
+- JWT validation using `getClaims()` (performant, cached)
+- Route protection for protected pages
+- Automatic redirects for auth pages
+
+**Session Helpers:** `lib/auth/session.ts`
+- `getUser()` - Get current user or null
+- `requireUser()` - Require auth, redirect if not authenticated
+- `getUserProfile()` - Get user profile with tier
+- `requireTier(tier)` - Require specific tier, redirect to pricing
+
+**Protected Routes:**
+- `/dashboard` (and all sub-routes)
+- `/thesis`, `/checklist`, `/fundamentals`, `/risk`, `/settings`
+
+### Why proxy.ts (Not middleware.ts)
+
+**Supabase Recommendation for Next.js 16+:**
+- `proxy.ts` runs on Node.js runtime with full server capabilities
+- `middleware.ts` runs on Edge runtime with database connection limitations
+- Official Supabase docs use `proxy.ts` pattern for SSR authentication
+
+### Authentication Methods
+
+**getClaims() vs getUser():**
+- `getClaims()`: Validates JWT signatures against cached public keys (JWKS endpoint)
+- `getUser()`: Makes network requests to Supabase Auth server (slower)
+- **Recommended:** Use `getClaims()` for better performance
+
+### Database Triggers
+
+**handle_new_user()** - Automatically creates profile when user signs up
+- Extracts name from user metadata
+- Sets default tier to 'free'
+- Prevents duplicate profiles
+
+---
+
+## Service Layer Architecture
+
+### Layered Architecture Pattern
+
+The application follows a Spring-style layered architecture with clear separation of concerns:
+
+```
+┌─────────────────────────────────────────┐
+│     Client Layer (React)                │
+│  - Components, Hooks                    │
+└───────────────┬─────────────────────────┘
+                │ HTTP requests
+                ↓
+┌─────────────────────────────────────────┐
+│     Controller Layer (API Routes)       │
+│  - app/api/quote/route.ts               │
+│  - app/api/fundamentals/route.ts        │
+└───────────────┬─────────────────────────┘
+                │ Service calls
+                ↓
+┌─────────────────────────────────────────┐
+│     Service Layer                       │
+│  - StockDataService                     │
+│  - FinancialDataService                 │
+│  - NewsService                          │
+└───────────────┬─────────────────────────┘
+                │ DAO calls
+                ↓
+┌─────────────────────────────────────────┐
+│     DAO Layer                           │
+│  - AlphaVantageDAO, FMPDAO              │
+│  - YahooFinanceDAO, FinnhubDAO          │
+└───────────────┬─────────────────────────┘
+                │ HTTP requests
+                ↓
+         External APIs
+```
+
+### Layer Responsibilities
+
+**DAO Layer** (`lib/dao/`)
+- Make HTTP requests to external APIs
+- Handle timeouts, retries, errors
+- Parse raw API responses
+- Return typed data models
+- **NO business logic** - pure data access
+
+**Service Layer** (`lib/services/`)
+- Coordinate between multiple DAOs
+- Implement business logic (fallbacks, retries, aggregation)
+- Cache management
+- Data transformation
+- Error handling and logging
+
+**Controller Layer** (`app/api/`)
+- Request/response handling
+- Input validation
+- Call service layer methods
+- Format responses for client
+
+**Client Layer** (`components/`, `lib/hooks/`)
+- React components
+- Custom hooks for data fetching
+- UI state management
+
+### File Organization
+
+```
+lib/
+├── dao/                    # Data Access Objects
+│   ├── base.dao.ts        # Base class with common HTTP logic
+│   ├── alpha-vantage.dao.ts
+│   ├── fmp.dao.ts
+│   ├── yahoo-finance.dao.ts
+│   ├── finnhub.dao.ts
+│   ├── brave-search.dao.ts
+│   └── sec-edgar.dao.ts
+│
+├── services/              # Service Layer
+│   ├── stock-data.service.ts
+│   ├── financial-data.service.ts
+│   ├── news.service.ts
+│   └── market-data.service.ts
+```
+
+### Example: Stock Data Service
+
+```typescript
+// lib/services/stock-data.service.ts
+export class StockDataService {
+  private alphaVantageDAO: AlphaVantageDAO;
+  private fmpDAO: FinancialModelingPrepDAO;
+
+  async getStockQuote(symbol: string): Promise<StockQuote> {
+    // 1. Try cache (5min TTL)
+    const cached = loadFromCache<StockQuote>(`quote-${symbol}`);
+    if (cached && getCacheAge(`quote-${symbol}`) < 5 * 60 * 1000) {
+      return { ...cached, source: 'cache' };
+    }
+
+    // 2. Try Alpha Vantage (primary)
+    try {
+      const quote = await this.alphaVantageDAO.getQuote(symbol);
+      saveToCache(`quote-${symbol}`, quote);
+      return quote;
+    } catch (error) {
+      // Special handling for rate limits
+      if (error.message.includes('RATE_LIMIT') && cached) {
+        return { ...cached, source: 'cache' };
+      }
+    }
+
+    // 3. Fallback to FMP
+    try {
+      const quote = await this.fmpDAO.getQuote(symbol);
+      saveToCache(`quote-${symbol}`, quote);
+      return quote;
+    } catch (error) {
+      // Return stale cache or null
+      if (cached) return { ...cached, source: 'cache' };
+      return { symbol, price: null, ... };
+    }
+  }
+}
+```
+
+---
+
+## Stock Price Retrieval System
+
+### Request Flow
+
+```
+User Action (page load, manual refresh)
+    ↓
+lib/utils/priceUpdater.ts: fetchStockPrice()
+    ↓
+HTTP GET /api/quote?symbols=AAPL,MSFT
+    ↓
+app/api/quote/route.ts
+    ↓
+StockDataService.getBatchQuotes()
+    ↓
+For each symbol: 4-level fallback
+    ├─ 1. Cache (5min TTL) → Return if fresh
+    ├─ 2. Alpha Vantage → Try primary provider
+    ├─ 3. FMP → Try fallback provider
+    └─ 4. Stale Cache or Null → Last resort
+    ↓
+Return quotes to client
+```
+
+### 4-Level Fallback Strategy
+
+| Level | Source | Latency | Freshness | When Used |
+|-------|--------|---------|-----------|-----------|
+| 1 | **Cache** | ~1ms | 0-5 min | Always tried first |
+| 2 | **Alpha Vantage** | 200-2000ms | Real-time | Cache miss or expired |
+| 3 | **FMP** | 200-2000ms | Real-time | Alpha Vantage failed |
+| 4 | **Stale Cache** | ~1ms | Any age | All providers failed |
+| 5 | **Null/N/A** | 0ms | N/A | No data available |
+
+### Caching Strategy
+
+**Cache Configuration:**
+- **Location:** `lib/serverCache.ts` (in-memory, dev only)
+- **TTL:** 5 minutes for fresh cache
+- **Key Format:** `quote-{SYMBOL}` (e.g., `quote-AAPL`)
+- **Stale Cache:** Used when all providers fail, regardless of age
+
+**Cache Operations:**
+```typescript
+loadFromCache<StockQuote>(cacheKey)  // Returns value or null
+saveToCache(cacheKey, quote)         // Save with timestamp
+getCacheAge(cacheKey)                // Returns age in ms or Infinity
+```
+
+**Production Recommendation:**
+- Replace in-memory cache with **Redis**
+- Implement automatic TTL expiration
+- Enable distributed caching for multi-instance deployments
+
+### Error Handling
+
+**Error Classification:**
+- **Network Timeout:** 5-second timeout per request
+- **HTTP Error:** Non-200 status codes
+- **Rate Limit:** Alpha Vantage 25 req/day, 5 req/min
+- **API Error:** Provider-specific errors
+- **No Data:** Symbol not found or invalid
+
+**Price Treated as N/A When:**
+1. All providers failed + no cache exists
+2. API returns error response
+3. Price value is invalid (null, ≤0, non-numeric)
+4. HTTP request failed
+5. Network exception
+
+### Performance Characteristics
+
+**Latency:**
+- Cache hit (fresh): 1-5ms
+- Alpha Vantage success: 200-2000ms
+- Alpha Vantage fail → FMP success: 5000ms + 200-2000ms
+- Worst case (both fail): ~10 seconds
+
+**Batch Requests:**
+- Parallel execution via Promise.all
+- Total latency = slowest individual request
+- Independent error handling per symbol
+
+### Production Considerations
+
+**Critical Issues:**
+- In-memory cache not suitable for production
+- Free tier rate limits insufficient for scale (1000+ users)
+- Need monitoring and alerting for provider health
+- Consider circuit breaker pattern for failing providers
+
+**Recommended Improvements:**
+- Migrate to Redis cache with TTL expiration
+- Upgrade to paid API tiers (10,000+ requests/day)
+- Add Prometheus metrics + Grafana monitoring
+- Implement circuit breaker (skip failing providers temporarily)
+
+---
+
+**Last Updated**: 2025-11-25
+**Version**: 2.0
 **Status**: Production Ready ✅
