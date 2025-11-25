@@ -1,5 +1,11 @@
 # AI System Design - MVP
 
+> **📖 PURPOSE:** Practical MVP implementation guide for AI features (Llama-3.1-70B, 4-layer caching, lazy loading).
+> **WHEN TO USE:** Actively building AI features for MVP launch. **This is your primary AI implementation guide.**
+> **UPDATE FREQUENCY:** Weekly during active AI feature development, as implementation progresses.
+> **AUDIENCE:** Developers implementing AI chat, sentiment analysis, filing summaries (0-5K users).
+> **✅ USE THIS:** For current MVP work, not the "Full Feature Complete" version.
+
 **Last Updated**: 2025-11-25
 **Version**: 1.0
 **Status**: Implementation In Progress

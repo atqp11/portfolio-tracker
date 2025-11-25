@@ -1,5 +1,9 @@
 # Live Portfolio Tracker
 
+> **📖 PURPOSE:** Public-facing project overview for users, contributors, and new developers.
+> **WHEN TO USE:** First stop for anyone discovering this project - explains what it does, how to deploy it, and basic setup.
+> **UPDATE FREQUENCY:** When major features launch or deployment instructions change.
+
 **70/30 Cash-Margin** | **Live Prices** | **Daily Snapshot** | **Stop-Loss & Take Profit** | **DRIP**
 
 ## Features

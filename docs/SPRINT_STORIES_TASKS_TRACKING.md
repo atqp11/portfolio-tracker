@@ -1,4 +1,9 @@
-# 📋 Active TODOs
+# 📋 Sprint Stories & Tasks Tracking
+
+> **📖 PURPOSE:** Current sprint work items, active tasks, and immediate development priorities.
+> **WHEN TO USE:** Daily development work - check this for what to work on next, track progress, update status.
+> **UPDATE FREQUENCY:** Daily or as tasks are completed/added during active development.
+> **AUDIENCE:** Active developers, project managers, sprint planners.
 
 **Last Updated:** November 22, 2025
 **Status:** 40-50% Complete | **CRITICAL: Auth/User Tiers + AI Features must be done before MVP Launch**

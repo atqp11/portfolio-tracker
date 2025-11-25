@@ -1,4 +1,9 @@
-# 🚀 Feature Roadmap - Portfolio Tracker Evolution
+# 🚀 Feature Roadmap
+
+> **📖 PURPOSE:** Long-term strategic feature planning and product evolution timeline (Phases 0-4, Week 1-20).
+> **WHEN TO USE:** Strategic planning, prioritizing features, understanding what's coming in future phases.
+> **UPDATE FREQUENCY:** Monthly or when strategic priorities shift, new phases planned, or major features launched.
+> **AUDIENCE:** Product managers, stakeholders, developers planning future work.
 
 **Created:** November 19, 2025
 **Status:** Planning Phase

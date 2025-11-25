@@ -1,4 +1,10 @@
-# Retail Stock AI Pipeline — System Design & Recommendations
+# AI System Design - Full Feature Complete
+
+> **📖 PURPOSE:** Comprehensive AI architecture reference for Phase 2+ (RAG, vector DB, multi-model routing) - NOT for MVP.
+> **WHEN TO USE:** When MRR > $20K or planning Phase 2 AI features. **DO NOT use for current MVP** (see AI_SYSTEM_DESIGN_MVP.md instead).
+> **UPDATE FREQUENCY:** When Phase 2 development begins or advanced AI architecture evolves.
+> **AUDIENCE:** Senior engineers planning scalable AI infrastructure (10K+ users, quant use cases).
+> **⚠️ WARNING:** This is reference architecture only. MVP uses single-model approach from AI_SYSTEM_DESIGN_MVP.md.
 
 **Created:** 2025-11-19
 **Last Updated:** 2025-11-22

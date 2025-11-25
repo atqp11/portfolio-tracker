@@ -1,4 +1,9 @@
-# Documentation Consolidation - Complete Summary
+# Technical Architecture Overview
+
+> **📖 PURPOSE:** High-level technical summary of the entire system architecture for developers working on the project.
+> **WHEN TO USE:** When you need to understand how all components fit together, system design decisions, or consolidated technical documentation.
+> **UPDATE FREQUENCY:** After major architectural changes, documentation consolidation, or system refactoring.
+> **AUDIENCE:** Developers, technical leads, architects.
 
 **Date**: 2025-11-25
 **Status**: ✅ Complete
