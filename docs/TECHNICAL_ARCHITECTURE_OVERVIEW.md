@@ -96,7 +96,44 @@
 
 ## Architecture Layers
 
-### 1. Presentation Layer (Client-Side)
+**Pattern**: MVC (Model-View-Controller) with clear separation of concerns
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Presentation Layer                        │
+│              (React Components - Client-Side)                │
+└─────────────────┬───────────────────────────────────────────┘
+                  │
+                  ▼
+┌─────────────────────────────────────────────────────────────┐
+│                   Controller Layer                           │
+│              (API Routes - Request Handling)                 │
+│  • Input validation                                          │
+│  • Request/response mapping                                  │
+│  • Error handling                                            │
+└─────────────────┬───────────────────────────────────────────┘
+                  │
+                  ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    Service Layer                             │
+│              (Business Logic & Orchestration)                │
+│  • Business logic                                            │
+│  • Caching strategy (Redis, localStorage)                   │
+│  • Data transformation                                       │
+│  • Orchestration between DAOs                                │
+└─────────────────┬───────────────────────────────────────────┘
+                  │
+                  ▼
+┌─────────────────────────────────────────────────────────────┐
+│                      DAO Layer                               │
+│            (Data Access - Downstream Clients)                │
+│  • Database clients (Prisma, Supabase)                      │
+│  • External API clients (Alpha Vantage, FMP)                │
+│  • Third-party integrations (Gemini AI, SEC EDGAR)          │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 1. Presentation Layer (View)
 
 **Pattern**: Client-first architecture (intentional design choice)
 
@@ -129,9 +166,11 @@ app/
 - Browser APIs (localStorage, notifications)
 - No SEO requirements (authenticated app)
 
-### 2. API Layer (Server-Side)
+### 2. Controller Layer (Routes)
 
-**Pattern**: RESTful API routes with dynamic rendering
+**Pattern**: RESTful API routes with request validation and error handling
+
+**Location**: `app/api/`
 
 ```
 app/api/
@@ -140,7 +179,7 @@ app/api/
 ├── stocks/route.ts             # Stock positions CRUD
 ├── thesis/route.ts             # Investment theses CRUD
 ├── checklist/route.ts          # Daily checklist CRUD
-├── fundamentals/route.ts       # Stock fundamentals (Yahoo Finance)
+├── fundamentals/route.ts       # Stock fundamentals
 ├── risk-metrics/route.ts       # Portfolio risk calculations
 ├── ai/
 │   ├── generate/route.ts       # AI text generation
@@ -154,40 +193,147 @@ app/api/
 └── sec-edgar/route.ts          # SEC filings lookup
 ```
 
-**All routes**: `export const dynamic = 'force-dynamic'`
+**Responsibilities**:
+- HTTP request/response handling
+- Input validation (query params, body)
+- Authentication/authorization checks
+- Delegate to Service Layer
+- Error mapping to HTTP status codes
+- Rate limiting enforcement
 
-### 3. Business Logic Layer
+**Example Pattern**:
+```typescript
+// app/api/quote/route.ts (Controller)
+export async function GET(request: NextRequest) {
+  // 1. Extract & validate input
+  const symbols = searchParams.get('symbols')?.split(',');
+  if (!symbols) return NextResponse.json({ error: 'Missing symbols' }, { status: 400 });
+
+  // 2. Delegate to Service Layer
+  const quotes = await quoteService.getBatchQuotes(symbols);
+
+  // 3. Return response
+  return NextResponse.json(quotes);
+}
+```
+
+### 3. Service Layer (Business Logic)
+
+**Pattern**: Business logic, caching, and orchestration between data sources
+
+**Location**: `lib/services/` (to be created) and existing `lib/` modules
 
 ```
 lib/
+├── services/                   # Service layer (business logic)
+│   ├── quoteService.ts         # Stock quote orchestration + caching
+│   ├── portfolioService.ts     # Portfolio calculations + aggregation
+│   ├── riskMetricsService.ts   # Risk metrics computation
+│   ├── newsService.ts          # News aggregation from multiple sources
+│   ├── aiService.ts            # AI prompt management + caching
+│   └── commodityService.ts     # Commodity price aggregation
 ├── calculator.ts               # Portfolio calculations & risk metrics
 ├── metrics.ts                  # Performance metrics
-├── api/                        # External API clients
+├── cache.ts                    # Client-side caching (localStorage)
+├── aiCache.ts                  # AI prompt caching (Gemini)
+└── rateLimitTracker.ts         # Rate limit tracking
+```
+
+**Responsibilities**:
+- Business logic and calculations
+- Multi-source data aggregation
+- Caching strategy (check cache → fetch → cache result)
+- Data transformation and mapping
+- Orchestration between multiple DAOs
+- Rate limit handling
+
+**Example Pattern**:
+```typescript
+// lib/services/quoteService.ts (Service)
+export async function getBatchQuotes(symbols: string[]) {
+  // 1. Check cache
+  const cached = cacheDAO.get('quotes', symbols);
+  if (cached && !cacheDAO.isStale(cached)) return cached;
+
+  // 2. Check rate limits
+  if (rateLimitTracker.isLimited()) {
+    return cached || fallbackDAO.getLastKnownQuotes(symbols);
+  }
+
+  // 3. Fetch from DAO
+  const quotes = await alphaVantageDAO.fetchBatchQuotes(symbols);
+
+  // 4. Cache result
+  cacheDAO.set('quotes', symbols, quotes, { ttl: 300000 });
+
+  return quotes;
+}
+```
+
+### 4. DAO Layer (Data Access Objects)
+
+**Pattern**: Downstream clients for external APIs and databases
+
+**Location**: `lib/dao/` (to be created) and existing `lib/api/`, `lib/supabase/`
+
+```
+lib/
+├── dao/                        # Data Access Objects
+│   ├── database/
+│   │   ├── portfolioDAO.ts     # Prisma/Supabase portfolio queries
+│   │   ├── stockDAO.ts         # Stock positions queries
+│   │   ├── thesisDAO.ts        # Investment thesis queries
+│   │   └── checklistDAO.ts     # Checklist queries
+│   ├── external/
+│   │   ├── alphaVantageDAO.ts  # Alpha Vantage API client
+│   │   ├── fmpDAO.ts           # FMP API client
+│   │   ├── yahooFinanceDAO.ts  # Yahoo Finance scraper
+│   │   ├── geminiDAO.ts        # Google Gemini API client
+│   │   ├── secEdgarDAO.ts      # SEC EDGAR API client
+│   │   ├── newsApiDAO.ts       # NewsAPI client
+│   │   └── polygonDAO.ts       # Polygon.io client
+│   └── cache/
+│       ├── redisDAO.ts         # Redis cache client
+│       └── localStorageDAO.ts  # Browser storage wrapper
+│
+├── api/                        # External API clients (existing)
 │   ├── alphavantage.ts
 │   ├── fmp.ts
 │   ├── yahooFinance.ts
 │   ├── secEdgar.ts
 │   └── commodities/
-├── ai/                         # AI integration
-│   ├── gemini.ts
-│   ├── systemInstructions.ts
-│   └── context.ts
-├── auth/
-│   └── session.ts              # Authentication helpers
-├── supabase/
+├── supabase/                   # Database clients (existing)
 │   ├── server.ts               # SSR client (RLS)
 │   ├── admin.ts                # Admin client (bypass RLS)
 │   └── db.ts                   # Database utilities
-├── tiers/                      # Subscription & quota system
-│   ├── config.ts
-│   └── usage-tracker.ts
-└── hooks/                      # React hooks
-    └── useDatabase.ts
+└── ai/                         # AI integration (existing)
+    └── gemini.ts
 ```
 
-### 4. Data Layer (Supabase PostgreSQL)
+**Responsibilities**:
+- Raw data fetching (HTTP requests, DB queries)
+- Connection management
+- Error handling (network, timeout, auth)
+- Response parsing and typing
+- No business logic (pure data access)
 
-**Schema**:
+**Example Pattern**:
+```typescript
+// lib/dao/external/alphaVantageDAO.ts (DAO)
+export async function fetchBatchQuotes(symbols: string[]): Promise<Quote[]> {
+  const url = `https://www.alphavantage.co/query?function=BATCH_STOCK_QUOTES&symbols=${symbols.join(',')}&apikey=${apiKey}`;
+
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+  const data = await response.json();
+  return parseQuotes(data); // Transform to internal format
+}
+```
+
+### 5. Data Layer (Database Schema)
+
+**Schema**: Supabase PostgreSQL
 
 ```sql
 -- Users & Authentication
@@ -303,59 +449,194 @@ L4: Vercel Edge Cache → <200ms stale responses
 
 ## Data Flow
 
-### User Portfolio View
+**Pattern**: Routes → Service → DAO (MVC Architecture)
+
+### Example 1: User Portfolio View
 
 ```
-1. User visits dashboard (app/page.tsx)
-   ↓
-2. usePortfolio() hook fetches data
-   ↓
-3. API route: GET /api/portfolio?type=energy
-   ↓
-4. Supabase query (SSR client, RLS-protected)
-   ↓
-5. Return portfolio + stocks
-   ↓
-6. Client: Fetch live quotes for stocks
-   ↓
-7. API route: GET /api/quote?symbols=CNQ,SU,TRMLF
-   ↓
-8. Check localStorage cache → if miss:
-   ↓
-9. Fetch from Alpha Vantage (batch API)
-   ↓
-10. Cache response (5min TTL)
-    ↓
-11. Client: Calculate portfolio value, P&L, risk metrics
-    ↓
-12. Render UI with live data
+┌─────────────────────────────────────────────────────────────┐
+│ 1. PRESENTATION (Client)                                     │
+│    User visits dashboard (app/page.tsx)                      │
+│    usePortfolio() hook triggers API call                     │
+└─────────────────┬───────────────────────────────────────────┘
+                  │
+                  ▼
+┌─────────────────────────────────────────────────────────────┐
+│ 2. CONTROLLER (Route)                                        │
+│    GET /api/portfolio?type=energy                            │
+│    • Validate query params                                   │
+│    • Check authentication                                    │
+│    • Call portfolioService.getPortfolio('energy')            │
+└─────────────────┬───────────────────────────────────────────┘
+                  │
+                  ▼
+┌─────────────────────────────────────────────────────────────┐
+│ 3. SERVICE (Business Logic)                                  │
+│    portfolioService.getPortfolio('energy')                   │
+│    • Check cache (localStorage/Redis)                        │
+│    • If miss: Call portfolioDAO.findByType('energy')         │
+│    • Calculate aggregated metrics                            │
+│    • Format response                                         │
+│    • Cache result (5min TTL)                                 │
+└─────────────────┬───────────────────────────────────────────┘
+                  │
+                  ▼
+┌─────────────────────────────────────────────────────────────┐
+│ 4. DAO (Data Access)                                         │
+│    portfolioDAO.findByType('energy')                         │
+│    • Execute Prisma query                                    │
+│    • Query Supabase (SSR client, RLS-protected)              │
+│    • Return raw data                                         │
+└─────────────────┬───────────────────────────────────────────┘
+                  │
+                  ▼
+┌─────────────────────────────────────────────────────────────┐
+│ 5. RETURN PATH                                               │
+│    DAO → Service → Controller → Client                       │
+│    • Service transforms data                                 │
+│    • Controller returns JSON response                        │
+│    • Client renders UI with data                             │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-### AI Chat Query
+### Example 2: Stock Quote Fetching
 
 ```
-1. User types: "Should I sell NVDA?"
-   ↓
-2. Frontend: POST /api/ai/generate
-   Body: { query, portfolio: ['NVDA', 'AAPL'], userId }
-   ↓
-3. Backend: Check L1 cache (Redis)
-   ↓
-4. If miss: Generate prompt with context
-   - Portfolio holdings
-   - Recent prices
-   - News summary
-   ↓
-5. Call AI model (Llama-3.1-70B via OpenRouter)
-   ↓
-6. Track token usage for cost monitoring
-   ↓
-7. Cache response (12-24h TTL)
-   ↓
-8. Return answer to frontend
-   ↓
-9. Display in StonksAI sidebar
+┌─────────────────────────────────────────────────────────────┐
+│ 1. PRESENTATION (Client)                                     │
+│    useQuotes() hook requests live prices                     │
+└─────────────────┬───────────────────────────────────────────┘
+                  │
+                  ▼
+┌─────────────────────────────────────────────────────────────┐
+│ 2. CONTROLLER (Route)                                        │
+│    GET /api/quote?symbols=CNQ,SU,TRMLF                       │
+│    • Validate symbols parameter                              │
+│    • Check rate limiting                                     │
+│    • Call quoteService.getBatchQuotes(['CNQ','SU','TRMLF'])  │
+└─────────────────┬───────────────────────────────────────────┘
+                  │
+                  ▼
+┌─────────────────────────────────────────────────────────────┐
+│ 3. SERVICE (Business Logic + Caching)                        │
+│    quoteService.getBatchQuotes(symbols)                      │
+│    • Check L1 cache (localStorage) → 5min TTL                │
+│    • Check L2 cache (Redis) → 15min TTL                      │
+│    • If cache miss:                                          │
+│      - Check rate limits (25 req/day)                        │
+│      - Determine provider (Alpha Vantage vs FMP)             │
+│      - Call alphaVantageDAO.fetchBatchQuotes(symbols)        │
+│    • Cache result at both levels                             │
+│    • Transform to standard Quote format                      │
+└─────────────────┬───────────────────────────────────────────┘
+                  │
+                  ▼
+┌─────────────────────────────────────────────────────────────┐
+│ 4. DAO (External API Client)                                 │
+│    alphaVantageDAO.fetchBatchQuotes(symbols)                 │
+│    • Build API URL                                           │
+│    • Execute HTTP request                                    │
+│    • Handle errors (network, timeout, auth)                  │
+│    • Parse response                                          │
+│    • Return typed Quote[] objects                            │
+└─────────────────┬───────────────────────────────────────────┘
+                  │
+                  ▼
+┌─────────────────────────────────────────────────────────────┐
+│ 5. RETURN PATH                                               │
+│    DAO → Service → Controller → Client                       │
+│    • Service caches data                                     │
+│    • Controller returns HTTP 200 with quotes                 │
+│    • Client calculates portfolio P&L                         │
+│    • Client renders updated UI                               │
+└─────────────────────────────────────────────────────────────┘
 ```
+
+### Example 3: AI Chat Query
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ 1. PRESENTATION (Client)                                     │
+│    User types: "Should I sell NVDA?"                         │
+│    StonksAI component submits query                          │
+└─────────────────┬───────────────────────────────────────────┘
+                  │
+                  ▼
+┌─────────────────────────────────────────────────────────────┐
+│ 2. CONTROLLER (Route)                                        │
+│    POST /api/ai/generate                                     │
+│    Body: { query, portfolio: ['NVDA', 'AAPL'], userId }     │
+│    • Validate request body                                   │
+│    • Check usage quota (tier limits)                         │
+│    • Call aiService.generateResponse(query, context)         │
+└─────────────────┬───────────────────────────────────────────┘
+                  │
+                  ▼
+┌─────────────────────────────────────────────────────────────┐
+│ 3. SERVICE (Business Logic + Orchestration)                  │
+│    aiService.generateResponse(query, context)                │
+│    • Check L1 cache (Redis query cache) → 12-24h TTL         │
+│    • If cache miss:                                          │
+│      - Gather context data:                                  │
+│        · Call portfolioDAO.getHoldings(userId)               │
+│        · Call quoteDAO.getCurrentPrices(symbols)             │
+│        · Call newsDAO.getRecentNews('NVDA')                  │
+│      - Build system prompt with context                      │
+│      - Call geminiDAO.generate(prompt)                       │
+│    • Track token usage for billing                           │
+│    • Cache response (12-24h TTL)                             │
+│    • Update usage tracking                                   │
+└─────────────────┬───────────────────────────────────────────┘
+                  │
+                  ▼
+┌─────────────────────────────────────────────────────────────┐
+│ 4. DAO (Multiple External Clients)                           │
+│    • geminiDAO.generate(prompt) → Google Gemini API          │
+│    • portfolioDAO.getHoldings(userId) → Supabase             │
+│    • quoteDAO.getCurrentPrices(symbols) → Alpha Vantage      │
+│    • newsDAO.getRecentNews('NVDA') → NewsAPI                 │
+│    Each DAO handles:                                         │
+│    • API/database connection                                 │
+│    • Error handling                                          │
+│    • Response parsing                                        │
+└─────────────────┬───────────────────────────────────────────┘
+                  │
+                  ▼
+┌─────────────────────────────────────────────────────────────┐
+│ 5. RETURN PATH                                               │
+│    DAOs → Service → Controller → Client                      │
+│    • Service aggregates multi-source data                    │
+│    • Controller returns AI response                          │
+│    • Client displays in StonksAI sidebar                     │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Key Flow Principles
+
+1. **Separation of Concerns**:
+   - Controllers handle HTTP (validation, auth, errors)
+   - Services handle business logic (caching, orchestration)
+   - DAOs handle data access (API calls, DB queries)
+
+2. **Caching Strategy**:
+   - Check cache at Service layer (not DAO)
+   - Multi-level caching (L1: localStorage/Redis, L2: Database)
+   - Cache-first approach to minimize API costs
+
+3. **Error Handling**:
+   - DAOs throw raw errors (network, timeout, auth)
+   - Services transform errors (add context, fallback data)
+   - Controllers map errors to HTTP status codes
+
+4. **Data Transformation**:
+   - DAOs return raw external formats
+   - Services transform to internal domain models
+   - Controllers return API-formatted responses
+
+5. **Orchestration**:
+   - Services coordinate multiple DAO calls
+   - DAOs are single-purpose (one API or table)
+   - Controllers delegate to single Service method
 
 ---
 
@@ -392,7 +673,44 @@ L4: Vercel Edge Cache → <200ms stale responses
 
 ## Key Design Patterns
 
-### 1. Client-First Architecture
+### 1. MVC Architecture (Routes → Service → DAO)
+
+**Pattern**: Model-View-Controller with clear layer separation
+
+**Structure**:
+```
+View (Presentation)
+  ↓ API calls
+Controller (Routes)
+  ↓ Delegates to
+Service (Business Logic)
+  ↓ Calls
+DAO (Data Access)
+  ↓ Returns to
+Model (Domain Objects)
+```
+
+**Benefits**:
+- **Testability**: Each layer can be tested independently
+- **Maintainability**: Changes to one layer don't affect others
+- **Reusability**: Services can be called from multiple routes
+- **Scalability**: Easy to add caching, logging, monitoring at Service layer
+
+**Layer Responsibilities**:
+
+| Layer | Responsibility | Example |
+|-------|---------------|---------|
+| **Controller** | HTTP handling, validation, auth | `app/api/quote/route.ts` |
+| **Service** | Business logic, caching, orchestration | `lib/services/quoteService.ts` |
+| **DAO** | Data access (APIs, DB) | `lib/dao/external/alphaVantageDAO.ts` |
+
+**Anti-Patterns to Avoid**:
+- ❌ Calling DAOs directly from Controllers (bypass Service layer)
+- ❌ Business logic in DAOs (should be pure data access)
+- ❌ Caching in DAOs (should be in Service layer)
+- ❌ HTTP concerns in Services (status codes, headers)
+
+### 2. Client-First Architecture
 
 **Decision**: All pages use `'use client'` directive
 
@@ -405,7 +723,7 @@ L4: Vercel Edge Cache → <200ms stale responses
 
 **Trade-off**: Larger bundle size, but better UX for this use case
 
-### 2. Aggressive Caching
+### 3. Aggressive Caching
 
 **Layers**:
 - **L1**: localStorage (client, 5-15min)
@@ -415,7 +733,7 @@ L4: Vercel Edge Cache → <200ms stale responses
 
 **Goal**: 80%+ cache hit rate → minimize API costs
 
-### 3. SSR vs Admin Client Pattern
+### 4. SSR vs Admin Client Pattern
 
 **SSR Client** (`lib/supabase/server.ts`):
 - Uses anon key
@@ -429,7 +747,7 @@ L4: Vercel Edge Cache → <200ms stale responses
 - System-level operations
 - **Use for**: Usage tracking, background jobs
 
-### 4. Rate Limit Handling
+### 5. Rate Limit Handling
 
 **Strategy**:
 1. Check in-memory tracker (`lib/rateLimitTracker.ts`)
@@ -437,7 +755,7 @@ L4: Vercel Edge Cache → <200ms stale responses
 3. If no cache → return 429 with reset time
 4. Frontend displays user-friendly message
 
-### 5. Lazy Loading (AI Features)
+### 6. Lazy Loading (AI Features)
 
 **Pattern**: Generate on-demand, cache forever
 
