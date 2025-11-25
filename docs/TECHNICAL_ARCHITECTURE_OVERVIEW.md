@@ -15,11 +15,12 @@
 1. [System Overview](#system-overview)
 2. [Tech Stack](#tech-stack)
 3. [Architecture Layers](#architecture-layers)
-4. [Core Subsystems](#core-subsystems)
-5. [Data Flow](#data-flow)
-6. [External Integrations](#external-integrations)
-7. [Key Design Patterns](#key-design-patterns)
-8. [Detailed Documentation](#detailed-documentation)
+4. [Client-Side & Server-Side Storage & Caching Strategy](#client-side--server-side-storage--caching-strategy)
+5. [Core Subsystems](#core-subsystems)
+6. [Data Flow](#data-flow)
+7. [External Integrations](#external-integrations)
+8. [Key Design Patterns](#key-design-patterns)
+9. [Detailed Documentation](#detailed-documentation)
 
 ---
 
@@ -232,11 +233,28 @@ lib/
 │   ├── newsService.ts          # News aggregation from multiple sources
 │   ├── aiService.ts            # AI prompt management + caching
 │   └── commodityService.ts     # Commodity price aggregation
+├── mappers/                    # Data transformation layer
+│   ├── stockMapper.ts          # Entity ↔ Domain Model ↔ DTO
+│   ├── portfolioMapper.ts      # Entity ↔ Domain Model ↔ DTO
+│   ├── quoteMapper.ts          # External DTO → Domain Model
+│   └── aiMapper.ts             # Request/Response DTO transformations
 ├── calculator.ts               # Portfolio calculations & risk metrics
 ├── metrics.ts                  # Performance metrics
 ├── cache.ts                    # Client-side caching (localStorage)
 ├── aiCache.ts                  # AI prompt caching (Gemini)
 └── rateLimitTracker.ts         # Rate limit tracking
+
+types/
+├── dto/                        # Data Transfer Objects
+│   ├── request/                # API Request DTOs
+│   ├── response/               # API Response DTOs
+│   └── external/               # External API DTOs
+├── models/                     # Domain Models (business objects)
+│   ├── Stock.ts
+│   ├── Quote.ts
+│   └── Portfolio.ts
+└── entities/                   # Database Entities (Prisma re-exports)
+    └── index.ts
 ```
 
 **Responsibilities**:
@@ -250,23 +268,56 @@ lib/
 **Example Pattern**:
 ```typescript
 // lib/services/quoteService.ts (Service)
-export async function getBatchQuotes(symbols: string[]) {
-  // 1. Check cache
-  const cached = cacheDAO.get('quotes', symbols);
+import { Quote } from '@/types/models/Quote';
+import { alphaVantageDAO } from '@/lib/dao/external/alphaVantageDAO';
+import { cacheDAO } from '@/lib/dao/cache/cacheDAO';
+
+export async function getBatchQuotes(symbols: string[]): Promise<Quote[]> {
+  // 1. Check cache (returns Domain Models)
+  const cached = await cacheDAO.get<Quote[]>('quotes', symbols);
   if (cached && !cacheDAO.isStale(cached)) return cached;
 
   // 2. Check rate limits
   if (rateLimitTracker.isLimited()) {
-    return cached || fallbackDAO.getLastKnownQuotes(symbols);
+    return cached || [];
   }
 
-  // 3. Fetch from DAO
-  const quotes = await alphaVantageDAO.fetchBatchQuotes(symbols);
+  // 3. Fetch from DAO (DAO returns Domain Models)
+  const quotes: Quote[] = await alphaVantageDAO.fetchBatchQuotes(symbols);
 
-  // 4. Cache result
-  cacheDAO.set('quotes', symbols, quotes, { ttl: 300000 });
+  // 4. Cache Domain Models
+  await cacheDAO.set('quotes', symbols, quotes, { ttl: 300000 });
 
+  // 5. Return Domain Models to Controller
   return quotes;
+}
+```
+
+**With Mappers**:
+```typescript
+// lib/mappers/quoteMapper.ts
+import { Quote } from '@/types/models/Quote';
+import { QuoteResponse } from '@/types/dto/response/QuoteResponse';
+import { AlphaVantageQuoteDTO } from '@/types/dto/external/AlphaVantageDTO';
+
+export function fromAlphaVantageDTO(dto: AlphaVantageQuoteDTO): Quote {
+  return {
+    symbol: dto['01. symbol'],
+    price: parseFloat(dto['05. price']),
+    change: parseFloat(dto['09. change']),
+    changePercent: parseFloat(dto['10. change percent'].replace('%', '')),
+    timestamp: new Date()
+  };
+}
+
+export function toQuoteResponse(model: Quote): QuoteResponse {
+  return {
+    symbol: model.symbol,
+    price: model.price,
+    change: model.change,
+    changePercent: model.changePercent,
+    timestamp: model.timestamp.toISOString()
+  };
 }
 ```
 
@@ -320,16 +371,30 @@ lib/
 **Example Pattern**:
 ```typescript
 // lib/dao/external/alphaVantageDAO.ts (DAO)
+import { Quote } from '@/types/models/Quote';
+import { AlphaVantageQuoteDTO } from '@/types/dto/external/AlphaVantageDTO';
+import { fromAlphaVantageDTO } from '@/lib/mappers/quoteMapper';
+
 export async function fetchBatchQuotes(symbols: string[]): Promise<Quote[]> {
+  // 1. Build API URL
   const url = `https://www.alphavantage.co/query?function=BATCH_STOCK_QUOTES&symbols=${symbols.join(',')}&apikey=${apiKey}`;
 
+  // 2. Execute HTTP request
   const response = await fetch(url);
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
-  const data = await response.json();
-  return parseQuotes(data); // Transform to internal format
+  // 3. Parse External DTO
+  const data: AlphaVantageQuoteDTO[] = await response.json();
+
+  // 4. Transform External DTO → Domain Model using mapper
+  const quotes: Quote[] = data.map(fromAlphaVantageDTO);
+
+  // 5. Return Domain Models (not raw DTOs)
+  return quotes;
 }
 ```
+
+**Key Principle**: DAOs return Domain Models, not raw external DTOs. The transformation happens in the DAO using mappers.
 
 ### 5. Data Layer (Database Schema)
 
@@ -355,6 +420,100 @@ usage_tracking (id, user_id, tier, chat_queries, portfolio_analysis, sec_filings
 company_fact_sheets (ticker, cik, company_name, sector, fundamentals, financials)
 filing_summaries (id, cik, filing_type, period_end, summary_text, kpis_json)
 ```
+
+---
+
+## Client-Side & Server-Side Storage & Caching Strategy
+
+### 4.1 LocalStorage vs IndexedDB
+
+| Feature                     | LocalStorage                                   | IndexedDB                                              |
+|-----------------------------|------------------------------------------------|--------------------------------------------------------|
+| API type                    | Synchronous key-value                          | Asynchronous NoSQL object store                        |
+| Data types                  | Strings only (JSON.stringify/parse)            | Native objects, Blob, File, ArrayBuffer                |
+| Typical limit               | 5–10 MB per origin                             | 50–60 % of disk space (hundreds of MB–GB)              |
+| Performance                 | Fast for tiny data, blocks UI thread           | Non-blocking, excellent for large/complex data        |
+| Query & indexing            | Key lookup only                                | Indexes, range queries, cursors, multi-entry indexes   |
+| Persistence                 | Until explicitly cleared                      | Until explicitly cleared                               |
+| Location on disk            | Browser profile → Storage/LocalStorage         | Browser profile → IndexedDB                            |
+| Recommended wrapper         | Native API sufficient                          | **idb** or **Dexie.js** (strongly recommended)         |
+
+### 4.2 Decision Matrix – Client-Side Storage
+
+| Use Case                                    | Recommended Storage       | Rationale                                                                 |
+|---------------------------------------------|---------------------------|---------------------------------------------------------------------------|
+| Auth/refresh tokens                         | HttpOnly + Secure cookies (fallback: LocalStorage) | Prevents XSS theft                                                       |
+| User preferences, theme, UI flags           | LocalStorage              | Small, simple, frequent access                                            |
+| Feature flags, A/B tests                    | LocalStorage              | Tiny payload                                                              |
+| Offline data (tasks, notes, drafts)         | IndexedDB                 | Structured, large volume                                                  |
+| Large API response caching                  | IndexedDB                 | Full object support, no practical size limit                              |
+| Images, PDFs, file blobs                    | IndexedDB                 | Native Blob/File support                                                  |
+| PWA offline shell & assets                  | IndexedDB + Cache API     | Required for true offline-first experience                                |
+
+### 4.3 Best Practices
+
+**LocalStorage**
+- Never store raw secrets/tokens when HttpOnly cookies are possible
+- Wrap all operations in `try/catch` (QuotaExceededError crashes otherwise)
+- Prefix keys: `appname:module:key`
+- Keep total usage < 4 MB
+
+**IndexedDB**
+- Always use `idb` or `Dexie.js` promise wrapper
+- Create indexes on frequently filtered/sorted fields
+- Implement versioned schema migrations
+- Prune stale data periodically
+- Batch writes in transactions
+
+### 4.4 Caching Layers Overview
+
+| Layer                | Technology                          | Scope              | Typical TTL          | Primary Use Cases                                      |
+|----------------------|-------------------------------------|--------------------|----------------------|--------------------------------------------------------|
+| Browser (per user)   | LocalStorage / IndexedDB            | User-specific      | Session → years      | Offline data, preferences, personal caches             |
+| Browser assets       | Cache API (Service Worker)          | All users          | Months → immutable   | JS/CSS bundles, images, PWA shell                      |
+| Edge/CDN             | Cloudflare / Fastly / Akamai        | Global             | Minutes → forever    | Static assets, public API responses                    |
+| Application instance | In-process memory (Node.js/Map)     | Single instance    | Seconds → minutes    | Per-instance query results                             |
+| Distributed cache    | **Redis** (Redis Cloud, Dragonfly)  | All instances      | 10 s → hours         | Shared data, sessions, rate limiting, leaderboards    |
+
+### 4.5 When to Use Redis (Distributed Cache)
+
+| Scenario                                      | Why Redis Wins                                                       |
+|-----------------------------------------------|----------------------------------------------------------------------|
+| Session storage (multi-instance backend)      | Fast key lookup + automatic expiry                                   |
+| Shared API response caching                   | Expensive DB results used by many users (e.g., catalogs, configs)    |
+| Rate limiting & abuse prevention              | Atomic `INCR` + `EXPIRE`                                             |
+| Real-time features (chat, live updates)       | Built-in Pub/Sub                                                     |
+| Background job queues                         | Reliable lists / Redis Streams (BullMQ, Sidekiq, etc.)               |
+| Leaderboards & rankings                       | Native sorted sets (`ZADD`, `ZRANGE`)                                |
+
+### 4.6 Recommended Architecture (2025)
+
+```text
+┌──────────────────────┐      ┌──────────────────────┐
+│   CDN (Cloudflare)   │      │   Cache API (SW)     │   ← Static assets, immutable bundles
+└──────────────────────┘      └──────────────────────┘
+           │                            │
+           ▼                            ▼
+   Shared, frequent data        User-specific large data
+           │                            │
+           ▼                            ▼
+       Redis (TTL 30s–15min)    ←  IndexedDB (idb/Dexie)
+                                        ▲
+                                        │
+                                 Small prefs & flags
+                                        │
+                                        ▼
+                                 LocalStorage (or HttpOnly cookies)
+```
+
+### 4.7 Summary Recommendation
+
+- **Use LocalStorage only** for tiny, non-sensitive, user-specific settings
+- **Default to IndexedDB** for any offline capability or datasets > 50 KB
+- **Use Redis** whenever data is shared across users/servers and needs sub-millisecond access
+- **Prefer HttpOnly + Secure cookies** for authentication tokens when possible
+
+This layered strategy delivers maximum performance, offline resilience, horizontal scalability, and security while keeping implementation complexity manageable.
 
 ---
 
@@ -611,32 +770,121 @@ L4: Vercel Edge Cache → <200ms stale responses
 └─────────────────────────────────────────────────────────────┘
 ```
 
+### Example 4: Complete Data Flow with All Data Types
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ CLIENT                                                       │
+│ Sends: { symbol: "AAPL", shares: 100 }                      │
+└─────────────────┬───────────────────────────────────────────┘
+                  │ Request DTO
+                  ▼
+┌─────────────────────────────────────────────────────────────┐
+│ CONTROLLER (app/api/stocks/route.ts)                        │
+│ 1. Validate Request DTO                                      │
+│    const req: CreateStockRequest = await request.json()     │
+│ 2. Transform to Domain Model                                 │
+│    const stock: Stock = toStockModel(req)                   │
+│ 3. Call Service                                              │
+│    const saved = await stockService.create(stock)           │
+│ 4. Transform to Response DTO                                 │
+│    const res: StockResponse = toStockResponse(saved)        │
+│ 5. Return Response                                           │
+└─────────────────┬───────────────────────────────────────────┘
+                  │ Domain Model (Stock)
+                  ▼
+┌─────────────────────────────────────────────────────────────┐
+│ SERVICE (lib/services/stockService.ts)                      │
+│ 1. Business logic validation                                 │
+│    validateBusinessRules(stock)                              │
+│ 2. Check if stock already exists                             │
+│    const existing = await stockDAO.findBySymbol(...)        │
+│ 3. Calculate initial metrics                                 │
+│    stock.totalCost = stock.shares * stock.avgPrice          │
+│ 4. Save via DAO                                              │
+│    const entity = await stockDAO.create(stock)              │
+│ 5. Transform Entity → Domain Model                           │
+│    const model = toStockModel(entity)                       │
+│ 6. Return Domain Model                                       │
+└─────────────────┬───────────────────────────────────────────┘
+                  │ Domain Model (Stock)
+                  ▼
+┌─────────────────────────────────────────────────────────────┐
+│ DAO (lib/dao/database/stockDAO.ts)                          │
+│ 1. Transform Domain Model → Prisma Input                     │
+│    const data = toPrismaInput(stock)                        │
+│ 2. Execute database query                                    │
+│    const entity = await prisma.stock.create({ data })       │
+│ 3. Return Entity/Record (Prisma model)                       │
+│    return entity as StockEntity                              │
+└─────────────────┬───────────────────────────────────────────┘
+                  │ Entity (Prisma Stock)
+                  ▼
+┌─────────────────────────────────────────────────────────────┐
+│ DATABASE (Supabase PostgreSQL)                               │
+│ stocks table:                                                │
+│ {                                                            │
+│   id: "abc123",                                              │
+│   symbol: "AAPL",                                            │
+│   shares: 100,                                               │
+│   avgPrice: Decimal(150.00),                                 │
+│   portfolioId: "xyz789"                                      │
+│ }                                                            │
+└─────────────────────────────────────────────────────────────┘
+
+Return Path (bottom to top):
+Entity → Service (transforms to Model) → Controller (transforms to Response DTO) → Client
+```
+
+**Data Types at Each Stage:**
+
+| Stage | Data Type | Example |
+|-------|-----------|---------|
+| Client → Controller | `CreateStockRequest` (Request DTO) | `{ symbol: "AAPL", shares: 100 }` |
+| Controller → Service | `Stock` (Domain Model) | `{ symbol: "AAPL", shares: 100, avgPrice: 150 }` |
+| Service → DAO | `Stock` (Domain Model) | Same as above |
+| DAO → Database | `Prisma.StockCreateInput` | Prisma-formatted object |
+| Database → DAO | `StockEntity` (Prisma model) | `{ id: "abc", avgPrice: Decimal(...) }` |
+| DAO → Service | `Stock` (Domain Model) | `{ id: "abc", avgPrice: 150.00 }` |
+| Service → Controller | `Stock` (Domain Model) | Same as above |
+| Controller → Client | `StockResponse` (Response DTO) | `{ id: "abc", totalValue: 15000 }` |
+
 ### Key Flow Principles
 
 1. **Separation of Concerns**:
    - Controllers handle HTTP (validation, auth, errors)
    - Services handle business logic (caching, orchestration)
    - DAOs handle data access (API calls, DB queries)
+   - Mappers handle transformations (DTOs ↔ Models ↔ Entities)
 
-2. **Caching Strategy**:
+2. **Data Type Boundaries**:
+   - **Request/Response DTOs**: Only in Controllers
+   - **Domain Models**: Passed between Controller ↔ Service ↔ DAO
+   - **Entities/Records**: Only in DAOs (transformed to Models before returning)
+   - **External DTOs**: Only in external DAOs (transformed to Models)
+
+3. **Caching Strategy**:
    - Check cache at Service layer (not DAO)
+   - Cache Domain Models (not DTOs or Entities)
    - Multi-level caching (L1: localStorage/Redis, L2: Database)
    - Cache-first approach to minimize API costs
 
-3. **Error Handling**:
+4. **Error Handling**:
    - DAOs throw raw errors (network, timeout, auth)
    - Services transform errors (add context, fallback data)
    - Controllers map errors to HTTP status codes
 
-4. **Data Transformation**:
-   - DAOs return raw external formats
-   - Services transform to internal domain models
-   - Controllers return API-formatted responses
+5. **Data Transformation**:
+   - DAOs use mappers to transform External DTOs → Domain Models
+   - DAOs use mappers to transform Entities → Domain Models
+   - Services work exclusively with Domain Models
+   - Controllers use mappers to transform Domain Models → Response DTOs
 
-5. **Orchestration**:
+6. **Orchestration**:
    - Services coordinate multiple DAO calls
    - DAOs are single-purpose (one API or table)
    - Controllers delegate to single Service method
+   - All transformations use dedicated mapper functions
 
 ---
 
@@ -680,14 +928,121 @@ L4: Vercel Edge Cache → <200ms stale responses
 **Structure**:
 ```
 View (Presentation)
-  ↓ API calls
+  ↓ API calls (Request DTO)
 Controller (Routes)
-  ↓ Delegates to
+  ↓ Validates & transforms to Domain Model
 Service (Business Logic)
-  ↓ Calls
+  ↓ Processes Domain Models
 DAO (Data Access)
-  ↓ Returns to
-Model (Domain Objects)
+  ↓ Returns Entities/Records or External DTOs
+Service
+  ↓ Transforms to Domain Models
+Controller
+  ↓ Transforms to Response DTO
+View (Presentation)
+```
+
+**📦 Data Types in Each Layer:**
+
+| Type | Layer | Purpose | Example |
+|------|-------|---------|---------|
+| **Request DTO** | Controller (input) | Client → API validation | `CreateStockRequest` |
+| **Response DTO** | Controller (output) | API → Client formatting | `StockQuoteResponse` |
+| **Domain Model** | Service | Business logic objects | `Quote`, `Portfolio` |
+| **Entity/Record** | DAO (database) | Prisma database models | `Stock` (from Prisma) |
+| **External DTO** | DAO (external API) | Third-party API responses | `AlphaVantageQuoteDTO` |
+
+**Complete Data Flow Example:**
+
+```typescript
+// 1. Client sends Request DTO
+POST /api/stocks
+Body: { symbol: "AAPL", shares: 100, avgPrice: 150.00 }
+
+// 2. Controller receives & validates Request DTO
+const requestDTO: CreateStockRequest = await request.json();
+validate(requestDTO); // Zod schema validation
+
+// 3. Controller transforms to Domain Model
+const stock: Stock = {
+  symbol: requestDTO.symbol,
+  shares: requestDTO.shares,
+  avgPrice: requestDTO.avgPrice,
+  portfolioId: requestDTO.portfolioId
+};
+
+// 4. Service processes Domain Model
+const savedStock = await stockService.createStock(stock);
+
+// 5. DAO returns Entity/Record (Prisma model)
+const entity: PrismaStock = await prisma.stock.create({
+  data: {
+    symbol: stock.symbol,
+    shares: stock.shares,
+    avgPrice: stock.avgPrice,
+    portfolioId: stock.portfolioId
+  }
+});
+
+// 6. Service transforms Entity → Domain Model
+const domainModel: Stock = {
+  id: entity.id,
+  symbol: entity.symbol,
+  shares: entity.shares,
+  avgPrice: entity.avgPrice.toNumber(), // Prisma Decimal → number
+  currentPrice: entity.currentPrice?.toNumber() ?? null,
+  portfolioId: entity.portfolioId
+};
+
+// 7. Controller transforms Domain Model → Response DTO
+const responseDTO: StockResponse = {
+  id: domainModel.id,
+  symbol: domainModel.symbol,
+  shares: domainModel.shares,
+  avgPrice: domainModel.avgPrice,
+  currentPrice: domainModel.currentPrice,
+  totalValue: domainModel.currentPrice * domainModel.shares,
+  unrealizedGain: (domainModel.currentPrice - domainModel.avgPrice) * domainModel.shares
+};
+
+// 8. Controller returns Response DTO
+return NextResponse.json(responseDTO);
+```
+
+**Why This Pattern Matters:**
+
+- ✅ **API Contract Independence**: Change database schema without breaking API
+- ✅ **External API Isolation**: Alpha Vantage changes don't affect business logic
+- ✅ **Type Safety**: Each layer has strongly typed interfaces
+- ✅ **Testability**: Mock DTOs/Entities without affecting domain logic
+- ✅ **Reusability**: Domain models can be used across multiple endpoints
+
+**File Organization:**
+
+```
+types/
+├── dto/
+│   ├── request/              # API Request DTOs
+│   │   ├── CreateStockRequest.ts
+│   │   └── UpdateStockRequest.ts
+│   ├── response/             # API Response DTOs
+│   │   ├── StockResponse.ts
+│   │   └── QuoteResponse.ts
+│   └── external/             # External API DTOs
+│       ├── AlphaVantageDTO.ts
+│       └── GeminiDTO.ts
+├── models/                   # Domain Models
+│   ├── Stock.ts
+│   ├── Quote.ts
+│   └── Portfolio.ts
+└── entities/                 # Database Entities (re-export Prisma)
+    └── index.ts
+
+lib/
+└── mappers/                  # Transformation functions
+    ├── stockMapper.ts        # Entity ↔ Model ↔ DTO
+    ├── quoteMapper.ts
+    └── portfolioMapper.ts
 ```
 
 **Benefits**:
@@ -841,3 +1196,11 @@ For deep dives into specific subsystems, see:
 **Last Updated**: 2025-11-25
 **Maintainer**: Development Team
 **Review Frequency**: After major architectural changes
+
+---
+
+## Attribution
+
+Architecture decisions, trade-offs, and recommendations designed by **Atik Patel**.
+
+Drafting and markdown formatting accelerated with **Grok 4** (xAI) and **Claude Code** (Anthropic), November 2025.

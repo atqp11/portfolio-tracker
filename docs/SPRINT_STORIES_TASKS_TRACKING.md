@@ -5,7 +5,7 @@
 > **UPDATE FREQUENCY:** Daily or as tasks are completed/added during active development.
 > **AUDIENCE:** Active developers, project managers, sprint planners.
 
-**Last Updated:** November 22, 2025
+**Last Updated:** November 25, 2025
 **Status:** 40-50% Complete | **CRITICAL: Auth/User Tiers + AI Features must be done before MVP Launch**
 
 ---
@@ -380,9 +380,310 @@ CREATE INDEX idx_filing_summaries_lookup
 
 ---
 
+### 11. Code Refactoring - MVC Separation of Concerns
+**Why:** Improve maintainability, testability, and scalability by following proper MVC architecture
+**Time:** 12-16 hours
+**Blocker:** No (but benefits from completing auth/tiers first)
+**Priority:** **HIGH**
+
+**Background:**
+Following the updated `TECHNICAL_ARCHITECTURE_OVERVIEW.md`, we need to refactor existing code to follow the Routes → Service → DAO pattern with clear separation of concerns.
+
+**📦 Data Types & Layer Responsibilities:**
+
+Understanding the different data representations is critical for proper layer separation:
+
+| Type | Purpose | Used By | Example |
+|------|---------|---------|---------|
+| **Request DTO** | Client → Controller | Controller (input validation) | `CreateStockRequest` |
+| **Response DTO** | Controller → Client | Controller (output formatting) | `StockQuoteResponse` |
+| **Domain Model** | Business logic objects | Service layer | `Portfolio`, `Stock`, `Quote` |
+| **Entity/Record** | Database representation | DAO layer | Prisma `Stock` model |
+| **External DTO** | External API responses | DAO layer (parsing) | `AlphaVantageQuoteResponse` |
+
+**Data Flow Example:**
+```typescript
+// 1. Controller receives Request DTO
+const requestDTO: CreateStockRequest = await request.json();
+
+// 2. Controller transforms to Domain Model
+const stock: Stock = toDomainModel(requestDTO);
+
+// 3. Service processes Domain Model
+const savedStock = await stockService.createStock(stock);
+
+// 4. DAO returns Entity/Record (Prisma model)
+const entity = await prisma.stock.create({ data: stock });
+
+// 5. Service transforms Entity to Domain Model
+const domainModel = toStockModel(entity);
+
+// 6. Controller transforms to Response DTO
+const responseDTO: StockResponse = toResponseDTO(domainModel);
+
+// 7. Controller returns Response DTO
+return NextResponse.json(responseDTO);
+```
+
+**Why This Matters:**
+- ✅ **Controllers** never see database entities (isolation)
+- ✅ **Services** work with clean domain models (testability)
+- ✅ **DAOs** don't know about API response formats (reusability)
+- ✅ **External APIs** can change without affecting domain logic
+- ✅ **Database schema** can change without affecting API contracts
+
+**Tasks:**
+- [ ] Define Data Types & Models
+  - [ ] Create `types/dto/` directory
+    - [ ] `request/` - API request DTOs
+      - [ ] `CreateStockRequest.ts`
+      - [ ] `UpdateStockRequest.ts`
+      - [ ] `CreatePortfolioRequest.ts`
+      - [ ] `AIGenerateRequest.ts`
+    - [ ] `response/` - API response DTOs
+      - [ ] `StockResponse.ts`
+      - [ ] `PortfolioResponse.ts`
+      - [ ] `QuoteResponse.ts`
+      - [ ] `AIGenerateResponse.ts`
+    - [ ] `external/` - External API DTOs
+      - [ ] `AlphaVantageDTO.ts`
+      - [ ] `GeminiDTO.ts`
+      - [ ] `NewsAPIDTO.ts`
+  - [ ] Create `types/models/` directory (Domain Models)
+    - [ ] `Portfolio.ts` - Domain model for portfolio
+    - [ ] `Stock.ts` - Domain model for stock
+    - [ ] `Quote.ts` - Domain model for quote
+    - [ ] `Thesis.ts` - Domain model for thesis
+    - [ ] `Checklist.ts` - Domain model for checklist
+  - [ ] Create `types/entities/` directory (re-export Prisma types)
+    - [ ] `index.ts` - Type-safe re-exports from `@prisma/client`
+  - [ ] Create `lib/mappers/` directory (transformation functions)
+    - [ ] `stockMapper.ts` - Entity ↔ Domain Model ↔ DTO
+    - [ ] `portfolioMapper.ts` - Entity ↔ Domain Model ↔ DTO
+    - [ ] `quoteMapper.ts` - External DTO → Domain Model
+    - [ ] `aiMapper.ts` - Request/Response DTO transformations
+
+- [ ] Create Service Layer (`lib/services/`)
+  - [ ] `quoteService.ts` - Stock quote orchestration + caching
+  - [ ] `portfolioService.ts` - Portfolio calculations + aggregation
+  - [ ] `riskMetricsService.ts` - Risk metrics computation
+  - [ ] `newsService.ts` - News aggregation from multiple sources
+  - [ ] `aiService.ts` - AI prompt management + caching
+  - [ ] `commodityService.ts` - Commodity price aggregation
+  - [ ] `thesisService.ts` - Investment thesis business logic
+  - [ ] `checklistService.ts` - Checklist management logic
+
+- [ ] Create DAO Layer (`lib/dao/`)
+  - [ ] **Database DAOs** (`lib/dao/database/`)
+    - [ ] `portfolioDAO.ts` - Prisma/Supabase portfolio queries
+    - [ ] `stockDAO.ts` - Stock positions queries
+    - [ ] `thesisDAO.ts` - Investment thesis queries
+    - [ ] `checklistDAO.ts` - Checklist queries
+    - [ ] `userDAO.ts` - User profile queries
+    - [ ] `usageDAO.ts` - Usage tracking queries
+  - [ ] **External API DAOs** (`lib/dao/external/`)
+    - [ ] `alphaVantageDAO.ts` - Wrap existing `lib/api/alphavantage.ts`
+    - [ ] `fmpDAO.ts` - Wrap existing `lib/api/fmp.ts`
+    - [ ] `yahooFinanceDAO.ts` - Wrap existing `lib/api/yahooFinance.ts`
+    - [ ] `geminiDAO.ts` - Wrap existing `lib/ai/gemini.ts`
+    - [ ] `secEdgarDAO.ts` - Wrap existing `lib/api/secEdgar.ts`
+    - [ ] `newsApiDAO.ts` - News API client
+    - [ ] `polygonDAO.ts` - Polygon.io client
+  - [ ] **Cache DAOs** (`lib/dao/cache/`)
+    - [ ] `redisDAO.ts` - Redis cache client (Vercel KV)
+    - [ ] `localStorageDAO.ts` - Browser storage wrapper
+
+- [ ] Refactor API Routes (Controllers)
+  - [ ] `app/api/quote/route.ts`
+    - [ ] Move caching logic to `quoteService`
+    - [ ] Move API calls to `alphaVantageDAO`
+    - [ ] Keep only validation, auth, error mapping
+  - [ ] `app/api/portfolio/route.ts`
+    - [ ] Move calculations to `portfolioService`
+    - [ ] Move DB queries to `portfolioDAO`
+  - [ ] `app/api/risk-metrics/route.ts`
+    - [ ] Move risk calculations to `riskMetricsService`
+  - [ ] `app/api/ai/generate/route.ts`
+    - [ ] Move prompt orchestration to `aiService`
+    - [ ] Move Gemini calls to `geminiDAO`
+  - [ ] `app/api/news/*/route.ts`
+    - [ ] Move news aggregation to `newsService`
+    - [ ] Move API calls to respective DAOs
+  - [ ] `app/api/commodities/*/route.ts`
+    - [ ] Move commodity logic to `commodityService`
+    - [ ] Move Polygon calls to `polygonDAO`
+
+- [ ] Update Existing Code
+  - [ ] Move `lib/calculator.ts` logic into services
+  - [ ] Move `lib/cache.ts` into `cacheDAO`
+  - [ ] Update imports across codebase
+  - [ ] Ensure no route calls DAO directly (must go through Service)
+
+- [ ] Testing & Validation
+  - [ ] Write unit tests for each DAO (mock external APIs)
+  - [ ] Write unit tests for each Service (mock DAOs)
+  - [ ] Write integration tests for Routes (mock Services)
+  - [ ] Verify all API routes still work
+  - [ ] Check cache hit rates haven't degraded
+
+**Benefits:**
+- ✅ **Testability**: Each layer testable in isolation
+- ✅ **Maintainability**: Clear responsibility boundaries
+- ✅ **Reusability**: Services reusable across multiple routes
+- ✅ **Scalability**: Easy to add new features following pattern
+- ✅ **Debugging**: Easier to trace issues through layers
+
+**Anti-Patterns to Avoid:**
+- ❌ Calling DAOs directly from Controllers
+- ❌ Business logic in DAOs (keep pure data access)
+- ❌ Caching in DAOs (should be in Service layer)
+- ❌ HTTP concerns in Services (status codes, headers)
+
+**Migration Strategy:**
+1. Create DAO/Service structure alongside existing code
+2. Refactor one route at a time (start with `/api/quote`)
+3. Test thoroughly after each refactor
+4. Remove old code once new pattern is validated
+5. Update documentation as we go
+
+**Example Refactor** (Quote Route with DTOs/Models):
+
+```typescript
+// ============================================
+// BEFORE (app/api/quote/route.ts) - Everything mixed together
+// ============================================
+export async function GET(request: NextRequest) {
+  // Validation + Caching + API call + Error handling all in one
+  const symbols = searchParams.get('symbols')?.split(',');
+  const cached = localStorage.get('quotes');
+  if (cached) return NextResponse.json(cached);
+
+  const response = await fetch(`https://alphavantage.co/...`);
+  const data = await response.json();
+  return NextResponse.json(data);
+}
+
+// ============================================
+// AFTER - Proper separation with DTOs/Models
+// ============================================
+
+// types/dto/response/QuoteResponse.ts (Response DTO)
+export interface QuoteResponse {
+  symbol: string;
+  price: number;
+  change: number;
+  changePercent: number;
+  timestamp: string;
+}
+
+// types/models/Quote.ts (Domain Model)
+export interface Quote {
+  symbol: string;
+  price: number;
+  change: number;
+  changePercent: number;
+  timestamp: Date;
+}
+
+// types/dto/external/AlphaVantageDTO.ts (External API DTO)
+export interface AlphaVantageQuoteDTO {
+  '01. symbol': string;
+  '05. price': string;
+  '09. change': string;
+  '10. change percent': string;
+}
+
+// lib/mappers/quoteMapper.ts (Transformations)
+export function toQuoteModel(dto: AlphaVantageQuoteDTO): Quote {
+  return {
+    symbol: dto['01. symbol'],
+    price: parseFloat(dto['05. price']),
+    change: parseFloat(dto['09. change']),
+    changePercent: parseFloat(dto['10. change percent'].replace('%', '')),
+    timestamp: new Date()
+  };
+}
+
+export function toQuoteResponse(model: Quote): QuoteResponse {
+  return {
+    symbol: model.symbol,
+    price: model.price,
+    change: model.change,
+    changePercent: model.changePercent,
+    timestamp: model.timestamp.toISOString()
+  };
+}
+
+// app/api/quote/route.ts (Controller - thin layer)
+export async function GET(request: NextRequest) {
+  // 1. Validate input (Request DTO validation)
+  const symbols = searchParams.get('symbols')?.split(',');
+  if (!symbols?.length) {
+    return NextResponse.json({ error: 'Missing symbols' }, { status: 400 });
+  }
+
+  // 2. Call Service (works with Domain Models)
+  const quotes: Quote[] = await quoteService.getBatchQuotes(symbols);
+
+  // 3. Transform to Response DTO
+  const response: QuoteResponse[] = quotes.map(toQuoteResponse);
+
+  // 4. Return Response DTO
+  return NextResponse.json(response);
+}
+
+// lib/services/quoteService.ts (Service - business logic)
+export async function getBatchQuotes(symbols: string[]): Promise<Quote[]> {
+  // 1. Check cache (returns Domain Models)
+  const cached = await cacheDAO.get<Quote[]>('quotes', symbols);
+  if (cached && !isCacheStale(cached)) return cached;
+
+  // 2. Check rate limits
+  if (rateLimitTracker.isLimited()) {
+    return cached || [];
+  }
+
+  // 3. Fetch from DAO (returns Domain Models)
+  const quotes = await alphaVantageDAO.fetchBatchQuotes(symbols);
+
+  // 4. Cache Domain Models
+  await cacheDAO.set('quotes', symbols, quotes, { ttl: 300000 });
+
+  return quotes;
+}
+
+// lib/dao/external/alphaVantageDAO.ts (DAO - data access only)
+export async function fetchBatchQuotes(symbols: string[]): Promise<Quote[]> {
+  // 1. Build API URL
+  const url = buildAlphaVantageUrl(symbols);
+
+  // 2. Execute HTTP request
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+  // 3. Parse External DTO
+  const data: AlphaVantageQuoteDTO[] = await response.json();
+
+  // 4. Transform External DTO → Domain Model
+  const quotes = data.map(toQuoteModel);
+
+  return quotes;
+}
+```
+
+**Key Improvements:**
+- ✅ **Controller** only handles HTTP (validation, response formatting)
+- ✅ **Service** works with clean `Quote` domain models (no API details)
+- ✅ **DAO** transforms external DTOs to domain models
+- ✅ **Mappers** handle all transformations (single responsibility)
+- ✅ **Alpha Vantage** can change response format without affecting Service
+- ✅ **API response** format can change without affecting Service/DAO
+
+---
+
 ## 🟢 MEDIUM PRIORITY (Quality & Polish)
 
-### 11. Testing Infrastructure
+### 12. Testing Infrastructure
 **Time:** 8-12 hours
 **Blocker:** No
 
@@ -402,7 +703,7 @@ CREATE INDEX idx_filing_summaries_lookup
 
 ---
 
-### 12. Mobile UX Improvements
+### 13. Mobile UX Improvements
 **Time:** 4-6 hours
 **Blocker:** Navigation structure
 
@@ -418,7 +719,7 @@ CREATE INDEX idx_filing_summaries_lookup
 
 ---
 
-### 13. Security & Production Prep
+### 14. Security & Production Prep
 **Time:** 4-6 hours
 **Blocker:** Authentication must be complete first
 
@@ -436,7 +737,7 @@ CREATE INDEX idx_filing_summaries_lookup
 
 ## ⚪ LOW PRIORITY (Nice to Have)
 
-### 14. Additional Features
+### 15. Additional Features
 **Time:** Varies
 **Blocker:** Complete critical items first
 
@@ -616,6 +917,7 @@ CREATE INDEX idx_filing_summaries_lookup
 
 ## 🔗 Related Documents
 
+- **TECHNICAL_ARCHITECTURE_OVERVIEW.md** - Complete MVC architecture with Routes → Service → DAO pattern
 - **CLAUDE.md** - Comprehensive development guide
 - **USER_TIER_LIMITS.md** - Complete tier system documentation
 - **mvp_ai_system_design.md** - AI pipeline Phase 2 architecture
@@ -653,3 +955,11 @@ If you have 1 hour:
 3. Payment Integration (item 3)
 4. AI Phase 2 (item 4)
 5. THEN Performance Optimization (item 10)
+
+---
+
+## Attribution
+
+Architecture decisions, trade-offs, and recommendations designed by **Atik Patel**.
+
+Drafting and markdown formatting accelerated with **Grok 4** (xAI) and **Claude Code** (Anthropic), November 2025.
