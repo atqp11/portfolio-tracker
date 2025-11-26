@@ -1,8 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { createClient } from '@/lib/supabase/client';
+import TierBadge from '@/components/shared/TierBadge';
+import { type TierName } from '@/lib/tiers';
 
 interface NavItem {
   label: string;
@@ -20,9 +23,50 @@ const navItems: NavItem[] = [
   { label: 'Settings', href: '/settings', icon: '⚙️' },
 ];
 
+interface UserProfile {
+  email: string;
+  name?: string;
+  tier: TierName;
+}
+
 export default function Sidebar() {
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [user, setUser] = useState<UserProfile | null>(null);
+  const [loading, setLoading] = useState(true);
   const pathname = usePathname();
+  const supabase = createClient();
+
+  useEffect(() => {
+    async function fetchUser() {
+      try {
+        const { data: { user: authUser } } = await supabase.auth.getUser();
+
+        if (authUser) {
+          const response = await fetch(`/api/auth/user?id=${authUser.id}`);
+          if (response.ok) {
+            const userData = await response.json();
+            setUser({
+              email: userData.email,
+              name: userData.name,
+              tier: userData.tier as TierName,
+            });
+          } else {
+            setUser({
+              email: authUser.email || 'Unknown',
+              name: authUser.user_metadata?.name,
+              tier: 'free',
+            });
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching user:', error);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchUser();
+  }, [supabase]);
 
   const isActive = (href: string) => {
     if (href === '/dashboard') {
@@ -97,17 +141,41 @@ export default function Sidebar() {
         <div className="p-4 border-t border-gray-800">
           <div
             className={`
-              flex items-center gap-3
-              ${isCollapsed ? 'justify-center' : ''}
+              flex flex-col gap-3
+              ${isCollapsed ? 'items-center' : ''}
             `}
           >
-            <div className="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center">
-              <span className="text-sm">👤</span>
+            {/* User Info */}
+            <div
+              className={`
+                flex items-center gap-3
+                ${isCollapsed ? 'justify-center' : ''}
+              `}
+            >
+              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-sm font-bold shadow-lg">
+                {loading ? '...' : (user?.name?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || 'U')}
+              </div>
+              {!isCollapsed && (
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">
+                    {loading ? 'Loading...' : (user?.name || user?.email?.split('@')[0] || 'User')}
+                  </p>
+                  <p className="text-xs text-gray-400 truncate">
+                    {loading ? '...' : user?.email}
+                  </p>
+                </div>
+              )}
             </div>
-            {!isCollapsed && (
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate">User</p>
-                <p className="text-xs text-gray-400 truncate">Free Tier</p>
+
+            {/* Tier Badge */}
+            {!isCollapsed && !loading && user && (
+              <div className="w-full">
+                <TierBadge
+                  tier={user.tier}
+                  size="sm"
+                  clickable={true}
+                  className="w-full justify-center"
+                />
               </div>
             )}
           </div>

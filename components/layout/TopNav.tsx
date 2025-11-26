@@ -3,6 +3,8 @@
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import TierBadge from '@/components/shared/TierBadge';
+import { type TierName } from '@/lib/tiers';
 
 interface TopNavProps {
   title?: string;
@@ -11,7 +13,7 @@ interface TopNavProps {
 interface UserData {
   email: string;
   name?: string;
-  tier: string;
+  tier: TierName;
 }
 
 const getPageTitle = (pathname: string): string => {
@@ -149,17 +151,28 @@ export default function TopNav({ title }: TopNavProps) {
             <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
           </button>
 
+          {/* Tier Badge (Prominent) */}
+          {!loading && user && (
+            <div className="hidden md:block">
+              <TierBadge
+                tier={user.tier}
+                size="md"
+                clickable={true}
+              />
+            </div>
+          )}
+
           {/* User Menu */}
           <div className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer transition-colors">
-            <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-sm font-medium">
+            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-sm font-bold shadow-lg">
               {loading ? '...' : (user?.name?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || 'U')}
             </div>
             <div className="hidden sm:block">
               <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
                 {loading ? 'Loading...' : (user?.name || user?.email?.split('@')[0] || 'User')}
               </p>
-              <p className="text-xs text-gray-500 dark:text-gray-400 capitalize">
-                {loading ? '...' : `${user?.tier || 'free'} Tier`}
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                {loading ? '...' : user?.email}
               </p>
             </div>
           </div>
