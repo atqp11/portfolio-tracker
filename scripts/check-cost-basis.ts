@@ -11,8 +11,8 @@ async function checkCostBasis() {
   console.log('📊 Stock Cost Basis & Current Prices:\n');
   
   stocks.forEach(s => {
-    const costBasis = s.shares * s.avgPrice;
-    const currentValue = s.actualValue || 0;
+    const costBasis = s.shares * s.avgPrice.toNumber();
+    const currentValue = s.actualValue?.toNumber() || 0;
     const unrealizedPL = currentValue - costBasis;
     const plPercent = costBasis > 0 ? (unrealizedPL / costBasis) * 100 : 0;
     

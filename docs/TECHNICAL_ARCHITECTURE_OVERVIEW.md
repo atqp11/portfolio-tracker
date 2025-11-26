@@ -95,6 +95,434 @@
 
 ---
 
+## Database Management & Client Usage
+
+### 🎯 Source of Truth: Supabase PostgreSQL
+
+**⚠️ CRITICAL: Supabase PostgreSQL is the single source of truth for the database schema.**
+
+This project uses a **hybrid database approach** combining Prisma and Supabase clients pointing to the **same Supabase PostgreSQL database**.
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Your Application                          │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  Supabase Client (lib/supabase/server.ts)                   │
+│  • RLS Enforced ✅                                           │
+│  • User-facing operations                                    │
+│  • Automatic data isolation                                  │
+│                                                              │
+│  Prisma Client (lib/prisma.ts)                              │
+│  • RLS Bypassed ⚠️                                           │
+│  • Admin/backend operations                                  │
+│  • Full type safety & autocomplete                           │
+│                                                              │
+├─────────────────────────────────────────────────────────────┤
+│         Supabase PostgreSQL (Single Database)                │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Database Change Workflow
+
+**All database schema changes follow this process:**
+
+```
+1. Make Changes in Supabase
+   ↓
+   • Create/modify tables in Supabase Dashboard or SQL Editor
+   • Add/update RLS policies
+   • Create indexes, constraints
+   • Apply migrations via Supabase CLI
+
+2. Pull Schema to Prisma
+   ↓
+   npx prisma db pull
+   • Syncs prisma/schema.prisma with Supabase database
+   • Updates automatically based on current DB state
+
+3. Regenerate Prisma Client
+   ↓
+   npx prisma generate
+   • Updates TypeScript types
+   • Enables autocomplete in IDE
+   • Generates type-safe query API
+
+4. Commit Schema Changes
+   ↓
+   git add prisma/schema.prisma
+   git commit -m "chore: sync Prisma schema with Supabase"
+```
+
+**What NOT to Do:**
+
+- ❌ `npx prisma migrate dev` - Don't use Prisma migrations
+- ❌ `npx prisma db push` - Don't push Prisma schema to database
+- ❌ Manually edit `prisma/schema.prisma` (except Prisma config like `previewFeatures`)
+- ❌ Create files in `prisma/migrations/` - Migrations managed by Supabase
+
+### Decision Matrix: Which Client to Use?
+
+| Scenario | Client to Use | Reason |
+|----------|---------------|--------|
+| User viewing their portfolios | **Supabase** | RLS ensures they only see their own data |
+| User creating/updating stocks | **Supabase** | RLS automatically sets `user_id` correctly |
+| User updating their profile | **Supabase** | RLS prevents updating other users' data |
+| Admin viewing all users | **Prisma** | Need to bypass RLS to see all data |
+| Admin changing user tier | **Prisma** | Direct database access required |
+| Background job updating prices | **Prisma** | No auth context, batch operations |
+| Cron job analytics | **Prisma** | Cross-user aggregations needed |
+| Complex queries with joins | **Prisma** | Better type safety, autocomplete, relation loading |
+
+### When to Use Supabase Client
+
+**Use Cases:**
+- User-facing API routes
+- Operations requiring authentication
+- Row-Level Security (RLS) enforcement
+- User can only access their own data
+- Real-time subscriptions (future feature)
+
+**Example:**
+
+```typescript
+// app/api/portfolios/route.ts
+import { createClient } from '@/lib/supabase/server';
+import { NextResponse } from 'next/server';
+
+export async function GET() {
+  const supabase = await createClient();
+
+  // Get authenticated user
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+
+  if (authError || !user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  // RLS automatically filters to current user's portfolios
+  const { data: portfolios, error } = await supabase
+    .from('portfolios')
+    .select('*, stocks(*), investment_theses(*)')
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  return NextResponse.json(portfolios);
+}
+
+export async function POST(request: Request) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const body = await request.json();
+
+  // RLS ensures user_id is validated
+  const { data, error } = await supabase
+    .from('portfolios')
+    .insert({
+      user_id: user.id, // Required for RLS
+      name: body.name,
+      type: body.type,
+      initial_value: body.initialValue,
+      target_value: body.targetValue,
+    })
+    .select()
+    .single();
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  return NextResponse.json(data);
+}
+```
+
+**Why Supabase Client:**
+- ✅ RLS ensures automatic data isolation between users
+- ✅ Built-in authentication context
+- ✅ Can't accidentally query other users' data
+- ✅ Real-time capabilities available (if needed)
+- ✅ Respects security policies defined in database
+
+### When to Use Prisma Client
+
+**Use Cases:**
+- Admin panel routes
+- Background jobs (cron tasks, batch operations)
+- Cross-user analytics queries
+- No user authentication context
+- Complex TypeScript types and autocomplete needed
+- Efficient relation loading required
+
+**Example:**
+
+```typescript
+// app/api/admin/users/route.ts
+import { prisma } from '@/lib/prisma';
+import { createClient } from '@/lib/supabase/server';
+import { NextResponse } from 'next/server';
+
+export async function GET() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  // Check if user is admin (using Supabase for auth check)
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('is_admin')
+    .eq('id', user.id)
+    .single();
+
+  if (!profile?.is_admin) {
+    return NextResponse.json(
+      { error: 'Forbidden: Admin access required' },
+      { status: 403 }
+    );
+  }
+
+  // Use Prisma to get ALL users (bypasses RLS)
+  const users = await prisma.user.findMany({
+    include: {
+      portfolios: {
+        include: {
+          stocks: true,
+        },
+      },
+      usage: true,
+    },
+    orderBy: {
+      createdAt: 'desc',
+    },
+  });
+
+  return NextResponse.json(users);
+}
+```
+
+**Why Prisma Client:**
+- ✅ Type-safe queries with full autocomplete
+- ✅ Auto-generated TypeScript types
+- ✅ Better developer experience (DX)
+- ✅ Efficient relation loading with `.include()`
+- ✅ Complex aggregations and grouping
+- ✅ Can query across all users (admin operations)
+
+### Security Checklist
+
+#### ✅ When Using Supabase Client
+
+- **Always get user from session**: `const { data: { user } } = await supabase.auth.getUser()`
+- **Let RLS do the work**: Don't manually filter by `user_id` (RLS does it automatically)
+- **Trust RLS policies**: Supabase ensures data isolation at database level
+- **Never use service role for user operations**: Only for admin operations
+- **Always check authentication**: Return 401 if no user
+
+#### ⚠️ When Using Prisma Client
+
+- **RLS is BYPASSED**: You have direct database access
+- **Always check auth manually**: Verify `userId` matches authenticated user
+- **Use for admin operations only**: When you explicitly need to bypass RLS
+- **Use for background jobs**: When there's no user authentication context
+- **Never expose to client**: Prisma client stays server-side only
+
+**Critical Security Example:**
+
+```typescript
+// ❌ SECURITY VULNERABILITY - No auth check with Prisma
+const portfolio = await prisma.portfolio.findUnique({
+  where: { id: portfolioId },
+});
+// ↑ Returns ANY user's portfolio!
+
+// ✅ CORRECT - Manual auth check required
+const portfolio = await prisma.portfolio.findUnique({
+  where: {
+    id: portfolioId,
+    userId: currentUser.id, // ← REQUIRED when using Prisma for user data
+  },
+});
+```
+
+### Common Gotchas
+
+#### 1. Prisma Decimal vs JavaScript Number
+
+```typescript
+// ❌ WRONG - Decimal arithmetic doesn't work like numbers
+const total = portfolio.initialValue + portfolio.targetValue; // String concatenation!
+
+// ✅ CORRECT - Convert to number first
+const total = Number(portfolio.initialValue) + Number(portfolio.targetValue);
+
+// ✅ ALSO CORRECT - Use Decimal.js
+import { Decimal } from '@prisma/client/runtime/library';
+const total = new Decimal(portfolio.initialValue)
+  .plus(portfolio.targetValue)
+  .toNumber();
+```
+
+#### 2. Manual User ID Check with Prisma
+
+```typescript
+// ❌ SECURITY ISSUE - No ownership verification
+const portfolio = await prisma.portfolio.findUnique({
+  where: { id: portfolioId },
+});
+
+// ✅ CORRECT - Always verify ownership
+const portfolio = await prisma.portfolio.findUnique({
+  where: {
+    id: portfolioId,
+    userId: user.id, // ← Required for user data access
+  },
+});
+```
+
+#### 3. Supabase Service Role Bypass
+
+```typescript
+// ❌ SECURITY ISSUE - Service role bypasses RLS
+import { createAdminClient } from '@/lib/supabase/admin';
+const supabase = createAdminClient();
+const { data } = await supabase.from('portfolios').select('*');
+// ↑ Returns ALL portfolios from ALL users!
+
+// ✅ CORRECT - Use regular client for user operations
+import { createClient } from '@/lib/supabase/server';
+const supabase = await createClient();
+const { data } = await supabase.from('portfolios').select('*');
+// ↑ RLS filters to current user
+```
+
+### Type Safety Comparison
+
+**Prisma (Excellent):**
+
+```typescript
+import { prisma } from '@/lib/prisma';
+
+// ✅ Full autocomplete and type inference
+const portfolio = await prisma.portfolio.findUnique({
+  where: { id: portfolioId },
+  include: {
+    stocks: true,      // ← IDE suggests 'stocks'
+    theses: true,      // ← IDE suggests 'theses'
+    user: {
+      select: {
+        email: true,   // ← Nested autocomplete works
+        tier: true,
+      },
+    },
+  },
+});
+
+// ✅ TypeScript knows the exact shape
+portfolio?.initialValue; // Decimal
+portfolio?.stocks;       // Stock[]
+portfolio?.user?.email;  // string | undefined
+```
+
+**Supabase (Manual Types):**
+
+```typescript
+import { createClient } from '@/lib/supabase/server';
+import type { Portfolio } from '@/lib/supabase/db';
+
+const supabase = await createClient();
+
+// ⚠️ Need to cast or use manual type annotations
+const { data } = await supabase
+  .from('portfolios')
+  .select('*, stocks(*)')
+  .single();
+
+// Use TypeScript interfaces from lib/supabase/db.ts
+const portfolio = data as Portfolio & { stocks: Stock[] };
+```
+
+### Schema Synchronization
+
+**On Local Development:**
+
+```bash
+# After pulling latest code with schema changes:
+npm install              # Install dependencies
+npx prisma generate      # Regenerate Prisma client with new types
+
+# When you make database changes in Supabase:
+# 1. Make changes in Supabase Dashboard or SQL Editor
+# 2. Pull schema to Prisma
+npx prisma db pull       # Sync schema from Supabase
+npx prisma generate      # Update TypeScript types
+git add prisma/schema.prisma
+git commit -m "chore: sync Prisma schema with Supabase"
+```
+
+**On Deployment (Vercel/Cloud):**
+
+Automated via `package.json` scripts (configured below).
+
+**Verifying Schema Sync:**
+
+```bash
+# Check if Prisma schema matches Supabase database
+npx prisma db pull
+
+# Check for changes
+git status prisma/schema.prisma
+
+# If no changes → schemas are in sync ✅
+# If changes detected → commit updated schema
+```
+
+### Team Workflow
+
+1. **Developer A** makes DB change in Supabase Dashboard
+2. **Developer A** runs `npx prisma db pull && npx prisma generate`
+3. **Developer A** commits `prisma/schema.prisma` changes to git
+4. **Developer B** pulls code from git
+5. **Developer B** runs `npx prisma generate` to update local types
+
+### Benefits of Hybrid Approach
+
+| Feature | Prisma | Supabase |
+|---------|--------|----------|
+| **Type Safety** | ✅ Excellent (auto-generated) | ⚠️ Manual (need type definitions) |
+| **RLS Security** | ❌ Bypassed (manual checks required) | ✅ Enforced automatically |
+| **Autocomplete** | ✅ Full IDE support | ⚠️ Limited |
+| **Relations** | ✅ `.include()`, `.select()` | ⚠️ Manual joins with `*` syntax |
+| **Migrations** | ❌ Not used (Supabase manages) | ✅ Via Supabase Dashboard/CLI |
+| **Performance** | ✅ Fast | ✅ Fast |
+| **Use For** | Admin, Backend, Analytics | User operations, Frontend |
+
+**Combined Benefits:**
+- ✅ Type safety (Prisma) + Security (Supabase RLS)
+- ✅ Developer experience (Prisma) + Platform features (Supabase Auth)
+- ✅ One database, two interfaces for different use cases
+- ✅ Best of both worlds without compromise
+
+### Migration Files
+
+**Note**: This project does NOT use Prisma migrations.
+
+- **Prisma migrations**: Not used (can delete `prisma/migrations/` if it exists)
+- **Supabase migrations**: Managed via Supabase Dashboard or Supabase CLI
+- **RLS policies**: Defined in Supabase (separate from schema)
+- **Schema source**: Supabase PostgreSQL is the source of truth
+
+---
+
 ## Architecture Layers
 
 **Pattern**: MVC (Model-View-Controller) with clear separation of concerns

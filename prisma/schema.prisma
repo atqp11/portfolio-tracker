@@ -5,64 +5,79 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+  schemas  = ["public", "auth"]
 }
 
 model Waitlist {
-  id        String   @id @default(cuid())
+  id        String   @id @default(dbgenerated("(gen_random_uuid())::text"))
   email     String   @unique
   name      String?
   notified  Boolean  @default(false)
-  createdAt DateTime @default(now())
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
+  @@map("waitlist")
+  @@schema("public")
   @@index([email])
   @@index([createdAt])
 }
 
 model User {
-  id        String   @id @default(uuid())
+  id        String   @id @db.Uuid
   email     String   @unique
   name      String?
   tier      String   @default("free") // "free" | "basic" | "premium"
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  isAdmin   Boolean  @default(false) @map("is_admin")
+
+  // Stripe integration fields (for future payment system)
+  stripeCustomerId      String? @map("stripe_customer_id")
+  stripeSubscriptionId  String? @map("stripe_subscription_id")
+  subscriptionStatus    String? @map("subscription_status")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   portfolios Portfolio[]
   usage      UsageTracking[]
 
+  @@map("profiles")
+  @@schema("public")
   @@index([email])
   @@index([tier])
+  @@index([isAdmin], map: "idx_profiles_is_admin")
 }
 
 model UsageTracking {
-  id                String   @id @default(cuid())
-  userId            String
+  id                String   @id @default(dbgenerated("(gen_random_uuid())::text"))
+  userId            String   @map("user_id") @db.Uuid
   tier              String
-  chatQueries       Int      @default(0)
-  portfolioAnalysis Int      @default(0)
-  secFilings        Int      @default(0)
-  periodStart       DateTime
-  periodEnd         DateTime
-  createdAt         DateTime @default(now())
+  chatQueries       Int      @default(0) @map("chat_queries")
+  portfolioAnalysis Int      @default(0) @map("portfolio_analysis")
+  secFilings        Int      @default(0) @map("sec_filings")
+  periodStart       DateTime @map("period_start") @db.Timestamptz(6)
+  periodEnd         DateTime @map("period_end") @db.Timestamptz(6)
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
+  @@map("usage_tracking")
+  @@schema("public")
   @@index([userId])
   @@index([periodStart, periodEnd])
 }
 
 model Portfolio {
-  id              String             @id @default(cuid())
-  userId          String             @map("user_id")
+  id              String             @id @default(dbgenerated("(gen_random_uuid())::text"))
+  userId          String             @map("user_id") @db.Uuid
   name            String
   type            String
-  initialValue    Float              @map("initial_value")
-  targetValue     Float              @map("target_value")
-  borrowedAmount  Float              @map("borrowed_amount")
-  marginCallLevel Float              @map("margin_call_level")
-  createdAt       DateTime           @default(now()) @map("created_at")
-  updatedAt       DateTime           @updatedAt @map("updated_at")
+  initialValue    Decimal            @map("initial_value") @db.Decimal(12, 2)
+  targetValue     Decimal            @map("target_value") @db.Decimal(12, 2)
+  borrowedAmount  Decimal            @default(0) @map("borrowed_amount") @db.Decimal(12, 2)
+  marginCallLevel Decimal            @default(0) @map("margin_call_level") @db.Decimal(12, 2)
+  createdAt       DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  user            User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user            User               @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
   checklists      DailyChecklist[]
   theses          InvestmentThesis[]
   stocks          Stock[]
@@ -70,74 +85,79 @@ model Portfolio {
   @@index([userId])
   @@index([type])
   @@map("portfolios")
+  @@schema("public")
 }
 
 model Stock {
-  id           String    @id @default(cuid())
+  id           String    @id @default(dbgenerated("(gen_random_uuid())::text"))
   portfolioId  String    @map("portfolio_id")
   symbol       String
   name         String
   shares       Int
-  avgPrice     Float     @map("avg_price")
-  currentPrice Float?    @map("current_price")
-  actualValue  Float?    @map("actual_value")
-  lastUpdated  DateTime  @default(now()) @map("last_updated")
-  createdAt    DateTime  @default(now()) @map("created_at")
-  portfolio    Portfolio @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+  avgPrice     Decimal   @map("avg_price") @db.Decimal(10, 4)
+  currentPrice Decimal?  @map("current_price") @db.Decimal(10, 4)
+  actualValue  Decimal?  @map("actual_value") @db.Decimal(12, 2)
+  lastUpdated  DateTime  @default(now()) @map("last_updated") @db.Timestamptz(6)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  portfolio    Portfolio @relation(fields: [portfolioId], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@index([portfolioId])
   @@index([symbol])
   @@map("stocks")
+  @@schema("public")
 }
 
 model InvestmentThesis {
-  id                 String   @id @default(cuid())
-  portfolioId        String   @map("portfolio_id")
+  id                 String    @id @default(dbgenerated("(gen_random_uuid())::text"))
+  portfolioId        String    @map("portfolio_id")
   ticker             String
   title              String
   description        String
   rationale          String
-  bearCase           String?  @map("bear_case")
+  bearCase           String?   @map("bear_case")
   risks              String[]
-  keyMetrics         Json     @map("key_metrics")
-  stopLossRules      Json     @map("stop_loss_rules")
-  exitCriteria       Json     @map("exit_criteria")
-  thesisHealthScore  Float    @map("thesis_health_score")
+  keyMetrics         Json      @default("[]") @map("key_metrics")
+  stopLossRules      Json      @default("[]") @map("stop_loss_rules")
+  exitCriteria       Json      @default("{}") @map("exit_criteria")
+  thesisHealthScore  Decimal   @map("thesis_health_score") @db.Decimal(5, 2)
   urgency            String
-  lastValidated      DateTime? @map("last_validated")
-  validationHistory  Json?    @map("validation_history")
-  status             String   @default("active")
-  createdAt          DateTime @default(now()) @map("created_at")
-  updatedAt          DateTime @updatedAt @map("updated_at")
-  portfolio          Portfolio @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+  lastValidated      DateTime? @map("last_validated") @db.Timestamptz(6)
+  validationHistory  Json?     @default("[]") @map("validation_history")
+  status             String    @default("active")
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  portfolio          Portfolio @relation(fields: [portfolioId], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@index([portfolioId])
   @@index([status])
   @@index([urgency])
+  @@index([ticker])
   @@map("investment_theses")
+  @@schema("public")
 }
 
 model DailyChecklist {
-  id                   String          @id @default(cuid())
+  id                   String          @id @default(dbgenerated("(gen_random_uuid())::text"))
   portfolioId          String          @map("portfolio_id")
-  date                 DateTime        @default(now())
+  date                 DateTime        @default(now()) @db.Timestamptz(6)
   totalTasks           Int             @map("total_tasks")
   completedTasks       Int             @default(0) @map("completed_tasks")
-  completionPercentage Float           @default(0) @map("completion_percentage")
+  completionPercentage Decimal         @default(0) @map("completion_percentage") @db.Decimal(5, 2)
   currentStreak        Int             @default(0) @map("current_streak")
   longestStreak        Int             @default(0) @map("longest_streak")
-  createdAt            DateTime        @default(now()) @map("created_at")
-  updatedAt            DateTime        @updatedAt @map("updated_at")
+  createdAt            DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   tasks                ChecklistTask[]
-  portfolio            Portfolio       @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+  portfolio            Portfolio       @relation(fields: [portfolioId], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@index([portfolioId])
   @@index([date])
   @@map("daily_checklists")
+  @@schema("public")
 }
 
 model ChecklistTask {
-  id          String         @id @default(cuid())
+  id          String         @id @default(dbgenerated("(gen_random_uuid())::text"))
   checklistId String         @map("checklist_id")
   portfolioId String         @map("portfolio_id")
   task        String
@@ -145,16 +165,17 @@ model ChecklistTask {
   frequency   String
   urgency     String
   completed   Boolean        @default(false)
-  completedAt DateTime?      @map("completed_at")
+  completedAt DateTime?      @map("completed_at") @db.Timestamptz(6)
   condition   String?
-  dueDate     DateTime?      @map("due_date")
-  createdAt   DateTime       @default(now()) @map("created_at")
-  updatedAt   DateTime       @updatedAt @map("updated_at")
-  checklist   DailyChecklist @relation(fields: [checklistId], references: [id], onDelete: Cascade)
+  dueDate     DateTime?      @map("due_date") @db.Timestamptz(6)
+  createdAt   DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  checklist   DailyChecklist @relation(fields: [checklistId], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@index([checklistId])
   @@index([portfolioId])
   @@index([category])
   @@index([completed])
   @@map("checklist_tasks")
+  @@schema("public")
 }
