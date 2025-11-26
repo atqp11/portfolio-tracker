@@ -1,96 +1,81 @@
-# Supabase Migrations
+# Supabase Schema Management
 
-This directory contains SQL migrations for the Supabase database.
+This directory previously contained individual migration files. All migrations have been consolidated into the canonical schema files in the parent directory.
 
-## Running Migrations
+## Current Schema Files (Use These)
 
-### Option 1: Via Supabase Dashboard (Recommended)
+### 1. `../schema.sql` - Complete Database Schema
 
+**Contains:**
+- All table definitions (profiles, portfolios, stocks, investment_theses, daily_checklists, checklist_tasks, usage_tracking, waitlist)
+- All indexes and constraints
+- Triggers and functions
+- **Admin support:** `is_admin` field in profiles table
+
+**How to use:**
 1. Go to [Supabase Dashboard](https://supabase.com/dashboard)
 2. Select your project
 3. Navigate to **SQL Editor**
-4. Copy the contents of the migration file
-5. Paste into the SQL editor
-6. Click **Run** to execute
+4. Copy the contents of `schema.sql`
+5. Run the script
 
-### Option 2: Via Supabase CLI
+### 2. `../rls-policies.sql` - Row-Level Security Policies
+
+**Contains:**
+- RLS policies for all tables
+- Service role policies for admin access
+
+**Admin Access Pattern:**
+- Regular users use the standard Supabase client (RLS enforced)
+- Admin operations use the service role client (RLS bypassed)
+- This avoids infinite recursion issues with RLS policies
+
+**How to use:**
+1. Run this **AFTER** running `schema.sql`
+2. Copy contents from `rls-policies.sql` to SQL Editor
+3. Execute to enable RLS on all tables
+
+### 3. `../check_policies.sql` - Utility Script
+
+**Purpose:** Query to verify RLS is enabled and check existing policies
+
+**How to use:**
+```sql
+-- Copy and run in SQL Editor to verify RLS setup
+```
+
+## Setting Up a New Database
+
+To set up a fresh Supabase database for this project:
 
 ```bash
-# Install Supabase CLI
-npm install -g supabase
+# 1. Create a new Supabase project at https://supabase.com/dashboard
 
-# Login to Supabase
-supabase login
+# 2. Run schema.sql in SQL Editor
+# This creates all tables, indexes, and triggers
 
-# Link your project
-supabase link --project-ref your-project-ref
+# 3. Run rls-policies.sql in SQL Editor
+# This enables RLS and creates security policies
 
-# Apply migrations
-supabase db push
+# 4. Run check_policies.sql to verify setup
+# Should show RLS enabled on all tables
+
+# 5. Set your first admin user
+UPDATE profiles SET is_admin = true WHERE email = 'your-email@example.com';
 ```
 
-## Migration Files
+## Making Schema Changes
 
-### `add_admin_field.sql` - Admin Panel Support
+When you need to modify the database schema:
 
-**Purpose:** Adds admin field to profiles table and creates RLS policies for admin access
-
-**What it does:**
-- Adds `is_admin` boolean column to profiles table (defaults to false)
-- Creates index for fast admin lookups
-- Adds RLS policies allowing admins to:
-  - Read all user profiles
-  - Update any user profile (tier, admin status)
-  - Read all usage tracking data
-
-**After running:**
-1. Manually set your first admin user via SQL Editor:
-   ```sql
-   UPDATE profiles SET is_admin = true WHERE email = 'your-email@example.com';
-   ```
-
-2. Verify admin access by logging in and checking the sidebar - you should see "Admin Panel" link
-
-**Features enabled:**
-- Admin panel at `/admin`
-- User management (view all users)
-- Tier updates (change user tiers)
-- Admin status management (grant/revoke admin access)
-- Quota reset (clear usage tracking)
-
-### Other Migrations
-
-- `update_tier_structure.sql` - Updates tier values to (free, basic, premium)
-- `enable_usage_tracking_rls.sql` - Enables RLS for usage tracking table
-- `fix_usage_tracking_rls.sql` - Fixes RLS policies for usage tracking
-- `add_rls_policies.sql` - Comprehensive RLS policies for all tables
-- `fix_rls_clean.sql` - Cleanup and fix RLS policies
-- `grant_permissions.sql` - Grant necessary permissions
-
-## Creating New Migrations
-
-1. Create a new `.sql` file in this directory
-2. Use descriptive naming: `action_description.sql`
-3. Include comments explaining what the migration does
-4. Test in a development database first
-5. Document the migration in this README
-
-## Rollback
-
-If you need to rollback a migration:
-
-```sql
--- Example: Remove admin field
-ALTER TABLE profiles DROP COLUMN IF EXISTS is_admin;
-DROP INDEX IF EXISTS idx_profiles_is_admin;
-DROP POLICY IF EXISTS "Admins can read all profiles" ON profiles;
-DROP POLICY IF EXISTS "Admins can update any profile" ON profiles;
-DROP POLICY IF EXISTS "Admins can read all usage" ON usage_tracking;
-```
+1. **Update `schema.sql`** with the changes
+2. **Update `rls-policies.sql`** if security policies are affected
+3. **Test in development** environment first
+4. **Apply changes** via Supabase SQL Editor or CLI
 
 ## Notes
 
-- Always backup your database before running migrations
-- Test migrations in development environment first
-- RLS policies protect data access - test thoroughly
-- Admin access is powerful - grant sparingly
+- All previous migration files have been consolidated
+- Schema files in parent directory are the source of truth
+- Admin operations use service role client to bypass RLS
+- Always backup database before running schema changes

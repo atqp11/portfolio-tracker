@@ -41,6 +41,7 @@ CREATE TABLE public.profiles (
   email TEXT NOT NULL UNIQUE,
   name TEXT,
   tier TEXT NOT NULL DEFAULT 'free' CHECK (tier IN ('free', 'basic', 'premium')),
+  is_admin BOOLEAN NOT NULL DEFAULT false,
 
   -- Stripe integration (for future payment system)
   stripe_customer_id TEXT,
@@ -50,6 +51,11 @@ CREATE TABLE public.profiles (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- Create index for faster admin lookups
+CREATE INDEX idx_profiles_is_admin ON public.profiles(is_admin) WHERE is_admin = true;
+
+COMMENT ON COLUMN public.profiles.is_admin IS 'Admin flag - checked server-side, admin operations use service role to bypass RLS';
 
 -- Trigger to create profile on user signup
 CREATE OR REPLACE FUNCTION public.handle_new_user()

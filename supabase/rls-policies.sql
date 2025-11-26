@@ -3,6 +3,14 @@
 -- ============================================================================
 -- Run this AFTER running schema.sql
 -- This ensures users can only access their own data
+--
+-- ADMIN ACCESS APPROACH:
+-- Admin operations use the service role client which bypasses RLS entirely.
+-- This avoids infinite recursion issues from RLS policies checking the profiles
+-- table while being executed on the profiles table.
+--
+-- Regular users: Use regular Supabase client → RLS enforced (own data only)
+-- Admin operations: Use service role client → RLS bypassed (all data access)
 -- ============================================================================
 
 -- ============================================================================
@@ -80,9 +88,10 @@ CREATE POLICY "Users can update own profile"
   USING (auth.uid() = id)
   WITH CHECK (auth.uid() = id);
 
--- Service role can do everything (for admin operations)
-CREATE POLICY "Service role can manage all profiles"
-  ON public.profiles
+-- Service role has full access (for admin operations - bypasses RLS)
+-- Admin operations use service role client instead of recursive RLS policies
+CREATE POLICY "Service role has full access to profiles"
+  ON public.profiles FOR ALL
   USING (auth.jwt()->>'role' = 'service_role');
 
 -- ============================================================================
@@ -107,9 +116,9 @@ CREATE POLICY "Users can update own usage"
   USING (auth.uid() = user_id)
   WITH CHECK (auth.uid() = user_id);
 
--- Service role can do everything
-CREATE POLICY "Service role can manage all usage"
-  ON public.usage_tracking
+-- Service role has full access (for admin operations - bypasses RLS)
+CREATE POLICY "Service role has full access to usage"
+  ON public.usage_tracking FOR ALL
   USING (auth.jwt()->>'role' = 'service_role');
 
 -- ============================================================================
