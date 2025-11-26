@@ -6,6 +6,7 @@
  */
 
 import { createClient } from './server';
+import { createAdminClient } from './admin';
 
 // ============================================================================
 // TYPE DEFINITIONS
@@ -16,6 +17,7 @@ export interface Profile {
   email: string;
   name: string | null;
   tier: 'free' | 'basic' | 'premium';
+  is_admin: boolean;
   stripe_customer_id?: string | null;
   stripe_subscription_id?: string | null;
   subscription_status?: string | null;
@@ -126,6 +128,27 @@ export async function getProfile(userId: string): Promise<Profile | null> {
 
   if (error) {
     console.error('Error fetching profile:', error);
+    return null;
+  }
+
+  return data;
+}
+
+/**
+ * Get profile as admin (bypasses RLS)
+ * Use this in admin routes to fetch any user's profile
+ */
+export async function getProfileAsAdmin(userId: string): Promise<Profile | null> {
+  const supabase = createAdminClient();
+
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('id', userId)
+    .single();
+
+  if (error) {
+    console.error('Error fetching profile as admin:', error);
     return null;
   }
 
@@ -527,4 +550,97 @@ export async function getCurrentUserUsage(userId: string): Promise<{
     daily: dailyUsage || null,
     monthly: monthlyUsage || null,
   };
+}
+
+// ============================================================================
+// ADMIN HELPERS
+// ============================================================================
+
+/**
+ * Check if a user is an admin
+ */
+export async function isUserAdmin(userId: string): Promise<boolean> {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('is_admin')
+    .eq('id', userId)
+    .single();
+
+  if (error || !data) {
+    return false;
+  }
+
+  return data.is_admin === true;
+}
+
+/**
+ * Get all users (admin only)
+ * Uses admin client to bypass RLS
+ */
+export async function getAllUsers(): Promise<Profile[]> {
+  const supabase = createAdminClient();
+
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('*')
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.error('Error fetching all users:', error);
+    return [];
+  }
+
+  return data || [];
+}
+
+/**
+ * Update user tier (admin only)
+ * Uses admin client to bypass RLS
+ */
+export async function updateUserTier(
+  userId: string,
+  tier: 'free' | 'basic' | 'premium'
+): Promise<Profile | null> {
+  const supabase = createAdminClient();
+
+  const { data, error } = await supabase
+    .from('profiles')
+    .update({ tier })
+    .eq('id', userId)
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error updating user tier:', error);
+    return null;
+  }
+
+  return data;
+}
+
+/**
+ * Update user admin status (admin only)
+ * Uses admin client to bypass RLS
+ */
+export async function updateUserAdminStatus(
+  userId: string,
+  isAdmin: boolean
+): Promise<Profile | null> {
+  const supabase = createAdminClient();
+
+  const { data, error } = await supabase
+    .from('profiles')
+    .update({ is_admin: isAdmin })
+    .eq('id', userId)
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error updating user admin status:', error);
+    return null;
+  }
+
+  return data;
 }

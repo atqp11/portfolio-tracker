@@ -234,7 +234,12 @@ Transform the portfolio tracker from a personal tool into a professional SaaS pl
 - [x] Add tier display to TopNav ✅
 - [ ] Complete upgrade prompt UI (partial - needs polish)
 - [ ] Email notifications for quota warnings ❌
-- [ ] Admin panel for tier management ❌
+- [x] Admin panel for user management ✅ **COMPLETE**
+  - [x] Database schema with `is_admin` field ✅
+  - [x] Admin authorization middleware ✅
+  - [x] Admin API routes (list users, update tiers, reset quotas) ✅
+  - [x] Admin UI at `/admin` ✅
+  - [x] RLS policies for secure admin access ✅
 
 **Payment Integration (Stripe):** ❌ **NOT STARTED**
 - [ ] Install: `npm install stripe @stripe/stripe-js`

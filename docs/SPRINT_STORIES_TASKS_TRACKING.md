@@ -73,12 +73,12 @@ model User {
 
 ---
 
-### 2. User Tier Management & Quota System ⚠️ **85% COMPLETE**
+### 2. User Tier Management & Quota System ⚠️ **95% COMPLETE**
 **Why:** Enable monetization, control AI costs, prevent abuse
-**Time:** 10-15 hours → **Actual: ~12 hours**
+**Time:** 10-15 hours → **Actual: ~15 hours**
 **Blocker:** Item 1 (Authentication) ✅
 **Priority:** **HIGHEST**
-**Status:** Core functionality complete, email notifications and admin panel pending
+**Status:** Core functionality and admin panel complete, only email notifications remain
 
 **Tasks:**
 - [x] Database-backed usage tracking (replace in-memory) ✅ **COMPLETE**
@@ -115,11 +115,22 @@ model User {
   - [ ] 80% quota used
   - [ ] 100% quota exceeded
   - [ ] Integration with email service (SendGrid/Resend)
-- [ ] Admin panel for tier management ❌ **PARTIAL**
-  - [ ] View all users and their tiers
-  - [ ] Manually adjust tiers (for testing/support)
-  - [ ] View usage statistics by tier
-  - **Note:** Basic admin panel exists at `/admin-panel` but user management marked "Coming Soon"
+- [x] Admin panel for user management ✅ **COMPLETE**
+  - [x] Database schema: `is_admin` field in profiles table ✅
+  - [x] Migration file: `supabase/migrations/add_admin_field.sql` ✅
+  - [x] Admin authorization middleware (`lib/auth/admin.ts`) ✅
+  - [x] Admin API routes ✅
+    - [x] GET `/api/admin/users` - List all users with usage data ✅
+    - [x] PUT `/api/admin/users/[id]` - Update user tier or admin status ✅
+    - [x] DELETE `/api/admin/users/[id]/quota` - Reset user quota ✅
+  - [x] Admin UI page at `/admin` ✅
+    - [x] User table with tier, admin status, and usage ✅
+    - [x] Tier dropdown for quick tier changes ✅
+    - [x] Toggle admin status button ✅
+    - [x] Reset quota action ✅
+    - [x] Stats dashboard (total users by tier) ✅
+  - [x] Admin navigation link in sidebar (only visible to admins) ✅
+  - [x] RLS policies for admin data access ✅
 
 **Prisma Schema Updates:**
 ```prisma

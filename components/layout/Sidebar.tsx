@@ -13,7 +13,7 @@ interface NavItem {
   icon: string;
 }
 
-const navItems: NavItem[] = [
+const baseNavItems: NavItem[] = [
   { label: 'Dashboard', href: '/dashboard', icon: '📊' },
   { label: 'Fundamentals', href: '/fundamentals', icon: '📈' },
   { label: 'Risk Analytics', href: '/risk', icon: '⚠️' },
@@ -23,10 +23,17 @@ const navItems: NavItem[] = [
   { label: 'Settings', href: '/settings', icon: '⚙️' },
 ];
 
+const adminNavItem: NavItem = {
+  label: 'Admin Panel',
+  href: '/admin',
+  icon: '👑',
+};
+
 interface UserProfile {
   email: string;
   name?: string;
   tier: TierName;
+  is_admin: boolean;
 }
 
 export default function Sidebar() {
@@ -35,6 +42,11 @@ export default function Sidebar() {
   const [loading, setLoading] = useState(true);
   const pathname = usePathname();
   const supabase = createClient();
+
+  // Add admin nav item if user is admin
+  const navItems = user?.is_admin
+    ? [...baseNavItems.slice(0, -1), adminNavItem, baseNavItems[baseNavItems.length - 1]]
+    : baseNavItems;
 
   useEffect(() => {
     async function fetchUser() {
@@ -49,12 +61,14 @@ export default function Sidebar() {
               email: userData.email,
               name: userData.name,
               tier: userData.tier as TierName,
+              is_admin: userData.is_admin || false,
             });
           } else {
             setUser({
               email: authUser.email || 'Unknown',
               name: authUser.user_metadata?.name,
               tier: 'free',
+              is_admin: false,
             });
           }
         }

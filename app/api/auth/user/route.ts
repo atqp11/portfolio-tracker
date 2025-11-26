@@ -37,6 +37,7 @@ export async function GET(request: NextRequest) {
       email: profile.email,
       name: profile.name,
       tier: profile.tier,
+      is_admin: profile.is_admin,
       created_at: profile.created_at,
     });
   } catch (error) {
