@@ -45,7 +45,7 @@ Transform the portfolio tracker from a personal tool into a professional SaaS pl
 
 ---
 
-## 🔐 PHASE 1: Authentication & Tier System ⚠️ **PARTIALLY COMPLETE**
+## 🔐 PHASE 1: Authentication & Tier System ⚠️ **85% COMPLETE**
 
 ### 1.1 Authentication Infrastructure with Supabase ✅ **COMPLETE**
 **Time:** 6-8 hours (faster than NextAuth!)
@@ -202,29 +202,41 @@ Transform the portfolio tracker from a personal tool into a professional SaaS pl
 - [x] Test Google OAuth login ✅ **COMPLETE**
 - [ ] Test SMS verification ❌ (Phase 2)
 
-### 1.2 Tier System & Pricing
-**Time:** 8-10 hours
-**Dependencies:** Authentication setup
+### 1.2 Tier System & Pricing ✅ **85% COMPLETE**
+**Time:** 8-10 hours → **Actual: ~12 hours**
+**Dependencies:** Authentication setup ✅
+**Status:** Core tier system and usage tracking complete, payments pending
 
-**Pricing Tiers:**
+**Pricing Tiers:** ✅ **IMPLEMENTED**
 
-| Tier | Price | Features |
-|------|-------|----------|
-| **Free** | $0/mo | 1 portfolio, 10 stocks, basic AI (50 queries/month), daily checklist |
-| **Basic** | $9/mo | 3 portfolios, 50 stocks, advanced AI (500 queries/month), risk metrics, charts |
-| **Pro** | $19/mo | Unlimited portfolios, unlimited stocks, unlimited AI, technical analysis, Monte Carlo, alerts |
-| **Enterprise** | $99/mo | All Pro + priority support, custom models, API access, advanced scenarios |
+| Tier | Price | Features | Status |
+|------|-------|----------|--------|
+| **Free** | $0/mo | 1 portfolio, 10 stocks, 10 AI queries/day, 1 analysis/day, 3 SEC filings/mo | ✅ Configured |
+| **Basic** | $9.99/mo | 3 portfolios, 50 stocks, 100 queries/day, 10 analyses/day, unlimited filings | ✅ Configured |
+| **Premium** | $19.99/mo | Unlimited everything, technical analysis, Monte Carlo, priority routing | ✅ Configured |
 
 **Tasks:**
-- [ ] Create `lib/tiers/config.ts` - Tier definitions and limits
-- [ ] Create `lib/tiers/permissions.ts` - Permission checking utilities
-- [ ] Create `components/pricing/PricingTable.tsx`
-- [ ] Create `app/pricing/page.tsx` - Pricing page
-- [ ] Implement tier checks in API routes (quota enforcement)
-- [ ] Create `components/dashboard/UpgradePrompt.tsx` - Paywall UI
-- [ ] Add tier badge to user profile
+- [x] Create `lib/tiers/config.ts` - Tier definitions and limits ✅
+- [x] Create `lib/tiers/usage-tracker.ts` - Database-backed usage tracking ✅
+- [x] Create tier permission utilities (in `lib/auth/session.ts`) ✅
+- [x] Create usage dashboard (`app/(dashboard)/usage/page.tsx`) ✅
+  - Progress bars for all quotas ✅
+  - Warning indicators at 80% ✅
+  - Upgrade prompts ✅
+  - Time until reset displays ✅
+- [x] Implement tier checks in API routes (quota enforcement) ✅
+  - `/api/ai/chat` - Chat query quota ✅
+  - `/api/risk-metrics` - Portfolio analysis quota ✅
+  - `/api/sec-edgar` - SEC filing quota ✅
+- [x] Create user quota APIs ✅
+  - `/api/user/quota` - Get quota info ✅
+  - `/api/user/usage` - Get usage stats ✅
+- [x] Add tier display to TopNav ✅
+- [ ] Complete upgrade prompt UI (partial - needs polish)
+- [ ] Email notifications for quota warnings ❌
+- [ ] Admin panel for tier management ❌
 
-**Payment Integration (Stripe):**
+**Payment Integration (Stripe):** ❌ **NOT STARTED**
 - [ ] Install: `npm install stripe @stripe/stripe-js`
 - [ ] Create Stripe account and get API keys
 - [ ] Create `lib/stripe/client.ts` - Stripe client

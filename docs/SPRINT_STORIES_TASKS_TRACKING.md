@@ -73,34 +73,46 @@ model User {
 
 ---
 
-### 2. User Tier Management & Quota System
+### 2. User Tier Management & Quota System ⚠️ **85% COMPLETE**
 **Why:** Enable monetization, control AI costs, prevent abuse
-**Time:** 10-15 hours
-**Blocker:** Item 1 (Authentication)
+**Time:** 10-15 hours → **Actual: ~12 hours**
+**Blocker:** Item 1 (Authentication) ✅
 **Priority:** **HIGHEST**
+**Status:** Core functionality complete, email notifications and admin panel pending
 
 **Tasks:**
-- [ ] Database-backed usage tracking (replace in-memory)
-  - [ ] Create `UsageTracking` model in Prisma schema
-  - [ ] Migrate existing in-memory logic to database
-  - [ ] Add daily/monthly reset logic
-- [ ] Integrate quota checks into AI chat route (`/api/ai/chat`)
-  - [ ] Check user tier before processing request
-  - [ ] Return 429 when quota exceeded
-  - [ ] Add "Upgrade to Pro" message in error response
-- [ ] Create user dashboard (`/dashboard/usage`)
-  - [ ] Display current tier and quota limits
-  - [ ] Show quota consumption (progress bars)
-  - [ ] Add usage graphs (daily/weekly trends)
-  - [ ] "Upgrade" button when approaching limits
-- [ ] Tier badge in UI (show "Free", "Pro", "Premium")
-- [ ] Email notifications for quota warnings
+- [x] Database-backed usage tracking (replace in-memory) ✅ **COMPLETE**
+  - [x] Create `UsageTracking` model in Supabase schema ✅
+  - [x] Implement daily/monthly reset logic ✅ (UTC-based periods)
+  - [x] Create usage tracking API (`lib/tiers/usage-tracker.ts`) ✅
+  - [x] Create tier configuration (`lib/tiers/config.ts`) ✅
+- [x] Integrate quota checks into AI routes ✅ **COMPLETE**
+  - [x] `/api/ai/chat` - Chat query quota enforced (`route.ts:126-142`) ✅
+  - [x] `/api/risk-metrics` - Portfolio analysis quota enforced (`route.ts:73-88`) ✅
+  - [x] `/api/sec-edgar` - SEC filing quota enforced (`route.ts:22-38`) ✅
+  - [x] Return 429 when quota exceeded ✅
+  - [x] Add "Upgrade" message with `/pricing` link in error response ✅
+  - [x] Smart caching - Cached responses don't count against quota ✅
+- [x] Create user dashboard (`/dashboard/usage`) ✅ **COMPLETE**
+  - [x] Display current tier and quota limits ✅
+  - [x] Show quota consumption (progress bars with color coding) ✅
+  - [x] Warning indicators at 80% usage ✅
+  - [x] "Upgrade" button when approaching limits ✅
+  - [x] Time until reset displays (daily/monthly) ✅
+  - [x] Real-time updates (30s refresh) ✅
+- [x] User quota APIs ✅ **COMPLETE**
+  - [x] `/api/user/quota` - Get quota information ✅
+  - [x] `/api/user/usage` - Get usage statistics ✅
+- [x] Tier badge in TopNav (displays user tier) ✅
+- [ ] Email notifications for quota warnings ❌ **NOT IMPLEMENTED**
   - [ ] 80% quota used
   - [ ] 100% quota exceeded
-- [ ] Admin panel for tier management
+  - [ ] Integration with email service (SendGrid/Resend)
+- [ ] Admin panel for tier management ❌ **PARTIAL**
   - [ ] View all users and their tiers
   - [ ] Manually adjust tiers (for testing/support)
   - [ ] View usage statistics by tier
+  - **Note:** Basic admin panel exists at `/admin-panel` but user management marked "Coming Soon"
 
 **Prisma Schema Updates:**
 ```prisma
@@ -781,18 +793,25 @@ export async function fetchBatchQuotes(symbols: string[]): Promise<Quote[]> {
 ### Overall Status
 - **Database & Core:** ✅ 100% Complete
 - **Features (Sprint 2-4):** ✅ 75% Complete
-- **Auth & Monetization:** ⚠️ 70% Complete ← **Auth complete, payments pending**
-  - ✅ Email/Password Authentication (80% of use cases)
+- **Auth & Monetization:** ⚠️ 85% Complete ← **MAJOR PROGRESS**
+  - ✅ Email/Password Authentication (fully integrated)
   - ✅ Google OAuth (fully integrated)
   - ✅ User & UsageTracking models in database
   - ✅ Session management helpers
   - ✅ Protected route middleware
+  - ✅ User tier system (free/basic/premium) **NEW**
+  - ✅ Database-backed usage tracking **NEW**
+  - ✅ Quota enforcement in AI routes **NEW**
+  - ✅ Usage dashboard with progress bars **NEW**
+  - ❌ Email notifications for quota warnings (pending)
+  - ❌ Admin panel for user management (partial)
   - ❌ Stripe payment integration (pending)
 - **AI Infrastructure (Sprint 1):** ⚠️ 50% Complete (router done, caching partial)
 - **UX & Polish (Sprint 5):** ✅ 70% Complete
   - ✅ Landing page with glassmorphism design
   - ✅ Professional auth pages
   - ✅ Navigation structure
+  - ✅ Usage dashboard **NEW**
   - ⚠️ Mobile optimization (partial)
 - **Testing (Sprint 6):** ❌ 10% Complete
 
@@ -801,9 +820,9 @@ export async function fetchBatchQuotes(symbols: string[]): Promise<Quote[]> {
 ```
 1. Authentication System (12h)                    ✅ COMPLETE (10h done)
    ↓
-2. User Tier Management (15h)                     ← START HERE
+2. User Tier Management (15h)                     ✅ 85% COMPLETE (12h done) **UPDATED**
    ↓
-3. Payment Integration (16h)
+3. Payment Integration (16h)                      ← START HERE
    ↓
 4. AI Features Phase 2 (20h)
    ↓
@@ -817,8 +836,8 @@ export async function fetchBatchQuotes(symbols: string[]): Promise<Quote[]> {
 ```
 
 **Total Time to MVP Launch:** ~89 hours total
-**Completed:** ~20 hours (auth complete + landing page + navigation)
-**Remaining:** ~69 hours (~3 weeks full-time, 5-6 weeks part-time)
+**Completed:** ~32 hours (auth 10h + tier system 12h + landing page + navigation)
+**Remaining:** ~57 hours (~2.5 weeks full-time, 4-5 weeks part-time)
 
 ---
 
@@ -826,22 +845,26 @@ export async function fetchBatchQuotes(symbols: string[]): Promise<Quote[]> {
 
 **NEW Top 3 Priorities (Updated for MVP Launch):**
 
-1. **🔴 User Tier Management** (15 hours) ← **START HERE**
-   - Enable monetization
-   - Control AI costs
-   - Prevent abuse
-   - Database-backed quota tracking
-   - Tier enforcement in AI routes
-   - Usage dashboard
-
-2. **🔴 Payment Integration** (16 hours)
+1. **🔴 Payment Integration** (16 hours) ← **START HERE**
    - Stripe checkout
    - Subscription management
    - Revenue collection
    - Customer portal
    - Webhook handlers
+   - **BLOCKER CLEARED:** User tier system is 85% complete ✅
 
-**Weekly Goal:** Complete User Tiers + Start Payment Integration
+2. **🟡 Complete User Tier Management** (3 hours remaining)
+   - Email notifications for quota warnings
+   - Admin panel for user management
+   - Tier badge visibility improvements
+
+3. **🔴 AI Features Phase 2** (20 hours)
+   - 4-layer caching system
+   - Company fact sheets
+   - Filing summaries
+   - Tier-based AI model routing
+
+**Weekly Goal:** Complete Payment Integration + Polish User Tier System
 
 ---
 
@@ -849,8 +872,10 @@ export async function fetchBatchQuotes(symbols: string[]): Promise<Quote[]> {
 
 ### Week 1 (Current) - **CRITICAL: Tiers & Payments**
 - [x] Authentication System (item 1) ✅ **COMPLETE**
-- [ ] User Tier Management (item 2) ← **IN PROGRESS**
-- [ ] Start Payment Integration (item 3)
+- [x] User Tier Management (item 2) ✅ **85% COMPLETE** **UPDATED**
+  - Core functionality: database tracking, quota enforcement, usage dashboard ✅
+  - Pending: email notifications, admin panel
+- [ ] Start Payment Integration (item 3) ← **NEXT**
 
 ### Week 2 - **Payment & AI Features**
 - [ ] Complete Payment Integration (item 3)
