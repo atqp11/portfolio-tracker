@@ -9,8 +9,19 @@ import { NextResponse, type NextRequest } from 'next/server'
  * 1. Refresh Supabase auth sessions
  * 2. Protect authenticated routes
  * 3. Redirect authenticated users away from auth pages
+ * 4. Protect test pages with environment variable
  */
 export async function proxy(request: NextRequest) {
+  // Protect test pages - only accessible when ALLOW_TEST_PAGES=true
+  if (request.nextUrl.pathname.startsWith('/tests')) {
+    const allowTestPages = process.env.ALLOW_TEST_PAGES === 'true';
+
+    if (!allowTestPages) {
+      // Return 404 to hide the existence of test pages
+      return NextResponse.rewrite(new URL('/404', request.url));
+    }
+  }
+
   let supabaseResponse = NextResponse.next({
     request,
   })
