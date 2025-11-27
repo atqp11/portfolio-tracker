@@ -14,13 +14,14 @@
 
 1. [System Overview](#system-overview)
 2. [Tech Stack](#tech-stack)
-3. [Architecture Layers](#architecture-layers)
-4. [Client-Side & Server-Side Storage & Caching Strategy](#client-side--server-side-storage--caching-strategy)
-5. [Core Subsystems](#core-subsystems)
-6. [Data Flow](#data-flow)
-7. [External Integrations](#external-integrations)
-8. [Key Design Patterns](#key-design-patterns)
-9. [Detailed Documentation](#detailed-documentation)
+3. [Database Management & Client Usage](#database-management--client-usage)
+4. [Architecture Layers](#architecture-layers)
+5. [Client-Side & Server-Side Storage & Caching Strategy](#client-side--server-side-storage--caching-strategy)
+6. [Core Subsystems](#core-subsystems)
+7. [Data Flow](#data-flow)
+8. [External Integrations](#external-integrations)
+9. [Key Design Patterns](#key-design-patterns)
+10. [Detailed Documentation](#detailed-documentation)
 
 ---
 
@@ -991,7 +992,7 @@ L3: Filing Summaries (30d TTL) → 98%+ cumulative
 L4: Vercel Edge Cache → <200ms stale responses
 ```
 
-**See**: `docs/AI_SYSTEM_DESIGN_MVP.md` for implementation guide
+**See**: `docs/features/AI_SYSTEM_DESIGN_MVP.md` for implementation guide
 
 ### 4. Risk Analytics
 
@@ -1568,8 +1569,12 @@ For deep dives into specific subsystems, see:
 - **`FEATURE_ROADMAP.md`** - Long-term roadmap (Phases 0-4, Weeks 1-20)
 
 ### AI Implementation
-- **`AI_SYSTEM_DESIGN_MVP.md`** - ✅ Use this for MVP AI development
-- **`AI_SYSTEM_DESIGN_FULL_FEATURE_COMPLETE.md`** - Phase 2 reference (RAG, vector DB)
+- **`features/AI_SYSTEM_DESIGN_MVP.md`** - ✅ Use this for MVP AI development
+- **`features/AI_SYSTEM_DESIGN_FULL_FEATURE_COMPLETE.md`** - Phase 2 reference (RAG, vector DB)
+
+### Feature Deep Dives
+- **`features/OAUTH_FLOW_DIAGRAM.md`** - Google OAuth flow implementation details
+- **`features/ADMIN_PANEL_GUIDE.md`** - Admin panel usage guide
 
 ### Project Info
 - **`README.md`** - Public-facing overview, deployment guide
