@@ -18,6 +18,8 @@ The Admin Dashboard provides real-time monitoring and management capabilities fo
 
 **Status:** ✅ **Active**
 
+**For developer integration guide, see:** [docs/TELEMETRY_INTEGRATION.md](../../docs/TELEMETRY_INTEGRATION.md)
+
 Comprehensive real-time monitoring of AI usage, costs, and performance metrics.
 
 **Features:**
@@ -25,36 +27,8 @@ Comprehensive real-time monitoring of AI usage, costs, and performance metrics.
 - Performance metrics (cache hit rate, escalation rate, latency)
 - Multiple time periods (1h, 24h, 7d, 30d)
 - Auto-refresh (every 30 seconds)
-- Visual charts and graphs
-- Cost projections (daily, weekly, monthly, annual)
+- Visual charts and cost projections
 - Metric threshold warnings
-
-**Key Metrics:**
-- Total Requests
-- Total Cost ($)
-- Avg Cost per Request
-- Cache Hit Rate (%)
-- Escalation Rate (%)
-- Average Confidence Score
-- Latency (P50, P95)
-
-**Visualizations:**
-- Cost by Provider (Pie Chart)
-- Requests by Task Type (Bar Chart)
-- Performance Metrics (Progress Bars)
-- Latency Cards
-- Cost Projections
-
-**Target Metrics (from AI_MODEL_STRATEGY.md):**
-| Metric | Target | Alert |
-|--------|--------|-------|
-| Cache Hit Rate | >85% | <80% |
-| Escalation Rate | <10% | >15% |
-| Avg Cost/Request | <$0.05 | >$0.10 |
-| P50 Latency | <1.5s | >3s |
-| P95 Latency | <4s | >7s |
-| Daily Cost | <$3 | >$5 |
-| Monthly Cost | <$60 | >$100 |
 
 ---
 
@@ -115,30 +89,7 @@ https://your-domain.com/dashboard
 
 ### API Endpoints
 
-**Get Telemetry Stats:**
-```bash
-GET /api/telemetry/ai?period=24h
-
-# Response:
-{
-  "period": "24h",
-  "stats": {
-    "totalRequests": 1234,
-    "cacheHitRate": 0.87,
-    "totalCostUsd": 2.34,
-    ...
-  },
-  "warnings": ["⚠️ P95 latency 7200ms > 7s target"],
-  "recentLogs": [...]
-}
-```
-
-**Export Logs:**
-```bash
-GET /api/telemetry/ai?export=true
-
-# Downloads JSON file with all logs
-```
+See [Telemetry Integration Guide](../../docs/TELEMETRY_INTEGRATION.md#api-reference) for complete API documentation.
 
 ---
 
@@ -193,24 +144,7 @@ Displays cost projection for a given period.
 
 ## Alerts & Warnings
 
-### Warning Triggers
-
-Dashboard shows warnings when metrics exceed thresholds:
-
-**Performance Warnings:**
-- ⚠️ Cache hit rate <80%
-- ⚠️ Escalation rate >15%
-- ⚠️ Avg latency >3s
-- ⚠️ P95 latency >7s
-- ⚠️ Avg cost per request >$0.10
-- ⚠️ Low confidence rate >5%
-
-**Example Warning Banner:**
-```
-⚠️ Performance Warnings
-• Cache hit rate 78.5% < 80% target
-• P95 latency 7200ms > 7s target
-```
+Dashboard shows warnings when metrics exceed thresholds. See [Telemetry Integration Guide](../../docs/TELEMETRY_INTEGRATION.md#understanding-warnings) for complete threshold documentation and optimization strategies.
 
 ---
 
@@ -260,53 +194,13 @@ annualCost = monthlyCost * 12
 
 ---
 
-## Performance Optimization
+## Performance Optimization & Monitoring
 
-### Improving Cache Hit Rate
-
-**Current:** 78% → **Target:** >85%
-
-**Strategies:**
-1. Increase cache TTL for stable data (filings: 30 days)
-2. Pre-warm cache for popular queries
-3. Implement query normalization (lowercase, trim)
-4. Add fuzzy matching for similar queries
-
-**Impact:** 85% hit rate saves ~$10-15/month
-
-### Reducing Escalation Rate
-
-**Current:** 12% → **Target:** <10%
-
-**Strategies:**
-1. Improve RAG context quality (better chunk retrieval)
-2. Fine-tune confidence scoring thresholds
-3. Add more examples to prompts
-4. Use chain-of-thought prompting
-
-**Impact:** 10% escalation saves ~$5-8/month
-
----
-
-## Monitoring Best Practices
-
-### Daily Review (5 minutes)
-- [ ] Check total daily cost (<$3 target)
-- [ ] Review warning banner (resolve any issues)
-- [ ] Check cache hit rate (>85%)
-- [ ] Monitor escalation rate (<10%)
-
-### Weekly Review (15 minutes)
-- [ ] Analyze 7-day trends
-- [ ] Review cost projections
-- [ ] Identify cost spikes
-- [ ] Optimize high-cost queries
-
-### Monthly Review (30 minutes)
-- [ ] Compare actual vs projected costs
-- [ ] Calculate profit margins by tier
-- [ ] Review user growth impact on costs
-- [ ] Adjust pricing if needed
+See [Telemetry Integration Guide](../../docs/TELEMETRY_INTEGRATION.md#performance-optimization-strategies) for:
+- Cache hit rate optimization strategies
+- Escalation rate reduction techniques
+- Daily, weekly, and monthly monitoring checklists
+- Cost savings estimates
 
 ---
 
@@ -418,10 +312,11 @@ import { AreaChart, Area } from 'recharts';
 
 ## Related Documentation
 
-- [AI Model Strategy](../../docs/AI_MODEL_STRATEGY.md)
-- [User Tier Limits](../../docs/USER_TIER_LIMITS.md)
-- [AI Router README](../../lib/ai/README.md)
-- [Telemetry Logger](../../lib/telemetry/ai-logger.ts)
+- **[Telemetry Integration Guide](../../docs/TELEMETRY_INTEGRATION.md)** - Complete developer guide
+- [AI Model Strategy](../../docs/AI_MODEL_STRATEGY.md) - Model selection strategy
+- [User Tier Limits](../../docs/USER_TIER_LIMITS.md) - Tier quotas and limits
+- [AI Router README](../../lib/ai/README.md) - AI system overview
+- [Telemetry Logger](../../lib/telemetry/ai-logger.ts) - Source code
 
 ---
 
@@ -452,4 +347,4 @@ import { AreaChart, Area } from 'recharts';
 
 ---
 
-*Last updated: November 20, 2025*
+*Last updated: November 26, 2025*

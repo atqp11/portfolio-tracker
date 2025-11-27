@@ -120,45 +120,32 @@ console.log(sentiment.relevance);    // 0.0 - 1.0
 
 ### 3. Telemetry Tracking
 
-**Get AI usage stats:**
+**For comprehensive telemetry integration guide, see:** [docs/TELEMETRY_INTEGRATION.md](../../docs/TELEMETRY_INTEGRATION.md)
+
+**Quick example:**
 
 ```typescript
-import { getTelemetryStats, checkMetricThresholds } from '@/lib/telemetry/ai-logger';
+import { logInference } from '@/lib/telemetry/ai-logger';
 
-// Get stats for last 24 hours
+// Log AI inference
+logInference({
+  model: 'gemini-2.0-flash-exp',
+  provider: 'gemini',
+  taskType: 'chat',
+  tokens_in: 150,
+  tokens_out: 250,
+  latency_ms: 1250,
+  confidence: 0.92,
+  cost_usd: 0.000042,
+  escalated: false,
+  cache_hit: false,
+});
+
+// Get statistics
+import { getTelemetryStats } from '@/lib/telemetry/ai-logger';
 const stats = getTelemetryStats();
 
-console.log(stats.totalRequests);      // 1234
-console.log(stats.cacheHitRate);       // 0.87 (87%)
-console.log(stats.escalationRate);     // 0.08 (8%)
-console.log(stats.totalCostUsd);       // $2.34
-console.log(stats.avgLatencyMs);       // 1250ms
-console.log(stats.p95LatencyMs);       // 3200ms
-
-// Check if metrics are within targets
-const warnings = checkMetricThresholds(stats);
-warnings.forEach(w => console.warn(w));
-// ⚠️ Cache hit rate 78.5% < 80% target
-```
-
-**API endpoint:**
-
-```bash
-GET /api/telemetry/ai?period=24h
-
-# Response:
-{
-  "period": "24h",
-  "stats": {
-    "totalRequests": 1234,
-    "cacheHitRate": 0.87,
-    "escalationRate": 0.08,
-    "totalCostUsd": 2.34,
-    ...
-  },
-  "warnings": ["⚠️ P95 latency 7200ms > 7s target"],
-  "recentLogs": [...]
-}
+// View dashboard: /dashboard/costs
 ```
 
 ---
@@ -227,31 +214,6 @@ function estimateConfidence(response: string, context: string): number {
 
   return Math.max(0, Math.min(1, score));
 }
-```
-
----
-
-## Cost Tracking
-
-**Target metrics (from AI_MODEL_STRATEGY.md):**
-
-| Metric | Target | Alert Threshold |
-|--------|--------|----------------|
-| **Cache hit rate** | >85% | <80% |
-| **Escalation rate** | <10% | >15% |
-| **Avg cost per request** | <$0.05 | >$0.10 |
-| **P50 latency (chat)** | <1.5s | >3s |
-| **P95 latency (chat)** | <4s | >7s |
-| **Daily cost (total)** | <$3 | >$5 |
-| **Monthly cost (total)** | <$60 | >$100 |
-
-**Example telemetry log:**
-
-```
-🤖 AI Log: gemini/gemini-2.0-flash-exp | chat | 1250ms | 0.0042¢ | conf:0.92 | FRESH
-🤖 AI Log: gemini/gemini-1.5-pro | chat | 2100ms | 0.0380¢ | conf:0.88 | FRESH [ESCALATED]
-🤖 AI Log: groq/llama3-groq-70b-8192 | filing_summary | 450ms | 0.0018¢ | conf:0.95 | FRESH
-🤖 AI Log: gemini/gemini-2.0-flash-exp | chat | 120ms | 0.0000¢ | conf:0.92 | CACHE
 ```
 
 ---
@@ -424,6 +386,7 @@ Confidence ≥0.85?
 
 ## References
 
+- **[Telemetry Integration Guide](../../docs/TELEMETRY_INTEGRATION.md)** - Complete telemetry developer guide
 - **AI Strategy:** [docs/AI_MODEL_STRATEGY.md](../../docs/AI_MODEL_STRATEGY.md)
 - **System Design:** [docs/retail_stock_ai_pipeline_system_design_recommendations.md](../../docs/retail_stock_ai_pipeline_system_design_recommendations.md)
 - **Groq Docs:** https://console.groq.com/docs
@@ -432,5 +395,5 @@ Confidence ≥0.85?
 
 ---
 
-*Last updated: November 20, 2025*
+*Last updated: November 26, 2025*
 *Implemented by: Claude (AI Assistant)*
