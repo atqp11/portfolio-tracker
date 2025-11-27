@@ -116,10 +116,11 @@ export default function FundamentalsPage() {
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.error || 'Failed to create portfolio');
+        throw new Error(error.error?.message || error.error || 'Failed to create portfolio');
       }
 
-      const newPortfolio = await response.json();
+      const result = await response.json();
+      const newPortfolio = result.success ? result.data : result;
       await refetchPortfolios();
       setSelectedPortfolioId(newPortfolio.id);
     } catch (error) {
@@ -130,15 +131,15 @@ export default function FundamentalsPage() {
 
   const handleUpdatePortfolio = async (id: string, updates: Partial<Portfolio>) => {
     try {
-      const response = await fetch('/api/portfolio', {
+      const response = await fetch(`/api/portfolio?id=${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, ...updates }),
+        body: JSON.stringify(updates),
       });
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.error || 'Failed to update portfolio');
+        throw new Error(error.error?.message || error.error || 'Failed to update portfolio');
       }
 
       await refetchPortfolios();

@@ -124,7 +124,8 @@ export function usePortfolios() {
       const response = await fetch('/api/portfolio');
       if (!response.ok) throw new Error('Failed to fetch portfolios');
 
-      const data: Portfolio[] = await response.json();
+      const result = await response.json();
+      const data: Portfolio[] = result.success ? result.data : result; // Handle both old and new format
       console.log('[usePortfolios] Fetched portfolios:', data);
       setPortfolios(data);
     } catch (err) {
@@ -159,7 +160,8 @@ export function usePortfolio(type: 'energy' | 'copper') {
         const response = await fetch('/api/portfolio');
         if (!response.ok) throw new Error('Failed to fetch portfolios');
 
-        const portfolios: Portfolio[] = await response.json();
+        const result = await response.json();
+        const portfolios: Portfolio[] = result.success ? result.data : result; // Handle both old and new format
         console.log('[usePortfolio] Fetched portfolios:', portfolios);
         console.log('[usePortfolio] Looking for type:', type);
         console.log('[usePortfolio] Portfolio types:', portfolios.map(p => ({ id: p.id, name: p.name, type: p.type })));
@@ -207,7 +209,8 @@ export function usePortfolioById(portfolioId: string | null) {
         const response = await fetch(`/api/portfolio?id=${portfolioId}`);
         if (!response.ok) throw new Error('Failed to fetch portfolio');
 
-        const data: Portfolio = await response.json();
+        const result = await response.json();
+        const data: Portfolio = result.success ? result.data : result; // Handle both old and new format
         setPortfolio(data);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Unknown error');
@@ -232,6 +235,7 @@ export function useStocks(portfolioId: string | undefined) {
 
   useEffect(() => {
     if (!portfolioId) {
+      setStocks([]);
       setLoading(false);
       return;
     }
@@ -240,14 +244,16 @@ export function useStocks(portfolioId: string | undefined) {
       try {
         setLoading(true);
         setError(null);
-        
+
         const response = await fetch(`/api/stocks?portfolioId=${portfolioId}`);
         if (!response.ok) throw new Error('Failed to fetch stocks');
-        
-        const data = await response.json();
-        setStocks(data);
+
+        const result = await response.json();
+        // Extract data from wrapped response
+        setStocks(result.data || []);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Unknown error');
+        setStocks([]);
       } finally {
         setLoading(false);
       }

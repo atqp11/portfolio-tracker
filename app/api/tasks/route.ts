@@ -1,187 +1,191 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+/**
+ * Checklist Task API Routes
+ *
+ * CRUD operations for checklist tasks with auth and validation (RLS enforced).
+ */
 
-// GET /api/tasks - Get all tasks for a checklist
+import { NextRequest, NextResponse } from 'next/server';
+import { taskController } from '@/lib/controllers/task.controller';
+import { getUserProfile } from '@/lib/auth/session';
+import { SuccessResponse, ErrorResponse } from '@/lib/dto/base/response.dto';
+
+export const dynamic = 'force-dynamic';
+
+// GET /api/tasks - Get tasks by checklist, portfolio, or ID (RLS enforced)
 export async function GET(request: NextRequest) {
   try {
+    // Authentication is handled by Supabase RLS
+    const profile = await getUserProfile();
+    if (!profile) {
+      return NextResponse.json(ErrorResponse.unauthorized(), { status: 401 });
+    }
+
     const searchParams = request.nextUrl.searchParams;
     const checklistId = searchParams.get('checklistId');
     const portfolioId = searchParams.get('portfolioId');
     const id = searchParams.get('id');
 
     if (id) {
-      // Get single task
-      const task = await prisma.checklistTask.findUnique({
-        where: { id },
-      });
-
-      if (!task) {
-        return NextResponse.json(
-          { error: 'Task not found' },
-          { status: 404 }
-        );
-      }
-
-      return NextResponse.json(task);
+      // Get single task (RLS ensures user can only access their own)
+      const task = await taskController.getTaskById(id);
+      return NextResponse.json(SuccessResponse.create(task));
     } else if (checklistId) {
-      // Get all tasks for a checklist
-      const tasks = await prisma.checklistTask.findMany({
-        where: { checklistId },
-        orderBy: [
-          { urgency: 'desc' },
-          { completed: 'asc' },
-        ],
-      });
-
-      return NextResponse.json(tasks);
+      // Get all tasks for a checklist (RLS filters to current user automatically)
+      const tasks = await taskController.getChecklistTasks(checklistId);
+      return NextResponse.json(SuccessResponse.create(tasks));
     } else if (portfolioId) {
-      // Get all active tasks for a portfolio (without specific checklist)
-      const tasks = await prisma.checklistTask.findMany({
-        where: {
-          portfolioId,
-          completed: false,
-        },
-        orderBy: [
-          { urgency: 'desc' },
-          { dueDate: 'asc' },
-        ],
-      });
-
-      return NextResponse.json(tasks);
+      // Get all active tasks for a portfolio (RLS filters to current user automatically)
+      const tasks = await taskController.getPortfolioActiveTasks(portfolioId);
+      return NextResponse.json(SuccessResponse.create(tasks));
     } else {
       return NextResponse.json(
-        { error: 'Checklist ID or Portfolio ID is required' },
+        ErrorResponse.badRequest('Checklist ID, Portfolio ID, or Task ID is required'),
         { status: 400 }
       );
     }
   } catch (error) {
     console.error('Error fetching tasks:', error);
+
+    if (error instanceof Error) {
+      if (error.message.includes('not found')) {
+        return NextResponse.json(ErrorResponse.notFound('Task'), { status: 404 });
+      }
+      if (error.message.includes('access denied')) {
+        return NextResponse.json(ErrorResponse.forbidden('Access denied'), { status: 403 });
+      }
+    }
+
     return NextResponse.json(
-      { error: 'Failed to fetch tasks' },
+      ErrorResponse.internal('Failed to fetch tasks'),
       { status: 500 }
     );
   }
 }
 
-// POST /api/tasks - Create a new task
+// POST /api/tasks - Create a new task (RLS enforced)
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const {
-      checklistId,
-      portfolioId,
-      task,
-      category,
-      frequency,
-      urgency,
-      completed,
-      completedAt,
-      condition,
-      dueDate,
-    } = body;
+    // Authentication is handled by Supabase RLS
+    const profile = await getUserProfile();
+    if (!profile) {
+      return NextResponse.json(ErrorResponse.unauthorized(), { status: 401 });
+    }
 
-    // Validation
-    if (!portfolioId || !task) {
+    // Validate request body
+    const body = await request.json();
+    const { createTaskSchema } = await import('@/lib/validators/schemas');
+
+    const validation = createTaskSchema.safeParse(body);
+    if (!validation.success) {
+      const { formatZodError } = await import('@/lib/validators/schemas');
+      const formatted = formatZodError(validation.error);
       return NextResponse.json(
-        { error: 'Portfolio ID and task are required' },
+        ErrorResponse.validation('Invalid task data', undefined, formatted.errors),
         { status: 400 }
       );
     }
 
-    const newTask = await prisma.checklistTask.create({
-      data: {
-        checklistId: checklistId || null,
-        portfolioId,
-        task,
-        category: category || 'general',
-        frequency: frequency || 'daily',
-        urgency: urgency || 1,
-        completed: completed || false,
-        completedAt: completedAt ? new Date(completedAt) : null,
-        condition: condition || null,
-        dueDate: dueDate ? new Date(dueDate) : null,
-      },
-    });
+    // Create task (RLS automatically checks portfolio ownership)
+    const task = await taskController.createTask(validation.data);
 
-    return NextResponse.json(newTask, { status: 201 });
+    return NextResponse.json(
+      SuccessResponse.create(task),
+      { status: 201 }
+    );
   } catch (error) {
     console.error('Error creating task:', error);
     return NextResponse.json(
-      { error: 'Failed to create task' },
+      ErrorResponse.internal('Failed to create task'),
       { status: 500 }
     );
   }
 }
 
-// PUT /api/tasks - Update a task
+// PUT /api/tasks - Update a task (RLS enforced)
 export async function PUT(request: NextRequest) {
   try {
-    const body = await request.json();
-    const {
-      id,
-      task,
-      category,
-      frequency,
-      urgency,
-      completed,
-      completedAt,
-      condition,
-      dueDate,
-    } = body;
-
-    if (!id) {
-      return NextResponse.json(
-        { error: 'Task ID is required' },
-        { status: 400 }
-      );
+    // Authentication is handled by Supabase RLS
+    const profile = await getUserProfile();
+    if (!profile) {
+      return NextResponse.json(ErrorResponse.unauthorized(), { status: 401 });
     }
 
-    const updatedTask = await prisma.checklistTask.update({
-      where: { id },
-      data: {
-        ...(task && { task }),
-        ...(category && { category }),
-        ...(frequency && { frequency }),
-        ...(urgency !== undefined && { urgency }),
-        ...(completed !== undefined && { completed }),
-        ...(completedAt !== undefined && { completedAt: completedAt ? new Date(completedAt) : null }),
-        ...(condition !== undefined && { condition }),
-        ...(dueDate !== undefined && { dueDate: dueDate ? new Date(dueDate) : null }),
-      },
-    });
-
-    return NextResponse.json(updatedTask);
-  } catch (error) {
-    console.error('Error updating task:', error);
-    return NextResponse.json(
-      { error: 'Failed to update task' },
-      { status: 500 }
-    );
-  }
-}
-
-// DELETE /api/tasks - Delete a task
-export async function DELETE(request: NextRequest) {
-  try {
+    // Get task ID from query
     const searchParams = request.nextUrl.searchParams;
     const id = searchParams.get('id');
 
     if (!id) {
       return NextResponse.json(
-        { error: 'Task ID is required' },
+        ErrorResponse.badRequest('Task ID is required'),
         { status: 400 }
       );
     }
 
-    await prisma.checklistTask.delete({
-      where: { id },
-    });
+    // Validate request body
+    const body = await request.json();
+    const { updateTaskSchema } = await import('@/lib/validators/schemas');
 
-    return NextResponse.json({ success: true });
+    const validation = updateTaskSchema.safeParse(body);
+    if (!validation.success) {
+      const { formatZodError } = await import('@/lib/validators/schemas');
+      const formatted = formatZodError(validation.error);
+      return NextResponse.json(
+        ErrorResponse.validation('Invalid task data', undefined, formatted.errors),
+        { status: 400 }
+      );
+    }
+
+    // Update task (RLS ensures user can only update their own)
+    const task = await taskController.updateTask(id, validation.data);
+
+    return NextResponse.json(SuccessResponse.create(task));
+  } catch (error) {
+    console.error('Error updating task:', error);
+
+    if (error instanceof Error && error.message.includes('access denied')) {
+      return NextResponse.json(ErrorResponse.forbidden('Access denied'), { status: 403 });
+    }
+
+    return NextResponse.json(
+      ErrorResponse.internal('Failed to update task'),
+      { status: 500 }
+    );
+  }
+}
+
+// DELETE /api/tasks - Delete a task (RLS enforced)
+export async function DELETE(request: NextRequest) {
+  try {
+    // Authentication is handled by Supabase RLS
+    const profile = await getUserProfile();
+    if (!profile) {
+      return NextResponse.json(ErrorResponse.unauthorized(), { status: 401 });
+    }
+
+    // Get task ID from query
+    const searchParams = request.nextUrl.searchParams;
+    const id = searchParams.get('id');
+
+    if (!id) {
+      return NextResponse.json(
+        ErrorResponse.badRequest('Task ID is required'),
+        { status: 400 }
+      );
+    }
+
+    // Delete task (RLS ensures user can only delete their own)
+    const result = await taskController.deleteTask(id);
+
+    return NextResponse.json(SuccessResponse.noContent());
   } catch (error) {
     console.error('Error deleting task:', error);
+
+    if (error instanceof Error && error.message.includes('access denied')) {
+      return NextResponse.json(ErrorResponse.forbidden('Access denied'), { status: 403 });
+    }
+
     return NextResponse.json(
-      { error: 'Failed to delete task' },
+      ErrorResponse.internal('Failed to delete task'),
       { status: 500 }
     );
   }

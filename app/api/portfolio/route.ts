@@ -1,187 +1,140 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+/**
+ * Portfolio API Routes
+ *
+ * CRUD operations for portfolios with auth and validation.
+ */
 
-// GET /api/portfolio - Get all portfolios or a specific portfolio by ID
+import { NextRequest, NextResponse } from 'next/server';
+import { portfolioController } from '@/lib/controllers/portfolio.controller';
+import { getUserProfile } from '@/lib/auth/session';
+import { SuccessResponse, ErrorResponse } from '@/lib/dto/base/response.dto';
+import { z } from 'zod';
+
+export const dynamic = 'force-dynamic';
+
+// GET /api/portfolio - Get all portfolios or a specific portfolio by ID (RLS enforced)
 export async function GET(request: NextRequest) {
   try {
+    const profile = await getUserProfile();
+    if (!profile) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const searchParams = request.nextUrl.searchParams;
     const id = searchParams.get('id');
+    const includeRelations = searchParams.get('include') === 'true';
 
     if (id) {
-      // Get single portfolio with all relations
-      const portfolio = await prisma.portfolio.findUnique({
-        where: { id },
-        include: {
-          stocks: true,
-          theses: true,
-          checklists: {
-            include: {
-              tasks: true,
-            },
-            orderBy: {
-              date: 'desc',
-            },
-            take: 1, // Get only the most recent checklist
-          },
-        },
-      });
-
-      if (!portfolio) {
-        return NextResponse.json(
-          { error: 'Portfolio not found' },
-          { status: 404 }
-        );
-      }
-
+      const portfolio = await portfolioController.getPortfolioById(id);
       return NextResponse.json(portfolio);
     } else {
-      // Get all portfolios with basic info
-      const portfolios = await prisma.portfolio.findMany({
-        include: {
-          stocks: true,
-          _count: {
-            select: {
-              theses: true,
-              checklists: true,
-            },
-          },
-        },
-        orderBy: {
-          createdAt: 'desc',
-        },
-      });
-
+      const portfolios = await portfolioController.getUserPortfolios(includeRelations);
       return NextResponse.json(portfolios);
     }
   } catch (error) {
     console.error('Error fetching portfolios:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch portfolios' },
-      { status: 500 }
-    );
+
+    if (error instanceof Error) {
+      if (error.message.includes('not found')) {
+        return NextResponse.json({ error: 'Portfolio not found' }, { status: 404 });
+      }
+      if (error.message.includes('access denied')) {
+        return NextResponse.json({ error: 'Access denied' }, { status: 403 });
+      }
+    }
+
+    return NextResponse.json({ error: 'Failed to fetch portfolios' }, { status: 500 });
   }
 }
 
-// POST /api/portfolio - Create a new portfolio
+// POST /api/portfolio - Create a new portfolio (RLS enforced)
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const {
-      userId,
-      name,
-      type,
-      initialValue,
-      targetValue,
-      borrowedAmount,
-      marginCallLevel,
-    } = body;
-
-    // Validation
-    if (!userId || !name || !type) {
-      return NextResponse.json(
-        { error: 'User ID, name and type are required' },
-        { status: 400 }
-      );
+    const profile = await getUserProfile();
+    if (!profile) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const portfolio = await prisma.portfolio.create({
-      data: {
-        userId,
-        name,
-        type,
-        initialValue: initialValue || 0,
-        targetValue: targetValue || 0,
-        borrowedAmount: borrowedAmount || 0,
-        marginCallLevel: marginCallLevel || 0,
-      },
-      include: {
-        stocks: true,
-        theses: true,
-        checklists: true,
-      },
-    });
+    const body = await request.json();
+    const { createPortfolioSchema } = await import('@/lib/validators/schemas');
 
+    const validation = createPortfolioSchema.safeParse(body);
+    if (!validation.success) {
+      const { formatZodError } = await import('@/lib/validators/schemas');
+      const formatted = formatZodError(validation.error);
+      return NextResponse.json({ error: 'Invalid portfolio data', details: formatted.errors }, { status: 400 });
+    }
+
+    const portfolio = await portfolioController.createPortfolio(validation.data);
     return NextResponse.json(portfolio, { status: 201 });
   } catch (error) {
     console.error('Error creating portfolio:', error);
-    return NextResponse.json(
-      { error: 'Failed to create portfolio' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Failed to create portfolio' }, { status: 500 });
   }
 }
 
-// PUT /api/portfolio - Update a portfolio
+// PUT /api/portfolio - Update a portfolio (RLS enforced)
 export async function PUT(request: NextRequest) {
   try {
-    const body = await request.json();
-    const {
-      id,
-      name,
-      type,
-      initialValue,
-      targetValue,
-      borrowedAmount,
-      marginCallLevel,
-    } = body;
-
-    if (!id) {
-      return NextResponse.json(
-        { error: 'Portfolio ID is required' },
-        { status: 400 }
-      );
+    const profile = await getUserProfile();
+    if (!profile) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const portfolio = await prisma.portfolio.update({
-      where: { id },
-      data: {
-        ...(name && { name }),
-        ...(type && { type }),
-        ...(initialValue !== undefined && { initialValue }),
-        ...(targetValue !== undefined && { targetValue }),
-        ...(borrowedAmount !== undefined && { borrowedAmount }),
-        ...(marginCallLevel !== undefined && { marginCallLevel }),
-      },
-      include: {
-        stocks: true,
-        theses: true,
-        checklists: true,
-      },
-    });
-
-    return NextResponse.json(portfolio);
-  } catch (error) {
-    console.error('Error updating portfolio:', error);
-    return NextResponse.json(
-      { error: 'Failed to update portfolio' },
-      { status: 500 }
-    );
-  }
-}
-
-// DELETE /api/portfolio - Delete a portfolio
-export async function DELETE(request: NextRequest) {
-  try {
     const searchParams = request.nextUrl.searchParams;
     const id = searchParams.get('id');
 
     if (!id) {
-      return NextResponse.json(
-        { error: 'Portfolio ID is required' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Portfolio ID is required' }, { status: 400 });
     }
 
-    await prisma.portfolio.delete({
-      where: { id },
-    });
+    const body = await request.json();
+    const { updatePortfolioSchema } = await import('@/lib/validators/schemas');
 
-    return NextResponse.json({ success: true });
+    const validation = updatePortfolioSchema.safeParse(body);
+    if (!validation.success) {
+      const { formatZodError } = await import('@/lib/validators/schemas');
+      const formatted = formatZodError(validation.error);
+      return NextResponse.json({ error: 'Invalid portfolio data', details: formatted.errors }, { status: 400 });
+    }
+
+    const portfolio = await portfolioController.updatePortfolio(id, validation.data);
+    return NextResponse.json(portfolio);
+  } catch (error) {
+    console.error('Error updating portfolio:', error);
+
+    if (error instanceof Error && error.message.includes('access denied')) {
+      return NextResponse.json({ error: 'Access denied' }, { status: 403 });
+    }
+
+    return NextResponse.json({ error: 'Failed to update portfolio' }, { status: 500 });
+  }
+}
+
+// DELETE /api/portfolio - Delete a portfolio (RLS enforced)
+export async function DELETE(request: NextRequest) {
+  try {
+    const profile = await getUserProfile();
+    if (!profile) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const searchParams = request.nextUrl.searchParams;
+    const id = searchParams.get('id');
+
+    if (!id) {
+      return NextResponse.json({ error: 'Portfolio ID is required' }, { status: 400 });
+    }
+
+    await portfolioController.deletePortfolio(id);
+    return NextResponse.json(null, { status: 204 });
   } catch (error) {
     console.error('Error deleting portfolio:', error);
-    return NextResponse.json(
-      { error: 'Failed to delete portfolio' },
-      { status: 500 }
-    );
+
+    if (error instanceof Error && error.message.includes('access denied')) {
+      return NextResponse.json({ error: 'Access denied' }, { status: 403 });
+    }
+
+    return NextResponse.json({ error: 'Failed to delete portfolio' }, { status: 500 });
   }
 }

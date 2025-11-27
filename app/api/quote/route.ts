@@ -1,34 +1,56 @@
+/**
+ * Stock Quote API Route
+ *
+ * Fetches real-time stock quotes for given symbols.
+ * Uses intelligent fallback between multiple data sources.
+ */
+
 import { NextRequest, NextResponse } from 'next/server';
 import { stockDataService } from '@/lib/services/stock-data.service';
+import { SuccessResponse, ErrorResponse } from '@/lib/dto/base/response.dto';
+import { z } from 'zod';
 
-// Mark this route as dynamic since it uses searchParams
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
+
+// Validation schema for quote request
+const quoteRequestSchema = z.object({
+  symbols: z
+    .string()
+    .min(1, 'Symbols parameter is required')
+    .transform(val =>
+      val
+        .split(',')
+        .map(s => s.trim())
+        .filter(s => s.length > 0)
+    )
+    .refine(arr => arr.length > 0, 'At least one symbol is required')
+    .refine(arr => arr.length <= 50, 'Maximum 50 symbols allowed'),
+});
 
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
     const symbols = searchParams.get('symbols');
 
-    if (!symbols) {
+    // Validate request
+    const validation = quoteRequestSchema.safeParse({ symbols });
+    if (!validation.success) {
+      const errors = validation.error.issues.map(issue => ({
+        field: issue.path.join('.'),
+        message: issue.message,
+      }));
       return NextResponse.json(
-        { error: 'Missing symbols parameter' },
+        ErrorResponse.validation('Invalid quote request', undefined, errors),
         { status: 400 }
       );
     }
 
-    const symbolArray = symbols.split(',').map(s => s.trim());
-
-    if (symbolArray.length === 0) {
-      return NextResponse.json(
-        { error: 'No symbols provided' },
-        { status: 400 }
-      );
-    }
+    const symbolArray = validation.data.symbols;
 
     console.log(`[/api/quote] Fetching quotes for: ${symbolArray.join(', ')}`);
 
-    // Use new service layer with intelligent fallback
+    // Use service layer with intelligent fallback
     const result = await stockDataService.getBatchQuotes(symbolArray);
 
     // Convert service response to API format
@@ -41,7 +63,7 @@ export async function GET(request: NextRequest) {
         change: quote.change,
         changePercent: quote.changePercent,
         source: quote.source,
-        timestamp: quote.timestamp
+        timestamp: quote.timestamp,
       };
     });
 
@@ -52,18 +74,31 @@ export async function GET(request: NextRequest) {
         error: error,
         price: null,
         change: null,
-        changePercent: null
+        changePercent: null,
       };
     });
 
-    console.log(`[/api/quote] Returning ${Object.keys(result.quotes).length} quotes, ${Object.keys(result.errors).length} errors (${result.cached} cached, ${result.fresh} fresh)`);
+    console.log(
+      `[/api/quote] Returning ${Object.keys(result.quotes).length} quotes, ${
+        Object.keys(result.errors).length
+      } errors (${result.cached} cached, ${result.fresh} fresh)`
+    );
 
-    return NextResponse.json(quotes);
+    return NextResponse.json(
+      SuccessResponse.create({
+        quotes,
+        stats: {
+          cached: result.cached,
+          fresh: result.fresh,
+          errors: Object.keys(result.errors).length,
+        },
+      })
+    );
   } catch (error: any) {
     console.error('[/api/quote] Error:', error);
 
     return NextResponse.json(
-      { error: error.message || 'Failed to fetch quotes' },
+      ErrorResponse.internal(error.message || 'Failed to fetch quotes'),
       { status: 500 }
     );
   }

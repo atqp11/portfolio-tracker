@@ -1,27 +1,34 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-
-export const dynamic = 'force-dynamic';
-
 /**
- * Create User Profile API Route
+ * Create User Profile API Route (Admin Operation)
  *
+ * Uses service role key to bypass RLS for admin operations.
  * Note: With Supabase, profiles are automatically created via the
  * handle_new_user() trigger when a user signs up through Supabase Auth.
  * This endpoint is mainly for backward compatibility or manual profile creation.
  */
+
+import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
+import { SuccessResponse, ErrorResponse } from '@/lib/dto/base/response.dto';
+import { createProfileSchema, formatZodError } from '@/lib/validators/schemas';
+
+export const dynamic = 'force-dynamic';
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { id, email, name } = body;
 
-    // Validate required fields
-    if (!id || !email) {
+    // Validate request body with Zod
+    const validation = createProfileSchema.safeParse(body);
+    if (!validation.success) {
+      const formatted = formatZodError(validation.error);
       return NextResponse.json(
-        { error: 'Missing required fields: id, email' },
+        ErrorResponse.validation('Invalid profile data', undefined, formatted.errors),
         { status: 400 }
       );
     }
+
+    const { id, email, name, tier } = validation.data;
 
     // Use service role key to bypass RLS for admin operations
     const supabase = createClient(
@@ -44,20 +51,17 @@ export async function POST(request: NextRequest) {
 
     if (existingProfile) {
       // Profile already exists, return success
-      return NextResponse.json({
-        success: true,
-        user: existingProfile,
-      });
+      return NextResponse.json(SuccessResponse.create(existingProfile));
     }
 
-    // Create new profile with default "free" tier
+    // Create new profile
     const { data: profile, error } = await supabase
       .from('profiles')
       .insert({
         id,
         email,
         name: name || null,
-        tier: 'free',
+        tier,
       })
       .select()
       .single();
@@ -65,27 +69,21 @@ export async function POST(request: NextRequest) {
     if (error) {
       console.error('Error creating profile:', error);
       return NextResponse.json(
-        {
-          error: 'Failed to create user profile',
-          details: error.message,
-        },
+        ErrorResponse.internal('Failed to create user profile', error.message),
         { status: 500 }
       );
     }
 
-    console.log(`Profile created: ${email} (${id}) - Tier: free`);
+    console.log(`Profile created: ${email} (${id}) - Tier: ${tier}`);
 
-    return NextResponse.json({
-      success: true,
-      user: profile,
-    });
+    return NextResponse.json(
+      SuccessResponse.create(profile),
+      { status: 201 }
+    );
   } catch (error) {
     console.error('Error creating user:', error);
     return NextResponse.json(
-      {
-        error: 'Failed to create user',
-        details: error instanceof Error ? error.message : 'Unknown error',
-      },
+      ErrorResponse.internal('Failed to create user'),
       { status: 500 }
     );
   }

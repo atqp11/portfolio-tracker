@@ -101,8 +101,8 @@ export default function PortfolioSelector({
       {selectedPortfolio && (
         <div className="mt-3 text-sm text-gray-600 dark:text-gray-400">
           <span className="font-medium">{selectedPortfolio.type}</span> •
-          Initial: ${selectedPortfolio.initialValue.toLocaleString()} •
-          Target: ${selectedPortfolio.targetValue.toLocaleString()}
+          Initial: ${(selectedPortfolio.initialValue || 0).toLocaleString()} •
+          Target: ${(selectedPortfolio.targetValue || 0).toLocaleString()}
           {selectedPortfolio.borrowedAmount > 0 && (
             <> • Borrowed: ${selectedPortfolio.borrowedAmount.toLocaleString()}</>
           )}

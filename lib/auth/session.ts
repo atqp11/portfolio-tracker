@@ -12,6 +12,10 @@ import { redirect } from 'next/navigation';
 import type { User } from '@supabase/supabase-js';
 import type { Profile } from '@/lib/supabase/db';
 
+// Re-export types for middleware
+export type { User } from '@supabase/supabase-js';
+export type UserProfile = Profile;
+
 /**
  * Get the currently authenticated user (or null if not authenticated)
  * Use this in Server Components or API routes

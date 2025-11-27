@@ -1,15 +1,21 @@
+/**
+ * Admin Users API Route
+ *
+ * Admin-only endpoint to manage users.
+ * Uses admin client to bypass RLS.
+ */
+
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/auth/admin';
-import { getAllUsers } from '@/lib/supabase/db';
-import { getCurrentUserUsage } from '@/lib/supabase/db';
+import { getAllUsers, getCurrentUserUsage } from '@/lib/supabase/db';
+import { SuccessResponse, ErrorResponse } from '@/lib/dto/base/response.dto';
 
 export const dynamic = 'force-dynamic';
 
 /**
  * GET /api/admin/users
  *
- * Get all users with their tier and usage information
- * Admin only
+ * Get all users with their tier and usage information (Admin only)
  */
 export async function GET(request: NextRequest) {
   // Check admin authorization
@@ -17,7 +23,7 @@ export async function GET(request: NextRequest) {
   if (authError) return authError;
 
   try {
-    // Fetch all users
+    // Fetch all users (uses admin client, bypasses RLS)
     const users = await getAllUsers();
 
     // Fetch usage data for each user
@@ -53,14 +59,16 @@ export async function GET(request: NextRequest) {
       })
     );
 
-    return NextResponse.json({
-      users: usersWithUsage,
-      total: usersWithUsage.length,
-    });
+    return NextResponse.json(
+      SuccessResponse.create({
+        users: usersWithUsage,
+        total: usersWithUsage.length,
+      })
+    );
   } catch (error) {
     console.error('Error fetching users:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch users' },
+      ErrorResponse.internal('Failed to fetch users'),
       { status: 500 }
     );
   }

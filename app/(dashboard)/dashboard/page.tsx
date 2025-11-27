@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { usePortfolios, usePortfolioById, useStocks, usePortfolioMetrics, Stock, Portfolio } from '@/lib/hooks/useDatabase';
+import { useCreatePortfolio, useUpdatePortfolio, useDeletePortfolio } from '@/client/hooks/usePortfolios';
 import PortfolioSelector from '@/components/PortfolioSelector';
 import AddStockModal from '@/components/AddStockModal';
 import EditStockModal from '@/components/EditStockModal';
@@ -15,12 +16,11 @@ import { fetchAndUpdateStockPrice } from '@/lib/utils/priceUpdater';
 import { getPortfolioTheme } from '@/lib/utils/portfolioTheme';
 
 export default function Home() {
-  // Portfolio state
-  const { portfolios, loading: portfoliosLoading, refetch: refetchPortfolios } = usePortfolios();
+  const { portfolios, loading: portfoliosLoading } = usePortfolios();
   const [selectedPortfolioId, setSelectedPortfolioId] = useState<string | null>(null);
   const { portfolio: selectedPortfolio, refetch: refetchPortfolio } = usePortfolioById(selectedPortfolioId);
-  const { stocks: dbStocks, loading: stocksLoading, refetch: refetchStocks } = useStocks(selectedPortfolioId || undefined);
-  const metrics = usePortfolioMetrics(dbStocks, selectedPortfolio?.borrowedAmount || 0);
+  const { stocks, loading: stocksLoading } = useStocks(selectedPortfolioId || '');
+  const metrics = usePortfolioMetrics(stocks, selectedPortfolio?.borrowedAmount || 0);
 
   // Modal state
   const [isAddStockModalOpen, setIsAddStockModalOpen] = useState(false);
@@ -84,23 +84,15 @@ export default function Home() {
     fetchNews();
   }, [selectedPortfolio]);
 
+  const createPortfolio = useCreatePortfolio();
+  const updatePortfolio = useUpdatePortfolio();
+  const deletePortfolio = useDeletePortfolio();
+
   // Portfolio CRUD handlers
   const handleCreatePortfolio = async (portfolioData: Partial<Portfolio>) => {
     try {
-      const response = await fetch('/api/portfolio', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(portfolioData),
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to create portfolio');
-      }
-
-      const newPortfolio = await response.json();
-      await refetchPortfolios();
-      setSelectedPortfolioId(newPortfolio.id);
+      await createPortfolio.mutateAsync(portfolioData);
+      setSelectedPortfolioId(portfolios?.[0]?.id || null);
     } catch (error) {
       console.error('Error creating portfolio:', error);
       alert(error instanceof Error ? error.message : 'Failed to create portfolio');
@@ -109,19 +101,7 @@ export default function Home() {
 
   const handleUpdatePortfolio = async (id: string, updates: Partial<Portfolio>) => {
     try {
-      const response = await fetch('/api/portfolio', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, ...updates }),
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to update portfolio');
-      }
-
-      await refetchPortfolios();
-      await refetchPortfolio();
+      await updatePortfolio.mutateAsync({ id, updates });
     } catch (error) {
       console.error('Error updating portfolio:', error);
       alert(error instanceof Error ? error.message : 'Failed to update portfolio');
@@ -130,22 +110,8 @@ export default function Home() {
 
   const handleDeletePortfolio = async (portfolio: Portfolio) => {
     try {
-      const response = await fetch(`/api/portfolio?id=${portfolio.id}`, {
-        method: 'DELETE',
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to delete portfolio');
-      }
-
-      await refetchPortfolios();
-
-      // Select a different portfolio if the deleted one was selected
-      if (selectedPortfolioId === portfolio.id) {
-        const remaining = portfolios.filter(p => p.id !== portfolio.id);
-        setSelectedPortfolioId(remaining.length > 0 ? remaining[0].id : null);
-      }
+      await deletePortfolio.mutateAsync(portfolio.id);
+      setSelectedPortfolioId(portfolios?.[0]?.id || null);
     } catch (error) {
       console.error('Error deleting portfolio:', error);
       alert(error instanceof Error ? error.message : 'Failed to delete portfolio');
@@ -182,8 +148,6 @@ export default function Home() {
           console.warn(`Could not fetch price for ${stockData.symbol}:`, priceResult.error);
         }
       }
-
-      await refetchStocks();
     } catch (error) {
       console.error('Error adding stock:', error);
       throw error;
@@ -219,8 +183,6 @@ export default function Home() {
           console.warn(`Could not refresh price for ${updatedStock.symbol}:`, priceResult.error);
         }
       }
-
-      await refetchStocks();
     } catch (error) {
       console.error('Error updating stock:', error);
       throw error;
@@ -237,8 +199,6 @@ export default function Home() {
         const error = await response.json();
         throw new Error(error.error || 'Failed to delete stock');
       }
-
-      await refetchStocks();
     } catch (error) {
       console.error('Error deleting stock:', error);
       throw error;
@@ -247,13 +207,13 @@ export default function Home() {
 
   // Refresh all stock prices
   const handleRefreshPrices = async () => {
-    if (!dbStocks.length) return;
+    if (!stocks.length) return;
 
     setIsRefreshingPrices(true);
-    console.log(`Refreshing prices for ${dbStocks.length} stocks...`);
+    console.log(`Refreshing prices for ${stocks.length} stocks...`);
 
     try {
-      const refreshPromises = dbStocks.map(stock =>
+      const refreshPromises = stocks.map(stock =>
         fetchAndUpdateStockPrice(stock.id, stock.symbol, stock.shares, false)
       );
 
@@ -263,8 +223,6 @@ export default function Home() {
       const failed = results.filter(r => r.status === 'rejected').length;
 
       console.log(`Price refresh complete: ${successful} successful, ${failed} failed`);
-
-      await refetchStocks();
     } catch (error) {
       console.error('Error refreshing prices:', error);
     } finally {
@@ -273,8 +231,8 @@ export default function Home() {
   };
 
   // Calculate day change
-  const totalValue = dbStocks.reduce((a, b) => a + (b.actualValue || 0), 0);
-  const totalPreviousValue = dbStocks.reduce((sum, stock) => {
+  const totalValue = stocks.reduce((a: number, b: Stock) => a + (b.actualValue || 0), 0);
+  const totalPreviousValue = stocks.reduce((sum: number, stock: Stock) => {
     const prevPrice = stock.previousPrice ?? stock.currentPrice ?? 0;
     if (!prevPrice || isNaN(prevPrice)) return sum;
     return sum + (stock.shares * prevPrice);
@@ -283,7 +241,7 @@ export default function Home() {
   const dayChangePercent = totalPreviousValue > 0 ? (dayChange / totalPreviousValue) * 100 : 0;
 
   // Get current portfolio tickers for AI Co-Pilot
-  const currentPortfolioTickers = dbStocks.map(stock => stock.symbol);
+  const currentPortfolioTickers = stocks.map(stock => stock.symbol);
 
   // Get portfolio theme
   const allPortfolioIds = portfolios.map(p => p.id);
@@ -301,25 +259,39 @@ export default function Home() {
 
   if (portfolios.length === 0) {
     return (
-      <div className="max-w-5xl mx-auto p-6">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-4">
-            Welcome to Portfolio Tracker
-          </h1>
-          <p className="text-gray-600 dark:text-gray-400 mb-6">
-            You don't have any portfolios yet. Create your first portfolio to get started.
-          </p>
-          <button
-            onClick={() => {
-              setEditingPortfolio(null);
-              setIsPortfolioModalOpen(true);
-            }}
-            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium"
-          >
-            Create Your First Portfolio
-          </button>
+      <>
+        <div className="max-w-5xl mx-auto p-6">
+          <div className="text-center">
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-4">
+              Welcome to Portfolio Tracker
+            </h1>
+            <p className="text-gray-600 dark:text-gray-400 mb-6">
+              You don't have any portfolios yet. Create your first portfolio to get started.
+            </p>
+            <button
+              onClick={() => {
+                setEditingPortfolio(null);
+                setIsPortfolioModalOpen(true);
+              }}
+              className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium"
+            >
+              Create Your First Portfolio
+            </button>
+          </div>
         </div>
-      </div>
+
+        {/* Portfolio Modal - needed for empty state too */}
+        <PortfolioModal
+          isOpen={isPortfolioModalOpen}
+          portfolio={editingPortfolio}
+          onClose={() => {
+            setIsPortfolioModalOpen(false);
+            setEditingPortfolio(null);
+          }}
+          onCreate={handleCreatePortfolio}
+          onUpdate={handleUpdatePortfolio}
+        />
+      </>
     );
   }
 
@@ -355,7 +327,7 @@ export default function Home() {
 
           <button
             onClick={handleRefreshPrices}
-            disabled={!selectedPortfolioId || !dbStocks.length || isRefreshingPrices}
+            disabled={!selectedPortfolioId || !stocks.length || isRefreshingPrices}
             className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center gap-2"
           >
             <svg
@@ -395,7 +367,7 @@ export default function Home() {
 
         {/* Holdings - Asset Cards */}
         <div className="space-y-4 mb-6">
-          {dbStocks.length === 0 ? (
+          {stocks.length === 0 ? (
             <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 p-8 rounded-lg text-center">
               <p className="text-gray-600 dark:text-gray-400 mb-4">
                 No stocks in this portfolio yet.
@@ -408,7 +380,7 @@ export default function Home() {
               </button>
             </div>
           ) : (
-            dbStocks.map(stock => {
+            stocks.map(stock => {
               const isUnavailable = stock.currentPrice === null || isNaN(stock.currentPrice);
               const costBasis = stock.shares * stock.avgPrice;
               const currentPrice = isUnavailable ? null : stock.currentPrice;
