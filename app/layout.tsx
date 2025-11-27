@@ -1,7 +1,8 @@
 // app/layout.tsx
 import type { Metadata } from 'next';
 import './global.css';
-import { ThemeProvider } from '@/lib/contexts/ThemeContext';
+import QueryProvider from './components/QueryProvider';
+import { ThemeProvider } from '@/lib/contexts/ThemeContext'; // Use custom ThemeProvider
 
 export const metadata: Metadata = {
   title: 'Live Portfolio Tracker',
@@ -16,7 +17,9 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className="font-sans bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100">
-        <ThemeProvider>{children}</ThemeProvider>
+        <ThemeProvider> {/* Use custom ThemeProvider */}
+          <QueryProvider>{children}</QueryProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

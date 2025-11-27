@@ -148,6 +148,14 @@ export default function Home() {
           console.warn(`Could not fetch price for ${stockData.symbol}:`, priceResult.error);
         }
       }
+      // Refresh portfolio data so UI shows the newly added holding
+      try {
+        if (typeof refetchPortfolio === 'function') {
+          await refetchPortfolio();
+        }
+      } catch (err) {
+        console.warn('Failed to refetch portfolio after adding stock:', err);
+      }
     } catch (error) {
       console.error('Error adding stock:', error);
       throw error;
@@ -251,7 +259,7 @@ export default function Home() {
 
   if (portfoliosLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
+      <div className={`flex items-center justify-center min-h-screen ${portfolioTheme.containerHover}`}>
         <div className="text-xl text-gray-600 dark:text-gray-400">Loading portfolios...</div>
       </div>
     );
@@ -260,7 +268,7 @@ export default function Home() {
   if (portfolios.length === 0) {
     return (
       <>
-        <div className="max-w-5xl mx-auto p-6">
+        <div className={`max-w-5xl mx-auto p-6 ${portfolioTheme.containerHover}`}>
           <div className="text-center">
             <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-4">
               Welcome to Portfolio Tracker
@@ -295,8 +303,9 @@ export default function Home() {
     );
   }
 
+  // Apply portfolioTheme to other relevant sections
   return (
-    <div className="space-y-6">
+    <div className={`dashboard-container ${portfolioTheme.containerHover}`}>
       <div className="max-w-5xl mx-auto">
         {/* Portfolio Selector */}
         <PortfolioSelector

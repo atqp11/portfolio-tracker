@@ -15,36 +15,36 @@ export const mockUsers = {
     email: 'free@test.com',
     name: 'Free User',
     tier: 'free' as const,
-    is_admin: false,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
+    isAdmin: false, // Updated to camelCase
+    createdAt: new Date().toISOString(), // Updated to camelCase
+    updatedAt: new Date().toISOString(), // Updated to camelCase
   },
   basicUser: {
     id: generateTestId('user'),
     email: 'basic@test.com',
     name: 'Basic User',
     tier: 'basic' as const,
-    is_admin: false,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
+    isAdmin: false, // Updated to camelCase
+    createdAt: new Date().toISOString(), // Updated to camelCase
+    updatedAt: new Date().toISOString(), // Updated to camelCase
   },
   premiumUser: {
     id: generateTestId('user'),
     email: 'premium@test.com',
     name: 'Premium User',
     tier: 'premium' as const,
-    is_admin: false,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
+    isAdmin: false, // Updated to camelCase
+    createdAt: new Date().toISOString(), // Updated to camelCase
+    updatedAt: new Date().toISOString(), // Updated to camelCase
   },
   adminUser: {
     id: generateTestId('user'),
     email: 'admin@test.com',
     name: 'Admin User',
     tier: 'premium' as const,
-    is_admin: true,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
+    isAdmin: true, // Updated to camelCase
+    createdAt: new Date().toISOString(), // Updated to camelCase
+    updatedAt: new Date().toISOString(), // Updated to camelCase
   },
 };
 
@@ -53,16 +53,16 @@ export const mockUsers = {
  */
 export function createMockPortfolio(userId: string, overrides: any = {}) {
   return {
-    id: generateTestId('portfolio'),
-    user_id: userId,
+    id: '550e8400-e29b-41d4-a716-446655440000', // Updated to a valid UUID
+    userId: userId, // Updated to camelCase
     name: 'Test Portfolio',
     type: 'Investment',
-    initial_value: 10000,
-    target_value: 15000,
-    borrowed_amount: 0,
-    margin_call_level: 30,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
+    initialValue: 10000, // Updated to camelCase
+    targetValue: 15000, // Updated to camelCase
+    borrowedAmount: 0, // Updated to camelCase
+    marginCallLevel: 30, // Updated to camelCase
+    createdAt: new Date().toISOString(), // Updated to camelCase
+    lastUpdated: new Date().toISOString(), // Renamed from updated_at
     ...overrides,
   };
 }
@@ -73,11 +73,11 @@ export function createMockPortfolio(userId: string, overrides: any = {}) {
 export function createMockStock(portfolioId: string, overrides: any = {}) {
   return {
     id: generateTestId('stock'),
-    portfolio_id: portfolioId,
+    portfolioId: portfolioId, // Updated to camelCase
     symbol: 'AAPL',
     name: 'Apple Inc.',
     shares: 10,
-    avg_price: 150.00,
+    avgPrice: 150.00, // Updated to camelCase
     current_price: 175.00,
     actual_value: 1750.00,
     last_updated: new Date().toISOString(),
@@ -135,24 +135,21 @@ export function createMockChecklist(portfolioId: string, overrides: any = {}) {
 /**
  * Mock task data
  */
-export function createMockTask(checklistId: string, portfolioId: string, overrides: any = {}) {
-  return {
-    id: generateTestId('task'),
-    checklist_id: checklistId,
-    portfolio_id: portfolioId,
-    task: 'Review market conditions',
-    category: 'daily',
-    frequency: 'daily',
-    urgency: 'medium',
-    completed: false,
-    completed_at: null,
-    condition: null,
-    due_date: null,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-    ...overrides,
-  };
-}
+export const mockTask = {
+  id: '550e8400-e29b-41d4-a716-446655440002', // Valid UUID
+  checklist_id: '550e8400-e29b-41d4-a716-446655440001', // Valid UUID
+  portfolio_id: '550e8400-e29b-41d4-a716-446655440000', // Valid UUID
+  task: 'Review portfolio performance',
+  category: 'general',
+  frequency: 'daily',
+  urgency: 3,
+  completed: false,
+  completed_at: null,
+  condition: null,
+  due_date: '2024-12-31T23:59:59Z',
+  created_at: '2024-01-01T00:00:00Z',
+  updated_at: '2024-01-01T00:00:00Z',
+};
 
 /**
  * Mock usage tracking data

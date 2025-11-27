@@ -26,9 +26,15 @@ export async function getUser(): Promise<User | null> {
 
   if (error) {
     console.error('Error fetching user:', error);
+
+    // Corrected method to log session token
+    const session = await supabase.auth.getSession();
+    console.error('Supabase session token:', session?.data?.session?.access_token || 'No session token');
+
     return null;
   }
 
+  console.log('User fetched successfully:', user);
   return user;
 }
 
@@ -66,7 +72,8 @@ export async function getUserProfile(): Promise<Profile | null> {
   const user = await getUser();
 
   if (!user) {
-    return null;
+    console.error('No user found. Unable to fetch profile.');
+    throw new Error('User not authenticated');
   }
 
   const supabase = await createClient();
@@ -78,10 +85,11 @@ export async function getUserProfile(): Promise<Profile | null> {
     .single();
 
   if (error) {
-    console.error('Error fetching profile:', error);
-    return null;
+    console.error('Error fetching profile for user ID:', user.id, error);
+    throw new Error('Failed to fetch user profile');
   }
 
+  console.log('Profile fetched successfully for user ID:', user.id);
   return profile;
 }
 

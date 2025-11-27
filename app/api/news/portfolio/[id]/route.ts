@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { NewsService } from '@/lib/services/news.service';
+import { portfolioController } from '@/lib/controllers/portfolio.controller';
 import { NewsAPIError } from '@/types/news.dto';
 
 const newsService = new NewsService();
@@ -18,13 +19,8 @@ export async function GET(
       );
     }
 
-    // Fetch portfolio data
-    const portfolioResponse = await fetch(`${request.headers.get('origin') || 'http://localhost:3000'}/api/portfolio?id=${portfolioId}`);
-    if (!portfolioResponse.ok) {
-      throw new Error('Failed to fetch portfolio');
-    }
-
-    const portfolio = await portfolioResponse.json();
+    // Fetch portfolio data via internal controller so server-side auth (cookies) is preserved
+    const portfolio = await portfolioController.getPortfolioById(portfolioId);
 
     // Generate AI-powered query based on portfolio holdings
     const query = await NewsService.generateNewsQueryForPortfolio(portfolio);

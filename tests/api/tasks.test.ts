@@ -117,7 +117,7 @@ describe('Task API', () => {
 
   describe('POST /api/tasks', () => {
     const validTaskData = {
-      portfolio_id: mockTask.portfolio_id,
+      portfolioId: mockTask.portfolio_id, // Updated to camelCase
       task: 'Review portfolio performance',
       category: 'general',
       frequency: 'daily',

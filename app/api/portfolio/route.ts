@@ -121,13 +121,15 @@ export async function DELETE(request: NextRequest) {
 
     const searchParams = request.nextUrl.searchParams;
     const id = searchParams.get('id');
-
     if (!id) {
       return NextResponse.json({ error: 'Portfolio ID is required' }, { status: 400 });
     }
 
     await portfolioController.deletePortfolio(id);
-    return NextResponse.json(null, { status: 204 });
+    // Successful deletion — respond with 204 No Content
+    return new NextResponse(null, { status: 204 });
+
+    //return NextResponse.json({ success: true }, { status: 200 });
   } catch (error) {
     console.error('Error deleting portfolio:', error);
 

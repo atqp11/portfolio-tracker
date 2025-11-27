@@ -191,11 +191,10 @@ export class StockService {
       shares: stock.shares,
       avgPrice: stock.avg_price,
       currentPrice: stock.current_price,
-      previousPrice: stock.previous_price,
+      previousPrice: stock.previous_price, // Ensure previous_price is included
       actualValue: stock.actual_value,
-      lastUpdated: stock.last_updated,
+      lastUpdated: stock.last_updated, // Use last_updated instead of updated_at
       createdAt: stock.created_at,
-      updatedAt: stock.updated_at,
     };
   }
 }

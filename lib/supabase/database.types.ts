@@ -132,8 +132,9 @@ export interface Database {
           shares: number
           avg_price: number
           current_price: number | null
+          previous_price: number | null // Added previous_price field
           actual_value: number | null
-          last_updated: string
+          last_updated: string // Renamed updated_at to last_updated
           created_at: string
         }
         Insert: {
@@ -144,8 +145,9 @@ export interface Database {
           shares: number
           avg_price: number
           current_price?: number | null
+          previous_price?: number | null // Added previous_price field
           actual_value?: number | null
-          last_updated?: string
+          last_updated?: string // Renamed updated_at to last_updated
           created_at?: string
         }
         Update: {
@@ -156,8 +158,9 @@ export interface Database {
           shares?: number
           avg_price?: number
           current_price?: number | null
+          previous_price?: number | null // Added previous_price field
           actual_value?: number | null
-          last_updated?: string
+          last_updated?: string // Renamed updated_at to last_updated
           created_at?: string
         }
       }

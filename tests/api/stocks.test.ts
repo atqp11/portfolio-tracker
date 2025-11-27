@@ -119,12 +119,12 @@ describe('Stock API', () => {
 
   describe('POST /api/stocks', () => {
     const validStockData = {
-      portfolio_id: '550e8400-e29b-41d4-a716-446655440000',
+      portfolioId: '550e8400-e29b-41d4-a716-446655440000', // Updated to camelCase
       symbol: 'AAPL',
       name: 'Apple Inc.',
       shares: 10,
-      avg_price: 150.0,
-      current_price: 155.0,
+      avgPrice: 150.0, // Updated to camelCase
+      currentPrice: 155.0, // Updated to camelCase
     };
 
     it('should return unauthorized if user is not authenticated', async () => {
@@ -188,7 +188,7 @@ describe('Stock API', () => {
   describe('PUT /api/stocks', () => {
     const updateData = {
       shares: 20,
-      current_price: 160.0,
+      currentPrice: 160.0, // Updated field name to match the controller
     };
 
     it('should return unauthorized if user is not authenticated', async () => {

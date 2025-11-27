@@ -27,6 +27,11 @@
       {
         "name": "next"
       }
+    ],
+    "types": [
+      "jest",
+      "node",
+      "next-themes"
     ]
   },
   "include": [

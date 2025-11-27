@@ -4,13 +4,7 @@ module.exports = {
   roots: ['<rootDir>/tests'],
   setupFilesAfterEnv: ['<rootDir>/tests/setup.ts'],
   transform: {
-    '^.+\\.(ts|tsx)$': 'ts-jest',
-  },
-  globals: {
-    'ts-jest': {
-      tsconfig: 'tsconfig.json',
-      useESM: true
-    }
+    '^.+\\.(ts|tsx)$': ['ts-jest', { tsconfig: 'tsconfig.json', useESM: true }],
   },
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/$1'
