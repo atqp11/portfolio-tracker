@@ -158,12 +158,7 @@ dist/
 *.sqlite3
 
 # Lock files (optional - you may want to commit these)
-# package-lock.json
-# yarn.lock
-
-# Local development files
-.env.local.example
-.env.development.example
+# Note: package-lock.json is ignored at bottom of file for this project
 
 # Generated files
 *.generated.*
@@ -192,9 +187,12 @@ debug-env.js
 # Telemetry and application logs
 logs/
 nul
+
+# Claude Code local settings
 .claude/settings.local.json
+
+# Next.js TypeScript definitions
 next-env.d.ts
-.claude/settings.local.json
-.claude/settings.local.json
-.claude/settings.local.json
+
+# Package lock files
 package-lock.json
