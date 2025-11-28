@@ -12,6 +12,9 @@
  * - useTheses: Fetches investment theses for a specific portfolio.
  * - useChecklist: Fetches the daily checklist for a specific portfolio.
  * - usePortfolioMetrics: Calculates portfolio metrics based on stocks and borrowed amounts.
+ * - useCreatePortfolio: Creates a new portfolio.
+ * - useUpdatePortfolio: Updates an existing portfolio.
+ * - useDeletePortfolio: Deletes a portfolio.
  * 
  * Usage:
  * Import the required hook(s) and use them in your React components to fetch and manage data.
@@ -285,6 +288,9 @@ export function usePortfolioMetrics(stocks: Stock[], borrowedAmount: number = 0)
 
 /**
  * Hook to create a new portfolio
+ * 
+ * - useCreatePortfolio: Creates a new portfolio by sending a POST request to the `/api/portfolio` endpoint. 
+ *   It accepts partial portfolio data as input and invalidates the `portfolios` query on success.
  */
 export function useCreatePortfolio() {
   const queryClient = useQueryClient();
@@ -306,6 +312,9 @@ export function useCreatePortfolio() {
 
 /**
  * Hook to update an existing portfolio
+ * 
+ * - useUpdatePortfolio: Updates an existing portfolio by sending a PUT request to the `/api/portfolio` endpoint with the portfolio ID and updates. 
+ *   It invalidates the `portfolios` query on success.
  */
 export function useUpdatePortfolio() {
   const queryClient = useQueryClient();
@@ -326,6 +335,9 @@ export function useUpdatePortfolio() {
 
 /**
  * Hook to delete a portfolio
+ * 
+ * - useDeletePortfolio: Deletes a portfolio by sending a DELETE request to the `/api/portfolio` endpoint with the portfolio ID. 
+ *   It invalidates the `portfolios` query on success.
  */
 export function useDeletePortfolio() {
   const queryClient = useQueryClient();
