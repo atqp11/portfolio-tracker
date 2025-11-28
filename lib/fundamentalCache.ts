@@ -1,13 +1,56 @@
-// lib/fundamentalCache.ts
-// Client-side caching utilities for API responses related to fundamental data
-
-import { saveToCache, loadFromCache, getCacheAge } from '@/lib/utils/localStorageCache';
-// The ApiErrorType and ApiError interface, and classifyApiError function are now in '@/lib/utils/apiErrorClassifier'
-// They are not directly used in fundamental data caching logic, so no import needed here.
-
 // ============================================================================
 // FUNDAMENTAL DATA CACHING
 // ============================================================================
+/**
+ * The `fundamentalCache.ts` file provides client-side caching utilities for API responses
+ * related to fundamental financial data. It includes functions for managing cache keys,
+ * validating cache data, and warming up the cache for better performance.
+ *
+ * Key Components:
+ *
+ * 1. **Caching Configuration:**
+ *    - `FundamentalCacheConfig`: Defines time-to-live (TTL) values for different types of data.
+ *    - `CACHE_CONFIG`: Default TTL values for quotes, fundamentals, financials, SEC filings, and AI responses.
+ *
+ * 2. **Market Hours Utilities:**
+ *    - `isMarketOpen`: Determines if the market is currently open based on Eastern Time (ET).
+ *    - `getQuoteTTL`: Returns the appropriate TTL for quote data based on market hours.
+ *
+ * 3. **Cache Management:**
+ *    - `generateCacheKey`: Generates a unique cache key for Alpha Vantage data.
+ *    - `isCacheValid`: Checks if cached data is still valid based on its age and TTL.
+ *    - `getCachedFundamentals`: Retrieves cached fundamental data with TTL validation.
+ *    - `cacheFundamentals`: Saves fundamental data to the cache.
+ *
+ * 4. **Cache Warming:**
+ *    - `warmFundamentalsCache`: Pre-fetches data for all portfolio stocks after market close
+ *      to prepare for the next trading day.
+ *
+ * 5. **Cache Clearing:**
+ *    - `clearFundamentalsCache`: Clears all cached fundamental data, useful for debugging.
+ *
+ * Usage:
+ *
+ * - **Caching Data:**
+ *   Use `cacheFundamentals` to save data to the cache and `getCachedFundamentals` to retrieve it.
+ *   The cache is validated using TTL values defined in `CACHE_CONFIG`.
+ *
+ * - **Market Hours:**
+ *   Use `isMarketOpen` and `getQuoteTTL` to determine the appropriate TTL for quote data
+ *   based on whether the market is open or closed.
+ *
+ * - **Cache Warming:**
+ *   Use `warmFundamentalsCache` to pre-fetch data for portfolio stocks after market close.
+ *   This ensures that data is readily available for the next trading day.
+ *
+ * - **Cache Clearing:**
+ *   Use `clearFundamentalsCache` to remove all cached data, typically for debugging purposes.
+ *
+ * This file is essential for optimizing API usage and improving the performance of the
+ * portfolio tracker application by reducing redundant API calls and ensuring data freshness.
+ */
+
+import { saveToCache, loadFromCache, getCacheAge } from '@/lib/utils/localStorageCache';
 
 export interface FundamentalCacheConfig {
   quoteTTL: number;           // 15 min during market hours, 1 hour after

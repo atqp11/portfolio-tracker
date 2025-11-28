@@ -1,6 +1,43 @@
 // ============================================================================
 // RISK METRICS TYPES & API
 // ============================================================================
+/**
+ * The `calculator.ts` file provides utility functions and interfaces for calculating financial metrics.
+ * It includes calculations for risk metrics, portfolio positions, and fundamental metrics, which are
+ * essential for financial analysis and portfolio management.
+ *
+ * Key Components:
+ *
+ * Risk Metrics:
+ * - Interfaces and functions for calculating Sharpe Ratio, Sortino Ratio, Alpha, Beta, Standard Deviation,
+ *   Maximum Drawdown, Current Drawdown, and R-squared.
+ *
+ * Portfolio Calculations:
+ * - Functions for calculating portfolio positions based on stock prices, cash allocation, and margin ratios.
+ *
+ * Fundamental Metrics:
+ * - Functions for calculating valuation ratios (e.g., P/E, P/B), profitability ratios (e.g., ROE, ROIC),
+ *   leverage ratios (e.g., Debt/Equity), and intrinsic value metrics (e.g., Graham Number, Margin of Safety).
+ *
+ * Usage:
+ *
+ * 1. Risk Metrics:
+ *    - Use the `RiskMetrics` interface to define the structure of risk metrics.
+ *    - Functions like `calculateSharpeRatio` and `calculateBeta` can be used to evaluate portfolio performance
+ *      relative to market benchmarks.
+ *
+ * 2. Portfolio Calculations:
+ *    - Use the `calculatePosition` function to determine the number of shares, cash used, and margin used
+ *      for a given stock based on its price and portfolio configuration.
+ *
+ * 3. Fundamental Metrics:
+ *    - Use the `FundamentalMetrics` interface to define the structure of fundamental metrics.
+ *    - Functions like `calculatePE`, `calculateROE`, and `calculateDebtToEquity` can be used to analyze
+ *      a company's financial health and valuation.
+ *
+ * This file is critical for financial analysis and portfolio management, providing the tools needed to
+ * evaluate investment opportunities and monitor portfolio performance.
+ */
 
 export interface RiskMetrics {
   sharpe: number | null;
