@@ -31,8 +31,9 @@ export async function fetchStockPrice(symbol: string, shares: number): Promise<P
     }
 
     const data = await response.json();
-    const quoteData = data[alphaSymbol];
-
+    // Support wrapped ApiResponse format: { success: true, data: { quotes: { ... } } }
+    const quotesContainer = data?.data?.quotes ?? data?.quotes ?? data;
+    const quoteData = quotesContainer ? quotesContainer[alphaSymbol] : undefined;
     // Check if we got an error response
     if (!quoteData || quoteData.error) {
       return {
@@ -43,9 +44,8 @@ export async function fetchStockPrice(symbol: string, shares: number): Promise<P
       };
     }
 
-    // Extract the price from the quote object
-    const price = quoteData.price;
-
+    // Extract the price from the quote object (handle nested shapes)
+    const price = quoteData.price ?? quoteData.lastPrice ?? null;
     if (!price || typeof price !== 'number' || price <= 0) {
       return {
         currentPrice: null,
@@ -111,7 +111,6 @@ export async function fetchAndUpdateStockPrice(
   setPreviousPrice: boolean = false
 ): Promise<PriceUpdateResult> {
   const priceResult = await fetchStockPrice(symbol, shares);
-
   if (priceResult.success && priceResult.currentPrice !== null) {
     // If setPreviousPrice is true, set previousPrice to currentPrice for day tracking
     const updateData = setPreviousPrice
@@ -124,7 +123,6 @@ export async function fetchAndUpdateStockPrice(
           currentPrice: priceResult.currentPrice,
           actualValue: priceResult.actualValue,
         };
-
     await fetch('/api/stocks', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -134,6 +132,5 @@ export async function fetchAndUpdateStockPrice(
       }),
     });
   }
-
   return priceResult;
 }

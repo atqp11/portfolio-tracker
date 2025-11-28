@@ -126,7 +126,6 @@ export function usePortfolios() {
 
       const result = await response.json();
       const data: Portfolio[] = result.success ? result.data : result; // Handle both old and new format
-      console.log('[usePortfolios] Fetched portfolios:', data);
       setPortfolios(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');

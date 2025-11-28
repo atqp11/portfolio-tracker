@@ -105,18 +105,7 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json(ErrorResponse.unauthorized(), { status: 401 });
     }
 
-    // Get stock ID from query
     const searchParams = request.nextUrl.searchParams;
-    const id = searchParams.get('id');
-
-    if (!id) {
-      return NextResponse.json(
-        ErrorResponse.badRequest('Stock ID is required'),
-        { status: 400 }
-      );
-    }
-
-    // Validate request body
     const body = await request.json();
     const { updateStockSchema } = await import('@/lib/validators/schemas');
 
@@ -130,9 +119,15 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    // Update stock (RLS ensures user can only update their own)
-    const stock = await stockController.updateStock(id, validation.data);
+    const id = searchParams.get('id') || body.id;
+    if (!id) {
+      return NextResponse.json(
+        ErrorResponse.badRequest('Stock ID is required'),
+        { status: 400 }
+      );
+    }
 
+    const stock = await stockController.updateStock(id, validation.data);
     return NextResponse.json(SuccessResponse.create(stock));
   } catch (error) {
     console.error('Error updating stock:', error);
