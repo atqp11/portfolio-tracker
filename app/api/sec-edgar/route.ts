@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { secEdgarService } from '@/server/services/sec-edgar.service';
+import { secEdgarService } from '@backend/modules/stocks/service/sec-edgar.service';
 import { checkAndTrackUsage, type TierName } from '@/lib/tiers';
 import { getUserProfile } from '@/lib/auth/session';
 

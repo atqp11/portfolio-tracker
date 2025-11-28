@@ -6,7 +6,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { stockDataService } from '@/server/services/stock-data.service';
+import { stockDataService } from '@backend/modules/stocks/service/stock-data.service';
 import { SuccessResponse, ErrorResponse } from '@/lib/types/base/response.dto';
 import { z } from 'zod';
 

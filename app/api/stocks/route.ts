@@ -5,9 +5,9 @@
  * for error handling and validation.
  */
 import { NextRequest } from 'next/server';
-import { stockController } from '@/server/controllers/stock.controller';
-import { withErrorHandler } from '@/server/middleware/error-handler.middleware';
-import { withValidation } from '@/server/middleware/validation.middleware';
+import { stockController } from '@backend/modules/stocks/stock.controller';
+import { withErrorHandler } from '@backend/common/middleware/error-handler.middleware';
+import { withValidation } from '@backend/common/middleware/validation.middleware';
 import { z } from 'zod';
 import { commonSchemas, createStockSchema, updateStockSchema } from '@/lib/validators/schemas';
 

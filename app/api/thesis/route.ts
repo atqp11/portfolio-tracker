@@ -6,9 +6,9 @@
  * centralized error handling and request validation.
  */
 import { NextRequest } from 'next/server';
-import { thesisController } from '@/server/controllers/thesis.controller';
-import { withErrorHandler } from '@/server/middleware/error-handler.middleware';
-import { withValidation } from '@/server/middleware/validation.middleware';
+import { thesisController } from '@backend/modules/thesis/thesis.controller';
+import { withErrorHandler } from '@backend/common/middleware/error-handler.middleware';
+import { withValidation } from '@backend/common/middleware/validation.middleware';
 import { z } from 'zod';
 import { commonSchemas, createThesisSchema, updateThesisSchema, updateThesisBodySchema } from '@/lib/validators/schemas';
 

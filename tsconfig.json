@@ -21,7 +21,14 @@
     "paths": {
       "@/*": [
         "./*"
-      ]
+      ],
+      "@backend/*": ["./src/backend/*"],
+      "@frontend/*": ["./src/frontend/*"],
+      "@shared/*": ["./src/shared/*"],
+      "@lib/*": ["./lib/*"],
+      "@app/*": ["./app/*"],
+      "@src/*": ["./src/*"],
+      "@test/*": ["./src/test/*"]
     },
     "plugins": [
       {

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { NewsService } from '@/server/services/news.service';
-import { portfolioController } from '@/server/controllers/portfolio.controller';
+import { NewsService } from '@backend/modules/news/service/news.service';
+import { portfolioController } from '@backend/modules/portfolio/portfolio.controller';
 import { NewsAPIError } from '@/lib/types/news.dto';
 
 const newsService = new NewsService();

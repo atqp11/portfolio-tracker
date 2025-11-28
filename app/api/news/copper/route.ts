@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { NewsService } from '@/server/services/news.service';
+import { NewsService } from '@backend/modules/news/service/news.service';
 import { NewsAPIError } from '@/lib/types/news.dto';
 
 const newsService = new NewsService();

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { marketDataService } from '@/server/services/market-data.service';
+import { marketDataService } from '@backend/modules/stocks/service/market-data.service';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';

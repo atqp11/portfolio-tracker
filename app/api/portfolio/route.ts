@@ -5,8 +5,8 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { portfolioController } from '@/server/controllers/portfolio.controller';
-import { getUserProfile } from '@/lib/auth/session';
+import { portfolioController } from '@backend/modules/portfolio/portfolio.controller';
+import { getUserProfile } from '@lib/auth/session';
 import { SuccessResponse, ErrorResponse } from '@/lib/types/base/response.dto';
 import { z } from 'zod';
 

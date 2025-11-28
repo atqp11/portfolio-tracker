@@ -5,7 +5,7 @@
  * Includes success/error handling, metadata, and type-safe responses.
  */
 
-import { PaginationMeta } from '@/server/repositories/base/types';
+import { PaginationMeta } from '@backend/common/repositories/types';
 
 /**
  * Standard error response structure

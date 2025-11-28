@@ -7,7 +7,7 @@
  */
 
 import { createThesisSchema, updateThesisSchema, CreateThesisInput, UpdateThesisInput, formatZodError } from '@/lib/validators/schemas';
-import { ValidationError } from '@/server/middleware/validation.middleware';
+import { ValidationError } from '@backend/common/middleware/validation.middleware';
 
 export class ThesisValidator {
   /**

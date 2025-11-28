@@ -4,7 +4,7 @@
  * Provides reusable pagination request and response structures
  */
 
-import { PaginationMeta, PaginationOptions } from '@/server/repositories/base/types';
+import { PaginationMeta, PaginationOptions } from '@backend/common/repositories/types';
 
 /**
  * Default pagination values
