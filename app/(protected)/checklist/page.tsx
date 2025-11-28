@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { configs } from '@/lib/config';
 import { ChecklistTask, DailyChecklist } from '@/lib/types';
 import DailyChecklistView from '@/components/DailyChecklistView';
-import { get, set } from '@/lib/storage';
+import { get, set } from '@/lib/utils/idbStorage';
 import { usePortfolio, useStocks, usePortfolioMetrics } from '@/lib/hooks/useDatabase';
 
 export default function ChecklistPage() {

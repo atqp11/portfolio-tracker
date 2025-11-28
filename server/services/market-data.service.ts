@@ -5,7 +5,7 @@
  * Handles caching, fallback, and error handling for commodity prices.
  */
 import { alphaVantageDAO, CommodityPrice } from '@/server/dao/alpha-vantage.dao';
-import { loadFromCache, saveToCache, getCacheAge } from '@/lib/cache';
+import { loadFromCache, saveToCache, getCacheAge } from '@/lib/utils/localStorageCache';
 
 // ============================================================================
 // INTERFACES

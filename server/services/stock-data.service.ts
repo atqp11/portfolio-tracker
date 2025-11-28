@@ -6,7 +6,7 @@
  */
 import { alphaVantageDAO, AlphaVantageQuoteResponse } from '@/server/dao/alpha-vantage.dao';
 import { fmpDAO, FMPQuoteResponse } from '@/server/dao/fmp.dao';
-import { loadFromCache, saveToCache, getCacheAge } from '@/lib/serverCache';
+import { loadFromCache, saveToCache, getCacheAge } from '@/lib/utils/serverCache';
 
 // ============================================================================
 // INTERFACES

@@ -1,145 +1,9 @@
-// Client-side caching utilities for API responses
+// lib/fundamentalCache.ts
+// Client-side caching utilities for API responses related to fundamental data
 
-export interface CacheData {
-  data: any;
-  timestamp: number;
-}
-
-function hasLocalStorage(): boolean {
-  try {
-    if (typeof localStorage !== 'undefined') return true;
-  } catch (e) {
-    // ignore
-  }
-  return typeof (global as any).localStorage !== 'undefined';
-}
-
-export function saveToCache(key: string, data: any): void {
-  if (!hasLocalStorage()) return;
-
-  const cacheData: CacheData = {
-    data,
-    timestamp: Date.now(),
-  };
-
-  try {
-    const storage = (typeof localStorage !== 'undefined') ? localStorage : (global as any).localStorage;
-    storage.setItem(key, JSON.stringify(cacheData));
-  } catch (error) {
-    console.error('Failed to save to cache:', error);
-  }
-}
-
-export function loadFromCache<T = any>(key: string): T | null {
-  if (!hasLocalStorage()) return null;
-
-  try {
-    const storage = (typeof localStorage !== 'undefined') ? localStorage : (global as any).localStorage;
-    const cached = storage.getItem(key);
-    if (!cached) return null;
-
-    const cacheData = JSON.parse(cached) as CacheData;
-    return cacheData.data as T;
-  } catch (error) {
-    console.error('Failed to load from cache:', error);
-    return null;
-  }
-}
-
-export function getCacheAge(key: string): number {
-  if (!hasLocalStorage()) return 0;
-
-  try {
-    const storage = (typeof localStorage !== 'undefined') ? localStorage : (global as any).localStorage;
-    const cached = storage.getItem(key);
-    if (!cached) return 0;
-
-    const cacheData = JSON.parse(cached) as CacheData;
-    return Date.now() - cacheData.timestamp;
-  } catch (error) {
-    return 0;
-  }
-}
-
-export function formatCacheAge(ageMs: number): string {
-  const ageMinutes = Math.floor(ageMs / 60000);
-  const ageHours = Math.floor(ageMinutes / 60);
-  const ageDays = Math.floor(ageHours / 24);
-  
-  if (ageDays > 0) return `${ageDays}d ago`;
-  if (ageHours > 0) return `${ageHours}h ago`;
-  if (ageMinutes > 0) return `${ageMinutes}m ago`;
-  return 'just now';
-}
-
-export type ApiErrorType = 'rate_limit' | 'auth' | 'network' | 'server' | 'unknown';
-
-export interface ApiError {
-  type: ApiErrorType;
-  message: string;
-}
-
-export function classifyApiError(error: any): ApiError {
-  const errorMessage = error?.message || error?.toString() || '';
-  
-  // Check for rate limit errors
-  if (
-    errorMessage.includes('RATE_LIMIT') ||
-    errorMessage.includes('rate limit') ||
-    errorMessage.includes('Too Many Requests') ||
-    errorMessage.includes('429')
-  ) {
-    return {
-      type: 'rate_limit',
-      message: errorMessage,
-    };
-  }
-  
-  // Check for authentication errors
-  if (
-    errorMessage.includes('auth') ||
-    errorMessage.includes('unauthorized') ||
-    errorMessage.includes('invalid api key') ||
-    errorMessage.includes('401') ||
-    errorMessage.includes('403')
-  ) {
-    return {
-      type: 'auth',
-      message: errorMessage,
-    };
-  }
-  
-  // Check for network errors
-  if (
-    errorMessage.includes('network') ||
-    errorMessage.includes('ENOTFOUND') ||
-    errorMessage.includes('ECONNREFUSED') ||
-    errorMessage.includes('timeout')
-  ) {
-    return {
-      type: 'network',
-      message: errorMessage,
-    };
-  }
-  
-  // Check for server errors
-  if (
-    errorMessage.includes('500') ||
-    errorMessage.includes('502') ||
-    errorMessage.includes('503') ||
-    errorMessage.includes('server error')
-  ) {
-    return {
-      type: 'server',
-      message: errorMessage,
-    };
-  }
-  
-  return {
-    type: 'unknown',
-    message: errorMessage,
-  };
-}
+import { saveToCache, loadFromCache, getCacheAge } from '@/lib/utils/localStorageCache';
+// The ApiErrorType and ApiError interface, and classifyApiError function are now in '@/lib/utils/apiErrorClassifier'
+// They are not directly used in fundamental data caching logic, so no import needed here.
 
 // ============================================================================
 // FUNDAMENTAL DATA CACHING
@@ -274,7 +138,8 @@ export async function warmFundamentalsCache(tickers: string[]): Promise<void> {
  * Clear all fundamental caches (useful for debugging)
  */
 export function clearFundamentalsCache(): void {
-  if (!hasLocalStorage()) return;
+  // For simplicity, directly check localStorage availability here or import hasLocalStorage if needed.
+  if (typeof window === 'undefined') return;
 
   try {
     const storage = (typeof localStorage !== 'undefined') ? localStorage : (global as any).localStorage;

@@ -7,7 +7,7 @@
 import { finnhubDAO } from '@/server/dao/finnhub.dao';
 import { FinnhubNews } from '@/lib/types/finnhub-news.dto';
 import { braveSearchDAO, BraveSearchResult } from '@/server/dao/brave-search.dao';
-import { loadFromCache, saveToCache, getCacheAge } from '@/lib/serverCache';
+import { loadFromCache, saveToCache, getCacheAge } from '@/lib/utils/serverCache';
 import { NewsDAO } from '@/server/dao/news.dao';
 import { NewsArticle as NewsAPIArticle } from '@/lib/types/news.dto';
 import { generateText } from '@/lib/ai/gemini';
