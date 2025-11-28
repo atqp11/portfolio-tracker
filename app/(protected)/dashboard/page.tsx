@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { usePortfolios, usePortfolioById, useStocks, usePortfolioMetrics, Stock, Portfolio } from '@/lib/hooks/useDatabase';
-import { useCreatePortfolio, useUpdatePortfolio, useDeletePortfolio } from '@/hooks/usePortfolios';
+import { usePortfolios, usePortfolioById, useStocks, usePortfolioMetrics, Stock, Portfolio, useCreatePortfolio, useUpdatePortfolio, useDeletePortfolio } from '@/lib/hooks/useDatabase';
+//import { useCreatePortfolio, useUpdatePortfolio, useDeletePortfolio } from '@/hooks/usePortfolios';
 import PortfolioSelector from '@/components/PortfolioSelector';
 import AddStockModal from '@/components/AddStockModal';
 import EditStockModal from '@/components/EditStockModal';
