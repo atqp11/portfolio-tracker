@@ -1,5 +1,5 @@
 // lib/alerts.ts
-import { get, set } from './storage';
+import { get, set } from '@/lib/utils/idbStorage';
 
 interface AlertState {
   stopLoss?: { triggered: boolean; value: number };

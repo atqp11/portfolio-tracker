@@ -1,5 +1,5 @@
 // lib/api/shared/cache.ts
-import { get, set } from '../../storage';
+import { get, set } from '@/lib/utils/idbStorage';
 
 const TTL = 24 * 60 * 60 * 1000;
 

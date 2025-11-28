@@ -2,7 +2,7 @@
 
 import './StonksAI.css';
 import React, { useState, useEffect, useRef } from 'react';
-import { loadAICache, saveAICache, AICacheEntry, AIDataType } from '@/lib/utils/aiCache';
+import { loadAICache, saveAICache, AICacheEntry, AIDataType , clearExpiredCache} from '@/lib/utils/aiCache';
 // --- Types ---
 type Sender = 'bot' | 'user';
 
@@ -50,8 +50,7 @@ type Message =
     | { sender: Sender; type: 'filing_list'; content: Filing[]; stockTicker: string }
     | { sender: Sender; type: 'profile'; content: Profile; stockTicker: string };
 
-// Client -> Server proxy helper with intelligent caching
-// The server route (app/api/ai/generate) holds the GoogleGenAI client and the API key
+// Updated callAi function to remove retry mechanism and break the circuit on rate-limiting errors
 async function callAi(
     payload: { model: string; contents: string; config?: Record<string, unknown> },
     cacheOptions?: { dataType: AIDataType; ticker: string; bypassCache?: boolean }
@@ -76,14 +75,15 @@ async function callAi(
     if (!res.ok) {
         const errorData = await res.json().catch(() => ({}));
         if (res.status === 429 || errorData.rateLimitExceeded) {
-            throw new Error('RATE_LIMIT');
+            console.error('Rate limit reached. Circuit broken to prevent further retries.');
+            throw new Error('RATE_LIMIT: Too many requests. Please try again later.');
         }
         const txt = errorData.error || `HTTP ${res.status}`;
         throw new Error(txt);
     }
 
     const result = await res.json(); // expected: { text: string, cached?: boolean }
-    
+
     // Save to client-side cache if this is a new response and caching is enabled
     if (cacheOptions && !result.fromCache && !result.cached) {
         try {
@@ -94,7 +94,7 @@ async function callAi(
             console.warn('Could not cache non-JSON response');
         }
     }
-    
+
     return result;
 }
 
