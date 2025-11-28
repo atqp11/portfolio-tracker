@@ -1,5 +1,5 @@
-import { finnhubService } from '../lib/services/finnhub.service';
-import { FinnhubDAO } from '../lib/dao/finnhub.dao';
+import { finnhubService } from '@/server/services/finnhub.service';
+import { FinnhubDAO } from '../server/dao/finnhub.dao';
 
 describe('FinnhubService', () => {
   const symbol = 'AAPL';

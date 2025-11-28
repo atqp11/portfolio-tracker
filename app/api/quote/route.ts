@@ -6,8 +6,8 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { stockDataService } from '@/lib/services/stock-data.service';
-import { SuccessResponse, ErrorResponse } from '@/lib/dto/base/response.dto';
+import { stockDataService } from '@/server/services/stock-data.service';
+import { SuccessResponse, ErrorResponse } from '@/lib/types/base/response.dto';
 import { z } from 'zod';
 
 export const dynamic = 'force-dynamic';

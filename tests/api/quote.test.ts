@@ -6,10 +6,10 @@
 
 import { GET } from '@/app/api/quote/route';
 import { createMockRequest, extractJSON } from '../helpers/test-utils';
-import { stockDataService } from '@/lib/services/stock-data.service';
+import { stockDataService } from '@/server/services/stock-data.service';
 
 // Mock dependencies
-jest.mock('@/lib/services/stock-data.service');
+jest.mock('@/server/services/stock-data.service');
 
 describe('Quote API', () => {
   beforeEach(() => {

@@ -6,11 +6,11 @@
 
 import { GET, POST, PUT, DELETE } from '@/app/api/stocks/route';
 import { createMockRequest, extractJSON } from '../helpers/test-utils';
-import { stockService } from '@/lib/services/stock.service';
-import { NotFoundError } from '@/lib/middleware/error-handler.middleware';
+import { stockService } from '@/server/services/stock.service';
+import { NotFoundError } from '@/server/middleware/error-handler.middleware';
 
 // Mock the service layer, which is the dependency of the controller
-jest.mock('@/lib/services/stock.service');
+jest.mock('@/server/services/stock.service');
 
 // Define a mock stock object for consistent testing
 const mockStock = {

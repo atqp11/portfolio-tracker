@@ -6,11 +6,11 @@
 
 import { GET, POST, PUT, DELETE } from '@/app/api/tasks/route';
 import { createMockRequest, extractJSON } from '../helpers/test-utils';
-import { taskService } from '@/lib/services/task.service';
-import { NotFoundError } from '@/lib/middleware/error-handler.middleware';
+import { taskService } from '@/server/services/task.service';
+import { NotFoundError } from '@/server/middleware/error-handler.middleware';
 
 // Mock the service layer
-jest.mock('@/lib/services/task.service');
+jest.mock('@/server/services/task.service');
 
 const mockTask = {
   id: '550e8400-e29b-41d4-a716-446655440002',

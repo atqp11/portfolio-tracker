@@ -14,7 +14,7 @@ import {
   UpdateTaskInput,
   formatZodError
 } from '@/lib/validators/schemas';
-import { ValidationError } from '@/lib/middleware/validation.middleware';
+import { ValidationError } from '@/server/middleware/validation.middleware';
 
 export class ChecklistValidator {
   /**

@@ -4,10 +4,10 @@
 
 import { POST } from '@/app/api/thesis/route';
 import { createMockRequest, extractJSON } from '../helpers/test-utils';
-import { thesisRepository } from '@/lib/repositories/thesis.repository';
+import { thesisRepository } from '@/server/repositories/thesis.repository';
 
 // Mock the repository layer
-jest.mock('@/lib/repositories/thesis.repository', () => ({
+jest.mock('@/server/repositories/thesis.repository', () => ({
   __esModule: true,
   thesisRepository: {
     create: jest.fn(),

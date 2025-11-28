@@ -1,4 +1,4 @@
-import { secEdgarService } from '../lib/services/sec-edgar.service';
+import { secEdgarService } from '@/server/services/sec-edgar.service';
 
 describe('secEdgarService.getCompanyFilings', () => {
   const CIK = '0000320193'; // Example: Apple Inc.

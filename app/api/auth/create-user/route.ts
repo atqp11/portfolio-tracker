@@ -9,7 +9,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { SuccessResponse, ErrorResponse } from '@/lib/dto/base/response.dto';
+import { SuccessResponse, ErrorResponse } from '@/lib/types/base/response.dto';
 import { createProfileSchema, formatZodError } from '@/lib/validators/schemas';
 
 export const dynamic = 'force-dynamic';

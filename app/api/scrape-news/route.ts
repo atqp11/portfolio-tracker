@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { finnhubService } from '@/lib/services/finnhub.service';
+import { finnhubService } from '@/server/services/finnhub.service';
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);

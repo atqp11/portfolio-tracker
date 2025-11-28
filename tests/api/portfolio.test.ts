@@ -5,14 +5,14 @@
  */
 // Hoist mocks so route module reads them when it's imported
 jest.mock('@/lib/auth/session');
-jest.mock('@/lib/controllers/portfolio.controller');
-jest.mock('@/lib/services/portfolio.service');
+jest.mock('@/server/controllers/portfolio.controller');
+jest.mock('@/server/services/portfolio.service');
 
 import { createMockRequest, extractJSON, mockUserSession } from '../helpers/test-utils';
 import { createMockPortfolio } from '../helpers/mock-data';
 import * as authSession from '@/lib/auth/session';
-import { portfolioController } from '@/lib/controllers/portfolio.controller';
-import { portfolioService } from '@/lib/services/portfolio.service';
+import { portfolioController } from '@/server/controllers/portfolio.controller';
+import { portfolioService } from '@/server/services/portfolio.service';
 
 // Import route handlers dynamically after mocks to ensure they pick up mocked modules
 let GET: any, POST: any, PUT: any, DELETE: any;

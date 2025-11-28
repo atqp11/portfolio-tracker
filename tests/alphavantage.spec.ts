@@ -1,6 +1,6 @@
 import { stopCompactionCleanupWorker } from '../lib/metrics';
-import { AlphaVantageQuoteResponse, CompanyOverview } from '../lib/dao/alpha-vantage.dao';
-import { alphaVantageDAO } from '../lib/dao/alpha-vantage.dao';
+import { AlphaVantageQuoteResponse, CompanyOverview } from '../server/dao/alpha-vantage.dao';
+import { alphaVantageDAO } from '../server/dao/alpha-vantage.dao';
 
 
 

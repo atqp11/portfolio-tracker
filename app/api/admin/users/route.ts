@@ -8,7 +8,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/auth/admin';
 import { getAllUsers, getCurrentUserUsage } from '@/lib/supabase/db';
-import { SuccessResponse, ErrorResponse } from '@/lib/dto/base/response.dto';
+import { SuccessResponse, ErrorResponse } from '@/lib/types/base/response.dto';
 
 export const dynamic = 'force-dynamic';
 

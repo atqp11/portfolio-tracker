@@ -5,9 +5,9 @@
  * for error handling and validation.
  */
 import { NextRequest } from 'next/server';
-import { taskController } from '@/lib/controllers/task.controller';
-import { withErrorHandler } from '@/lib/middleware/error-handler.middleware';
-import { withValidation } from '@/lib/middleware/validation.middleware';
+import { taskController } from '@/server/controllers/task.controller';
+import { withErrorHandler } from '@/server/middleware/error-handler.middleware';
+import { withValidation } from '@/server/middleware/validation.middleware';
 import { z } from 'zod';
 import { commonSchemas, createTaskSchema, updateTaskSchema } from '@/lib/validators/schemas';
 

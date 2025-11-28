@@ -4,10 +4,10 @@
 
 import { GET, POST, PUT, DELETE } from '@/app/api/checklist/route';
 import { createMockRequest, extractJSON } from '../helpers/test-utils';
-import { checklistRepository } from '@/lib/repositories/checklist.repository';
+import { checklistRepository } from '@/server/repositories/checklist.repository';
 
 // Mock the entire repository module
-jest.mock('@/lib/repositories/checklist.repository', () => ({
+jest.mock('@/server/repositories/checklist.repository', () => ({
     __esModule: true,
     checklistRepository: {
       findByIdWithTasks: jest.fn(),

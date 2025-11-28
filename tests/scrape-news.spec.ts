@@ -1,4 +1,4 @@
-import { finnhubService } from '../lib/services/finnhub.service';
+import { finnhubService } from '@/server/services/finnhub.service';
 
 describe('scrapeNewsHeadlines', () => {
   beforeEach(() => {

@@ -1,4 +1,49 @@
 /**
+ * useDatabase.ts
+ * 
+ * This file contains custom React hooks for interacting with the database API.
+ * These hooks are used to fetch and manage data related to portfolios, stocks, investment theses, checklists, and portfolio metrics.
+ * 
+ * Exports:
+ * - usePortfolios: Fetches all portfolios.
+ * - usePortfolio: Fetches a portfolio by its type (e.g., 'energy', 'copper').
+ * - usePortfolioById: Fetches a portfolio by its ID.
+ * - useStocks: Fetches stocks for a specific portfolio.
+ * - useTheses: Fetches investment theses for a specific portfolio.
+ * - useChecklist: Fetches the daily checklist for a specific portfolio.
+ * - usePortfolioMetrics: Calculates portfolio metrics based on stocks and borrowed amounts.
+ * 
+ * Usage:
+ * Import the required hook(s) and use them in your React components to fetch and manage data.
+ * Each hook returns the fetched data, loading state, error state, and a refetch function.
+ * 
+ * Example:
+ * ```typescript
+ * import { usePortfolios } from '@/lib/hooks/useDatabase';
+ * 
+ * function PortfolioList() {
+ *   const { portfolios, loading, error, refetch } = usePortfolios();
+ * 
+ *   if (loading) return <p>Loading...</p>;
+ *   if (error) return <p>Error: {error}</p>;
+ * 
+ *   return (
+ *     <ul>
+ *       {portfolios.map((portfolio) => (
+ *         <li key={portfolio.id}>{portfolio.name}</li>
+ *       ))}
+ *     </ul>
+ *   );
+ * }
+ * ```
+ * 
+ * Notes:
+ * - These hooks are designed for frontend integration and rely on the `/api` endpoints.
+ * - Error handling is included to manage API failures gracefully.
+ * - The hooks use `useState` and `useEffect` to manage data fetching and state updates.
+ */
+
+/**
  * Custom React hooks for fetching data from database API
  * Phase 5: Frontend Integration
  */
@@ -112,7 +157,7 @@ export interface ChecklistTask {
  * Hook to fetch all portfolios
  */
 export function usePortfolios() {
-  const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
+ const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -228,7 +273,7 @@ export function usePortfolioById(portfolioId: string | null) {
  * Hook to fetch stocks for a portfolio
  */
 export function useStocks(portfolioId: string | undefined) {
-  const [stocks, setStocks] = useState<Stock[]>([]);
+ const [stocks, setStocks] = useState<Stock[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 

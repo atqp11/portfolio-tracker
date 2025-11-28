@@ -1,3 +1,23 @@
+/**
+ * ThemeContext.tsx
+ * 
+ * This file defines a React context for managing and providing theme-related state across the application.
+ * It allows the application to support light, dark, and auto (system preference) themes.
+ * 
+ * Exports:
+ * - ThemeProvider: A context provider component that wraps the application and provides theme state.
+ * - useTheme: A custom hook to access the theme context values.
+ * 
+ * Types:
+ * - Theme: Represents the possible theme values ('light', 'dark', 'auto').
+ * - ThemeContextType: Defines the structure of the theme context, including the current theme, effective theme, and a setter function.
+ * 
+ * Functionality:
+ * - Persists the user-selected theme in localStorage.
+ * - Dynamically applies the appropriate theme class to the document root.
+ * - Supports system preference for themes when 'auto' is selected.
+ */
+
 'use client';
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';

@@ -3,7 +3,7 @@
  * Uses DailyChecklist data model and ChecklistTaskCard component
  */
 
-import { DailyChecklist } from '@/lib/models';
+import { DailyChecklist } from '@/lib/types';
 import ChecklistTaskCard from './ChecklistTaskCard';
 
 interface DailyChecklistViewProps {

@@ -1,4 +1,4 @@
-import { fmpService } from '../lib/services/fmp.service';
+import { fmpService } from '@/server/services/fmp.service';
 
 describe('fmpService.getQuote', () => {
   const symbol = 'AAPL';

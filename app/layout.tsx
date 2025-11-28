@@ -1,7 +1,8 @@
-// app/layout.tsx
+// app/layout.tsx - GLOBAL Layout (Required: HTML/Body tags, Context Providers)
+
 import type { Metadata } from 'next';
 import './global.css';
-import QueryProvider from './components/QueryProvider';
+import QueryProvider from '@/components/QueryProvider';
 import { ThemeProvider } from '@/lib/contexts/ThemeContext'; // Use custom ThemeProvider
 
 export const metadata: Metadata = {

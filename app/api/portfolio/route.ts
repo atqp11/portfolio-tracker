@@ -5,9 +5,9 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { portfolioController } from '@/lib/controllers/portfolio.controller';
+import { portfolioController } from '@/server/controllers/portfolio.controller';
 import { getUserProfile } from '@/lib/auth/session';
-import { SuccessResponse, ErrorResponse } from '@/lib/dto/base/response.dto';
+import { SuccessResponse, ErrorResponse } from '@/lib/types/base/response.dto';
 import { z } from 'zod';
 
 export const dynamic = 'force-dynamic';

@@ -5,9 +5,9 @@
  * for error handling and validation to keep it lean.
  */
 import { NextRequest } from 'next/server';
-import { checklistController } from '@/lib/controllers/checklist.controller';
-import { withErrorHandler } from '@/lib/middleware/error-handler.middleware';
-import { withValidation } from '@/lib/middleware/validation.middleware';
+import { checklistController } from '@/server/controllers/checklist.controller';
+import { withErrorHandler } from '@/server/middleware/error-handler.middleware';
+import { withValidation } from '@/server/middleware/validation.middleware';
 import { z } from 'zod';
 import { commonSchemas, createDailyChecklistSchema, updateDailyChecklistSchema, updateChecklistBodySchema } from '@/lib/validators/schemas';
 

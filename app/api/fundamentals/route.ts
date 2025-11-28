@@ -1,7 +1,7 @@
 // app/api/fundamentals/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { financialDataService } from '@/lib/services/financial-data.service';
-import { stockDataService } from '@/lib/services/stock-data.service';
+import { financialDataService } from '@/server/services/financial-data.service';
+import { stockDataService } from '@/server/services/stock-data.service';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
