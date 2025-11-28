@@ -1,3 +1,52 @@
+/**
+ * The `config.ts` file contains hardcoded configuration values for development purposes.
+ * These configurations define portfolio setups, including initial cash, margin, stock allocations,
+ * and commodity tracking. This file is likely intended for testing and should be revisited
+ * for production use to ensure dynamic and secure configuration management.
+ *
+ * Key Components:
+ *
+ * 1. **Portfolio Configurations:**
+ *    - Each portfolio configuration includes:
+ *      - `id`: Unique identifier for the portfolio.
+ *      - `name`: Name of the portfolio.
+ *      - `initialCash`: Starting cash balance.
+ *      - `initialMargin`: Starting margin balance.
+ *      - `initialValue`: Total initial portfolio value.
+ *      - `cashRatio`: Ratio of cash allocation.
+ *      - `marginRatio`: Ratio of margin allocation.
+ *      - `stopLossValue`: Value at which stop-loss is triggered.
+ *      - `takeProfitValue`: Value at which take-profit is triggered.
+ *      - `enableDRIP`: Whether Dividend Reinvestment Plan (DRIP) is enabled.
+ *      - `stocks`: Array of stock allocations, each with:
+ *        - `symbol`: Stock ticker symbol.
+ *        - `name`: Stock name.
+ *        - `cashAllocation`: Amount of cash allocated to the stock.
+ *        - `useMargin`: Whether margin is used for the stock.
+ *      - `commodities`: Array of commodities tracked, each with:
+ *        - `symbol`: Commodity ticker symbol.
+ *        - `name`: Commodity name.
+ *        - `unit`: Unit of measurement for the commodity.
+ *
+ * 2. **Development Note:**
+ *    - These values are hardcoded and should be replaced with dynamic configurations
+ *      for production environments. Consider using environment variables, a database,
+ *      or a configuration management system.
+ *
+ * 3. **Usage in Thesis and Checklist Functionality:**
+ *    - The hardcoded configurations are used in the thesis and checklist functionality.
+ *    - The checklist is specifically tailored for the two predefined portfolios (`energy` and `copper`).
+ *    - This tight coupling to specific portfolios should be revisited to allow dynamic portfolio management.
+ *
+ * Usage:
+ * - The `configs` array can be used to simulate portfolio setups for testing purposes.
+ * - Each portfolio includes predefined stock and commodity allocations, making it
+ *   suitable for development and debugging scenarios.
+ *
+ * This file is critical for testing portfolio-related features but should not be
+ * relied upon in production without proper validation and security measures.
+ */
+
 // lib/config.ts
 export const configs = [
   {
