@@ -1,11 +1,11 @@
-import { ProfileRepository } from '@/server/repositories/profile.dao';
+import { ProfileRepository } from '@/server/repositories/profile.repository';
 
 const profileRepository = new ProfileRepository();
 
 export class ProfileService {
   async getProfiles(): Promise<any[]> {
     try {
-      return await profileRepository.getProfiles();
+      return await profileRepository.findAll();
     } catch (error) {
       console.error('Error in ProfileService:', error);
       throw error;
@@ -14,7 +14,7 @@ export class ProfileService {
 
   async getProfileById(id: string): Promise<any> {
     try {
-      return await profileRepository.getProfileById(id);
+      return await profileRepository.findById(id);
     } catch (error) {
       console.error('Error in ProfileService (getProfileById):', error);
       throw error;

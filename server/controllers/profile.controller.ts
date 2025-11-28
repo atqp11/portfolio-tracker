@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { ProfileService as profileService} from '@/server/services/profile.service';
+import { ProfileService } from '@/server/services/profile.service';
 import { NotFoundError } from '@/server/middleware/error-handler.middleware';
 
 // Schema for GET request query parameters
@@ -21,5 +21,7 @@ class ProfileController {
     throw new NotFoundError('Invalid query parameters for getting profiles.');
   }
 }
+
+const profileService = new ProfileService();
 
 export const profileController = new ProfileController();
