@@ -18,7 +18,8 @@ export class ValidationError extends Error {
     public details: any,
     public statusCode: number = 400
   ) {
-    super(message);
+    // Append details to message for better debugging in test runners
+    super(`${message} - Details: ${JSON.stringify(details, null, 2)}`);
     this.name = 'ValidationError';
   }
 
@@ -55,6 +56,7 @@ export class ValidationMiddleware {
   ): Promise<T> {
     try {
       const body = await request.json();
+      console.log('--- DEBUG: Request Body ---', body);
       return schema.parse(body);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -84,8 +86,14 @@ export class ValidationMiddleware {
           query[key] = value;
         }
       });
+      
+      const result = schema.safeParse(query);
 
-      return schema.parse(query);
+      if (!result.success) {
+        throw new z.ZodError(result.error.issues);
+      }
+      
+      return result.data;
     } catch (error) {
       if (error instanceof z.ZodError) {
         const formatted = formatZodError(error);

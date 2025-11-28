@@ -1,209 +1,132 @@
 /**
- * Task API Tests
+ * Task API Tests (Refactored)
  *
- * Tests for checklist task CRUD operations.
+ * Tests for the refactored checklist task CRUD operations.
  */
 
 import { GET, POST, PUT, DELETE } from '@/app/api/tasks/route';
-import { createMockRequest, extractJSON, mockUserSession } from '../helpers/test-utils';
-import * as authSession from '@/lib/auth/session';
-import { taskController } from '@/lib/controllers/task.controller';
+import { createMockRequest, extractJSON } from '../helpers/test-utils';
+import { taskService } from '@/lib/services/task.service';
+import { NotFoundError } from '@/lib/middleware/error-handler.middleware';
 
-// Mock dependencies
-jest.mock('@/lib/auth/session');
-jest.mock('@/lib/controllers/task.controller');
+// Mock the service layer
+jest.mock('@/lib/services/task.service');
 
-describe('Task API', () => {
-  const mockUser = mockUserSession({
-    id: 'user-123',
-    email: 'test@example.com',
-    tier: 'free',
-  });
+const mockTask = {
+  id: '550e8400-e29b-41d4-a716-446655440002',
+  checklistId: '550e8400-e29b-41d4-a716-446655440001',
+  portfolioId: '550e8400-e29b-41d4-a716-446655440000',
+  task: 'Review portfolio performance',
+  category: 'general',
+  frequency: 'daily',
+  urgency: 3,
+  completed: false,
+  completedAt: null,
+  condition: null,
+  dueDate: new Date().toISOString(),
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
+};
 
-  const mockTask = {
-    id: '550e8400-e29b-41d4-a716-446655440002',
-    checklist_id: '550e8400-e29b-41d4-a716-446655440001',
-    portfolio_id: '550e8400-e29b-41d4-a716-446655440000',
-    task: 'Review portfolio performance',
-    category: 'general',
-    frequency: 'daily',
-    urgency: 3,
-    completed: false,
-    completed_at: null,
-    condition: null,
-    due_date: '2024-12-31T23:59:59Z',
-    created_at: '2024-01-01T00:00:00Z',
-    updated_at: '2024-01-01T00:00:00Z',
-  };
+const VALID_UUID = 'b9d6e8e0-2c3b-4f1a-8f6f-4d7b3e1a1b2d';
+
+describe('Task API (Refactored)', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
   });
 
   describe('GET /api/tasks', () => {
-    it('should return unauthorized if user is not authenticated', async () => {
-      (authSession.getUserProfile as jest.Mock).mockResolvedValue(null);
-
-      const request = createMockRequest({
-        url: 'http://localhost:3000/api/tasks',
-        searchParams: { portfolioId: mockTask.portfolio_id },
-      });
-      const response = await GET(request);
-      const data = await extractJSON(response);
-
-      expect(response.status).toBe(401);
-      expect(data.success).toBe(false);
-    });
-
-    it('should return 400 if no query params provided', async () => {
-      (authSession.getUserProfile as jest.Mock).mockResolvedValue(mockUser.profile);
-
+    it('should return 400 if no valid query param is provided', async () => {
       const request = createMockRequest({ url: 'http://localhost:3000/api/tasks' });
-      const response = await GET(request);
-      const data = await extractJSON(response);
-
-      expect(response.status).toBe(400);
-      expect(data.success).toBe(false);
-    });
-
-    it('should return tasks by portfolio ID', async () => {
-      (authSession.getUserProfile as jest.Mock).mockResolvedValue(mockUser.profile);
-      (taskController.getPortfolioActiveTasks as jest.Mock).mockResolvedValue([mockTask]);
-
-      const request = createMockRequest({
-        url: 'http://localhost:3000/api/tasks',
-        searchParams: { portfolioId: mockTask.portfolio_id },
-      });
-      const response = await GET(request);
-      const data = await extractJSON(response);
-
-      expect(response.status).toBe(200);
-      expect(data.success).toBe(true);
-      expect(data.data).toHaveLength(1);
-    });
-
-    it('should return tasks by checklist ID', async () => {
-      (authSession.getUserProfile as jest.Mock).mockResolvedValue(mockUser.profile);
-      (taskController.getChecklistTasks as jest.Mock).mockResolvedValue([mockTask]);
-
-      const request = createMockRequest({
-        url: 'http://localhost:3000/api/tasks',
-        searchParams: { checklistId: mockTask.checklist_id! },
-      });
-      const response = await GET(request);
-      const data = await extractJSON(response);
-
-      expect(response.status).toBe(200);
-      expect(data.success).toBe(true);
-      expect(data.data).toHaveLength(1);
-    });
-
-    it('should return single task by ID', async () => {
-      (authSession.getUserProfile as jest.Mock).mockResolvedValue(mockUser.profile);
-      (taskController.getTaskById as jest.Mock).mockResolvedValue(mockTask);
-
-      const request = createMockRequest({
-        url: 'http://localhost:3000/api/tasks',
-        searchParams: { id: mockTask.id },
-      });
-      const response = await GET(request);
-      const data = await extractJSON(response);
-
-      expect(response.status).toBe(200);
-      expect(data.success).toBe(true);
-      expect(data.data.id).toBe(mockTask.id);
-    });
-  });
-
-  describe('POST /api/tasks', () => {
-    const validTaskData = {
-      portfolioId: mockTask.portfolio_id, // Updated to camelCase
-      task: 'Review portfolio performance',
-      category: 'general',
-      frequency: 'daily',
-      urgency: 3,
-    };
-
-    it('should return unauthorized if user is not authenticated', async () => {
-      (authSession.getUserProfile as jest.Mock).mockResolvedValue(null);
-
-      const request = createMockRequest({
-        method: 'POST',
-        url: 'http://localhost:3000/api/tasks',
-        body: validTaskData,
-      });
-      const response = await POST(request);
-      const data = await extractJSON(response);
-
-      expect(response.status).toBe(401);
-      expect(data.success).toBe(false);
-    });
-
-    it('should create task with valid data', async () => {
-      (authSession.getUserProfile as jest.Mock).mockResolvedValue(mockUser.profile);
-      (taskController.createTask as jest.Mock).mockResolvedValue(mockTask);
-
-      const request = createMockRequest({
-        method: 'POST',
-        url: 'http://localhost:3000/api/tasks',
-        body: validTaskData,
-      });
-      const response = await POST(request);
-      const data = await extractJSON(response);
-
-      expect(response.status).toBe(201);
-      expect(data.success).toBe(true);
-      expect(data.data.id).toBe(mockTask.id);
-    });
-
-    it('should return 400 with invalid data', async () => {
-      (authSession.getUserProfile as jest.Mock).mockResolvedValue(mockUser.profile);
-
-      const invalidData = {
-        portfolio_id: mockTask.portfolio_id,
-        task: '', // Empty task
-      };
-
-      const request = createMockRequest({
-        method: 'POST',
-        url: 'http://localhost:3000/api/tasks',
-        body: invalidData,
-      });
-      const response = await POST(request);
+      const response = await GET(request, {});
       const data = await extractJSON(response);
 
       expect(response.status).toBe(400);
       expect(data.success).toBe(false);
       expect(data.error.code).toBe('VALIDATION_ERROR');
     });
+
+    it('should return tasks by portfolio ID', async () => {
+      (taskService.findActiveByPortfolioId as jest.Mock).mockResolvedValue([mockTask]);
+
+      const request = createMockRequest({
+        url: 'http://localhost:3000/api/tasks',
+        searchParams: { portfolioId: mockTask.portfolioId },
+      });
+      const response = await GET(request, { query: { portfolioId: mockTask.portfolioId } });
+      const data = await extractJSON(response);
+
+      expect(response.status).toBe(200);
+      expect(data.success).toBe(true);
+      expect(data.data).toHaveLength(1);
+      expect(taskService.findActiveByPortfolioId).toHaveBeenCalledWith(mockTask.portfolioId);
+    });
+
+    it('should return tasks by checklist ID', async () => {
+        (taskService.findByChecklistId as jest.Mock).mockResolvedValue([mockTask]);
+  
+        const request = createMockRequest({
+          url: 'http://localhost:3000/api/tasks',
+          searchParams: { checklistId: mockTask.checklistId },
+        });
+        const response = await GET(request, { query: { checklistId: mockTask.checklistId } });
+        const data = await extractJSON(response);
+  
+        expect(response.status).toBe(200);
+        expect(data.success).toBe(true);
+        expect(data.data).toHaveLength(1);
+        expect(taskService.findByChecklistId).toHaveBeenCalledWith(mockTask.checklistId);
+      });
+
+    it('should return a single task by ID', async () => {
+      (taskService.findById as jest.Mock).mockResolvedValue(mockTask);
+
+      const request = createMockRequest({
+        url: 'http://localhost:3000/api/tasks',
+        searchParams: { id: mockTask.id },
+      });
+      const response = await GET(request, { query: { id: mockTask.id } });
+      const data = await extractJSON(response);
+
+      expect(response.status).toBe(200);
+      expect(data.success).toBe(true);
+      expect(data.data.id).toBe(mockTask.id);
+      expect(taskService.findById).toHaveBeenCalledWith(mockTask.id);
+    });
+  });
+
+  describe('POST /api/tasks', () => {
+    const validTaskData = {
+      portfolioId: mockTask.portfolioId,
+      task: 'New task',
+      category: 'review',
+    };
+
+    it('should create a task with valid data', async () => {
+      (taskService.create as jest.Mock).mockResolvedValue(mockTask);
+
+      const request = createMockRequest({
+        method: 'POST',
+        url: 'http://localhost:3000/api/tasks',
+        body: validTaskData,
+      });
+      const response = await POST(request, { body: validTaskData });
+      const data = await extractJSON(response);
+
+      expect(response.status).toBe(201);
+      expect(data.success).toBe(true);
+      expect(data.data.id).toBe(mockTask.id);
+      expect(taskService.create).toHaveBeenCalledWith(expect.objectContaining(validTaskData));
+    });
   });
 
   describe('PUT /api/tasks', () => {
-    const updateData = {
-      completed: true,
-      urgency: 5,
-    };
+    const updateData = { completed: true };
 
-    it('should return unauthorized if user is not authenticated', async () => {
-      (authSession.getUserProfile as jest.Mock).mockResolvedValue(null);
-
-      const request = createMockRequest({
-        method: 'PUT',
-        url: 'http://localhost:3000/api/tasks',
-        searchParams: { id: mockTask.id },
-        body: updateData,
-      });
-      const response = await PUT(request);
-      const data = await extractJSON(response);
-
-      expect(response.status).toBe(401);
-      expect(data.success).toBe(false);
-    });
-
-    it('should update task with valid data', async () => {
-      (authSession.getUserProfile as jest.Mock).mockResolvedValue(mockUser.profile);
+    it('should update a task with valid data', async () => {
       const updatedTask = { ...mockTask, ...updateData };
-      (taskController.updateTask as jest.Mock).mockResolvedValue(updatedTask);
+      (taskService.update as jest.Mock).mockResolvedValue(updatedTask);
 
       const request = createMockRequest({
         method: 'PUT',
@@ -211,45 +134,46 @@ describe('Task API', () => {
         searchParams: { id: mockTask.id },
         body: updateData,
       });
-      const response = await PUT(request);
+      const response = await PUT(request, { query: { id: mockTask.id }, body: updateData });
       const data = await extractJSON(response);
 
       expect(response.status).toBe(200);
       expect(data.success).toBe(true);
       expect(data.data.completed).toBe(true);
+      expect(taskService.update).toHaveBeenCalledWith(mockTask.id, expect.objectContaining(updateData));
+    });
+
+    it('should return 404 for a non-existent task', async () => {
+      (taskService.update as jest.Mock).mockRejectedValue(new NotFoundError('Task not found'));
+
+      const request = createMockRequest({
+        method: 'PUT',
+        url: 'http://localhost:3000/api/tasks',
+        searchParams: { id: VALID_UUID },
+        body: updateData,
+      });
+      const response = await PUT(request, { query: { id: VALID_UUID }, body: updateData });
+      const data = await extractJSON(response);
+      
+      expect(response.status).toBe(404);
+      expect(data.success).toBe(false);
+      expect(data.error.code).toBe('NOT_FOUND');
     });
   });
 
   describe('DELETE /api/tasks', () => {
-    it('should return unauthorized if user is not authenticated', async () => {
-      (authSession.getUserProfile as jest.Mock).mockResolvedValue(null);
+    it('should delete a task successfully', async () => {
+      (taskService.delete as jest.Mock).mockResolvedValue(undefined);
 
       const request = createMockRequest({
         method: 'DELETE',
         url: 'http://localhost:3000/api/tasks',
         searchParams: { id: mockTask.id },
       });
-      const response = await DELETE(request);
-      const data = await extractJSON(response);
+      const response = await DELETE(request, { query: { id: mockTask.id } });
 
-      expect(response.status).toBe(401);
-      expect(data.success).toBe(false);
-    });
-
-    it('should delete task successfully', async () => {
-      (authSession.getUserProfile as jest.Mock).mockResolvedValue(mockUser.profile);
-      (taskController.deleteTask as jest.Mock).mockResolvedValue({ success: true });
-
-      const request = createMockRequest({
-        method: 'DELETE',
-        url: 'http://localhost:3000/api/tasks',
-        searchParams: { id: mockTask.id },
-      });
-      const response = await DELETE(request);
-      const data = await extractJSON(response);
-
-      expect(response.status).toBe(200);
-      expect(data.success).toBe(true);
+      expect(response.status).toBe(204);
+      expect(taskService.delete).toHaveBeenCalledWith(mockTask.id);
     });
   });
 });

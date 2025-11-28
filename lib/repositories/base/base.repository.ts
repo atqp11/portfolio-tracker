@@ -8,7 +8,6 @@
  */
 
 import { SupabaseClient } from '@supabase/supabase-js';
-import { createClient as createServerClient } from '@/lib/supabase/server';
 import {
   IRepository,
   QueryFilter,
@@ -23,51 +22,53 @@ import {
   TransactionCallback,
 } from './types';
 
+// Define a type for the Supabase client factory function
+export type SupabaseClientFactory = () => SupabaseClient | Promise<SupabaseClient>;
+
 /**
  * Abstract base repository implementing common database operations
  */
 export abstract class BaseRepository<T extends Record<string, any>> implements IRepository<T> {
   protected abstract tableName: string;
   protected config: RepositoryConfig;
-  protected supabase: SupabaseClient;
+  protected _supabase: SupabaseClient | null = null; // Store client here
 
-  private supabasePromise: Promise<SupabaseClient>;
-
-  constructor(config: RepositoryConfig = {}) {
+  constructor(
+    private supabaseClientFactory: SupabaseClientFactory,
+    config: RepositoryConfig = {}
+  ) {
     this.config = {
       softDelete: false,
       timestamps: true,
       auditFields: false,
       ...config,
     };
-    // Initialize supabase as a promise
-    this.supabasePromise = createServerClient();
-    // Set a placeholder that will be replaced on first use
-    this.supabase = null as any;
   }
 
   /**
    * Ensure supabase client is initialized
    */
   protected async ensureClient(): Promise<SupabaseClient> {
-    if (!this.supabase) {
-      this.supabase = await this.supabasePromise;
+    if (!this._supabase) {
+      this._supabase = await this.supabaseClientFactory();
     }
-    return this.supabase;
+    return this._supabase;
   }
 
   /**
    * Find all records with optional filtering, sorting
    */
   async findAll(options: FindOptions = {}): Promise<T[]> {
+    const supabase = await this.ensureClient();
     const query = this.buildQuery(options);
     return this.executeQuery(query, `${this.tableName}.findAll`);
   }
 
   /**
-   * Find paginated records
+   * Fix `range` method usage in `findPaginated`
    */
   async findPaginated(options: FindOptions & { pagination: PaginationOptions }): Promise<PaginatedResult<T>> {
+    const supabase = await this.ensureClient();
     const { pagination } = options;
     const { page, limit } = pagination;
 
@@ -80,7 +81,7 @@ export abstract class BaseRepository<T extends Record<string, any>> implements I
 
     // Build and execute query with pagination
     let query = this.buildQuery(options);
-    query = query.range(from, to);
+    query = (await query).range(from, to);
 
     const data = await this.executeQuery(query, `${this.tableName}.findPaginated`);
 
@@ -102,7 +103,8 @@ export abstract class BaseRepository<T extends Record<string, any>> implements I
    * Find single record by ID
    */
   async findById(id: string): Promise<T | null> {
-    const query = this.supabase
+    const supabase = await this.ensureClient();
+    const query = supabase
       .from(this.tableName)
       .select('*')
       .eq('id', id);
@@ -124,9 +126,10 @@ export abstract class BaseRepository<T extends Record<string, any>> implements I
    * Create a new record
    */
   async create(data: Partial<T>): Promise<T> {
+    const supabase = await this.ensureClient();
     const enrichedData = this.enrichCreateData(data);
 
-    const { data: result, error } = await this.supabase
+    const { data: result, error } = await supabase
       .from(this.tableName)
       .insert(enrichedData)
       .select()
@@ -143,9 +146,10 @@ export abstract class BaseRepository<T extends Record<string, any>> implements I
    * Create multiple records
    */
   async createMany(data: Partial<T>[]): Promise<T[]> {
+    const supabase = await this.ensureClient();
     const enrichedData = data.map(item => this.enrichCreateData(item));
 
-    const { data: results, error } = await this.supabase
+    const { data: results, error } = await supabase
       .from(this.tableName)
       .insert(enrichedData)
       .select();
@@ -161,9 +165,10 @@ export abstract class BaseRepository<T extends Record<string, any>> implements I
    * Update record by ID
    */
   async update(id: string, data: Partial<T>): Promise<T> {
+    const supabase = await this.ensureClient();
     const enrichedData = this.enrichUpdateData(data);
 
-    const { data: result, error } = await this.supabase
+    const { data: result, error } = await supabase
       .from(this.tableName)
       .update(enrichedData)
       .eq('id', id)
@@ -188,9 +193,10 @@ export abstract class BaseRepository<T extends Record<string, any>> implements I
    * Update multiple records matching filters
    */
   async updateMany(filters: QueryFilter[], data: Partial<T>): Promise<number> {
+    const supabase = await this.ensureClient();
     const enrichedData = this.enrichUpdateData(data);
 
-    let query = this.supabase
+    let query = supabase
       .from(this.tableName)
       .update(enrichedData);
 
@@ -210,12 +216,13 @@ export abstract class BaseRepository<T extends Record<string, any>> implements I
    * Delete record by ID
    */
   async delete(id: string): Promise<void> {
+    const supabase = await this.ensureClient();
     if (this.config.softDelete) {
       // Soft delete: set deleted_at timestamp
       await this.update(id, { deleted_at: new Date().toISOString() } as any);
     } else {
       // Hard delete
-      const { error } = await this.supabase
+      const { error } = await supabase
         .from(this.tableName)
         .delete()
         .eq('id', id);
@@ -230,12 +237,13 @@ export abstract class BaseRepository<T extends Record<string, any>> implements I
    * Delete multiple records matching filters
    */
   async deleteMany(filters: QueryFilter[]): Promise<number> {
+    const supabase = await this.ensureClient();
     if (this.config.softDelete) {
       // Soft delete multiple
       return this.updateMany(filters, { deleted_at: new Date().toISOString() } as any);
     } else {
       // Hard delete multiple
-      let query = this.supabase
+      let query = supabase
         .from(this.tableName)
         .delete();
 
@@ -252,52 +260,71 @@ export abstract class BaseRepository<T extends Record<string, any>> implements I
   }
 
   /**
-   * Count records matching filters
+   * Check if a record exists matching filters
    */
-  async count(filters?: QueryFilter[]): Promise<number> {
-    let query = this.supabase
+  async exists(filters: QueryFilter[]): Promise<boolean> {
+    const supabase = await this.ensureClient();
+    const { data, error } = await supabase
       .from(this.tableName)
-      .select('*', { count: 'exact', head: true });
-
-    if (filters && filters.length > 0) {
-      query = this.applyFilters(query, filters);
-    }
-
-    if (this.config.softDelete) {
-      query = query.is('deleted_at', null);
-    }
-
-    const { count, error } = await query;
+      .select('id')
+      .match(filters)
+      .limit(1);
 
     if (error) {
-      throw this.handleError(error, `${this.tableName}.count`);
+      throw new RepositoryError(RepositoryErrorType.DATABASE_ERROR, error.message);
+    }
+
+    return data.length > 0;
+  }
+
+  /**
+   * Count records matching filters
+   */
+  async count(filters: QueryFilter[] = []): Promise<number> {
+    const supabase = await this.ensureClient();
+    const { count, error } = await supabase
+      .from(this.tableName)
+      .select('id', { count: 'exact' })
+      .match(filters);
+
+    if (error) {
+      throw new RepositoryError(RepositoryErrorType.DATABASE_ERROR, error.message);
     }
 
     return count || 0;
   }
 
   /**
-   * Check if record exists matching filters
+   * Replace invalid error types with DATABASE_ERROR
    */
-  async exists(filters: QueryFilter[]): Promise<boolean> {
-    const count = await this.count(filters);
-    return count > 0;
+  async deleteById(id: string): Promise<void> {
+    const supabase = await this.ensureClient();
+    const { error } = await supabase
+      .from(this.tableName)
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      throw new RepositoryError(RepositoryErrorType.DATABASE_ERROR, error.message);
+    }
   }
 
   /**
    * Execute transaction
    */
   protected async transaction<R>(callback: TransactionCallback<R>): Promise<R> {
+    const supabase = await this.ensureClient();
     // Note: Supabase doesn't have native transaction support like Prisma
     // This is a placeholder for future implementation with Prisma transactions
     // For now, just execute the callback with the same client
-    return callback(this.supabase);
+    return callback(supabase);
   }
 
   /**
    * Build query with filters, sorting, and selection
    */
-  protected buildQuery(options: FindOptions = {}): any {
+  protected async buildQuery(options: FindOptions = {}): Promise<any> {
+    const supabase = await this.ensureClient();
     const { filters, sort, select, relations } = options;
 
     // Start with select
@@ -306,7 +333,7 @@ export abstract class BaseRepository<T extends Record<string, any>> implements I
       selectClause = `*, ${relations.join(', ')}`;
     }
 
-    let query = this.supabase
+    let query = supabase
       .from(this.tableName)
       .select(selectClause);
 

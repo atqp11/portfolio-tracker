@@ -65,6 +65,13 @@ export class ExternalServiceError extends Error {
   }
 }
 
+export class ConflictError extends Error {
+  constructor(message: string = 'Conflict') {
+    super(message);
+    this.name = 'ConflictError';
+  }
+}
+
 /**
  * Error Handler Middleware
  */
@@ -90,6 +97,12 @@ export class ErrorHandlerMiddleware {
     if (error instanceof NotFoundError) {
       const response = ErrorResponse.notFound(error.message);
       return NextResponse.json(response, { status: 404 });
+    }
+    
+    // Conflict error
+    if (error instanceof ConflictError) {
+      const response = ErrorResponse.duplicate(error.message);
+      return NextResponse.json(response, { status: 409 });
     }
 
     // Unauthorized error
@@ -189,6 +202,10 @@ export class ErrorHandlerMiddleware {
 
     if (error instanceof NotFoundError) {
       return ErrorResponse.notFound();
+    }
+    
+    if (error instanceof ConflictError) {
+        return ErrorResponse.duplicate();
     }
 
     if (error instanceof UnauthorizedError) {

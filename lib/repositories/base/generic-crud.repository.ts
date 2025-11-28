@@ -11,7 +11,7 @@
  * ```
  */
 
-import { BaseRepository } from './base.repository';
+import { BaseRepository, SupabaseClientFactory } from './base.repository';
 import { RepositoryConfig } from './types';
 
 /**
@@ -20,8 +20,12 @@ import { RepositoryConfig } from './types';
 export class GenericCrudRepository<T extends Record<string, any>> extends BaseRepository<T> {
   protected tableName: string;
 
-  constructor(tableName: string, config?: RepositoryConfig) {
-    super(config);
+  constructor(
+    tableName: string,
+    supabaseClientFactory: SupabaseClientFactory,
+    config?: RepositoryConfig
+  ) {
+    super(supabaseClientFactory, config);
     this.tableName = tableName;
   }
 }
@@ -31,9 +35,10 @@ export class GenericCrudRepository<T extends Record<string, any>> extends BaseRe
  */
 export function createRepository<T extends Record<string, any>>(
   tableName: string,
+  supabaseClientFactory: SupabaseClientFactory,
   config?: RepositoryConfig
 ): GenericCrudRepository<T> {
-  return new GenericCrudRepository<T>(tableName, config);
+  return new GenericCrudRepository<T>(tableName, supabaseClientFactory, config);
 }
 
 /**
@@ -44,12 +49,13 @@ class RepositoryRegistry {
 
   static get<T extends Record<string, any>>(
     tableName: string,
+    supabaseClientFactory: SupabaseClientFactory,
     config?: RepositoryConfig
   ): GenericCrudRepository<T> {
     const key = `${tableName}:${JSON.stringify(config || {})}`;
 
     if (!this.instances.has(key)) {
-      this.instances.set(key, new GenericCrudRepository<T>(tableName, config));
+      this.instances.set(key, new GenericCrudRepository<T>(tableName, supabaseClientFactory, config));
     }
 
     return this.instances.get(key)!;
@@ -65,9 +71,10 @@ class RepositoryRegistry {
  */
 export function getRepository<T extends Record<string, any>>(
   tableName: string,
+  supabaseClientFactory: SupabaseClientFactory,
   config?: RepositoryConfig
 ): GenericCrudRepository<T> {
-  return RepositoryRegistry.get<T>(tableName, config);
+  return RepositoryRegistry.get<T>(tableName, supabaseClientFactory, config);
 }
 
 /**

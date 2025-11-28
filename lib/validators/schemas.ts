@@ -174,6 +174,51 @@ export const updateThesisSchema = createThesisSchema.partial().omit({ portfolio_
 
 export type UpdateThesisInput = z.infer<typeof updateThesisSchema>;
 
+
+
+// We need to include 'id' for the update thesis body schema since it's in the body
+
+export const updateThesisBodySchema = updateThesisSchema.extend({
+
+    id: commonSchemas.uuid,
+
+});
+
+export type UpdateThesisBodyInput = z.infer<typeof updateThesisBodySchema>;
+
+
+
+
+
+/**
+
+ * Daily Checklist schemas
+
+ */
+
+export const createDailyChecklistSchema = z.object({
+  portfolioId: commonSchemas.uuid,
+  date: commonSchemas.date.optional(),
+  totalTasks: z.number().int().nonnegative().default(0),
+  completedTasks: z.number().int().nonnegative().default(0),
+  completionPercentage: percentageSchema.default(0),
+  currentStreak: z.number().int().nonnegative().default(0),
+  longestStreak: z.number().int().nonnegative().default(0),
+});
+
+export type CreateDailyChecklistInput = z.infer<typeof createDailyChecklistSchema>;
+
+export const updateDailyChecklistSchema = createDailyChecklistSchema.partial().omit({ portfolioId: true });
+
+export type UpdateDailyChecklistInput = z.infer<typeof updateDailyChecklistSchema>;
+
+// We need to include 'id' for the update checklist body schema since it's in the body
+export const updateChecklistBodySchema = updateDailyChecklistSchema.extend({
+    id: commonSchemas.uuid,
+});
+export type UpdateChecklistBodyInput = z.infer<typeof updateChecklistBodySchema>;
+
+
 /**
  * Checklist Task schemas
  */
