@@ -1,3 +1,37 @@
+/**
+ * This module provides telemetry and rate-limiting utilities for the application.
+ * It includes functionality for:
+ * - Distributed locking using Redis or filesystem-based fallback.
+ * - Telemetry queue management with disk persistence and compaction.
+ * - Rate limit logging and telemetry forwarding to a remote endpoint.
+ * - Background workers for telemetry flushing and cleanup.
+ *
+ * Key Features:
+ * - Durable logging of rate limit events to disk.
+ * - Telemetry batching and retry logic for remote forwarding.
+ * - Queue compaction to manage disk usage.
+ * - Configurable retention policies for telemetry archives.
+ *
+ * Environment Variables:
+ * - TELEMETRY_REDIS_URL: Redis URL for distributed locking.
+ * - TELEMETRY_URL: Remote endpoint for telemetry forwarding.
+ * - TELEMETRY_TOKEN: Authorization token for telemetry endpoint.
+ * - TELEMETRY_BATCH_SIZE: Number of events per batch.
+ * - TELEMETRY_FLUSH_INTERVAL_MS: Interval for telemetry flushing.
+ * - TELEMETRY_QUEUE_MAX_FILES: Max files before compaction.
+ * - TELEMETRY_QUEUE_MAX_BYTES: Max queue size before compaction.
+ * - TELEMETRY_COMPACT_RETENTION_DAYS: Retention period for archives.
+ * - TELEMETRY_COMPACT_MAX_ARCHIVES: Max number of archives to retain.
+ *
+ * Usage Notes:
+ * - This module is extensively tested in `metrics.spec.ts` and `metrics.integration.spec.ts`.
+ *   - Unit tests verify telemetry forwarding, retry logic, and file logging.
+ *   - Integration tests simulate end-to-end telemetry workflows with a local HTTP server.
+ * - Core functions like `recordRateLimit`, `flushTelemetry`, and `getTelemetryStats` are dynamically used.
+ * - The `getTelemetryStats` function is also referenced in `lib/telemetry/ai-logger.ts`.
+ * - Environment variables play a critical role in configuring telemetry behavior.
+ */
+
 import fs from 'fs';
 import path from 'path';
 import zlib from 'zlib';

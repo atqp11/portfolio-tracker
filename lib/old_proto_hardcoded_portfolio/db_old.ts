@@ -3,8 +3,8 @@
  * Provides helper methods for common database queries
  */
 
-import { prisma } from './prisma';
-import { configs } from './config';
+import { prisma } from '../prisma';
+import { configs } from '../config';
 
 /**
  * Get or create a portfolio by ID (energy or copper)

@@ -180,7 +180,7 @@ export async function updateProfile(
 // PORTFOLIO HELPERS
 // ============================================================================
 
-export async function getUserPortfolios(userId: string): Promise<Portfolio[]> {
+export async function getUserPortfolios1(userId: string): Promise<Portfolio[]> {
   const supabase = await createClient();
 
   const { data, error } = await supabase
@@ -197,7 +197,7 @@ export async function getUserPortfolios(userId: string): Promise<Portfolio[]> {
   return data || [];
 }
 
-export async function getPortfolio(portfolioId: string): Promise<Portfolio | null> {
+export async function getPortfolio1(portfolioId: string): Promise<Portfolio | null> {
   const supabase = await createClient();
 
   const { data, error } = await supabase
@@ -214,7 +214,7 @@ export async function getPortfolio(portfolioId: string): Promise<Portfolio | nul
   return data;
 }
 
-export async function createPortfolio(
+export async function createPortfolio1(
   portfolio: Omit<Portfolio, 'id' | 'created_at' | 'updated_at'>
 ): Promise<Portfolio | null> {
   const supabase = await createClient();
@@ -233,7 +233,7 @@ export async function createPortfolio(
   return data;
 }
 
-export async function updatePortfolio(
+export async function updatePortfolio1(
   portfolioId: string,
   updates: Partial<Omit<Portfolio, 'id' | 'user_id' | 'created_at' | 'updated_at'>>
 ): Promise<Portfolio | null> {
@@ -254,7 +254,7 @@ export async function updatePortfolio(
   return data;
 }
 
-export async function deletePortfolio(portfolioId: string): Promise<boolean> {
+export async function deletePortfolio1(portfolioId: string): Promise<boolean> {
   const supabase = await createClient();
 
   const { error } = await supabase
@@ -274,7 +274,7 @@ export async function deletePortfolio(portfolioId: string): Promise<boolean> {
 // STOCK HELPERS
 // ============================================================================
 
-export async function getPortfolioStocks(portfolioId: string): Promise<Stock[]> {
+export async function getPortfolioStocks1(portfolioId: string): Promise<Stock[]> {
   const supabase = await createClient();
 
   const { data, error } = await supabase
@@ -291,7 +291,7 @@ export async function getPortfolioStocks(portfolioId: string): Promise<Stock[]> 
   return data || [];
 }
 
-export async function createStock(
+export async function createStock1(
   stock: Omit<Stock, 'id' | 'created_at'>
 ): Promise<Stock | null> {
   const supabase = await createClient();
@@ -310,7 +310,7 @@ export async function createStock(
   return data;
 }
 
-export async function updateStock(
+export async function updateStock1(
   stockId: string,
   updates: Partial<Omit<Stock, 'id' | 'portfolio_id' | 'created_at'>>
 ): Promise<Stock | null> {
@@ -331,7 +331,7 @@ export async function updateStock(
   return data;
 }
 
-export async function deleteStock(stockId: string): Promise<boolean> {
+export async function deleteStock1(stockId: string): Promise<boolean> {
   const supabase = await createClient();
 
   const { error } = await supabase
@@ -351,7 +351,7 @@ export async function deleteStock(stockId: string): Promise<boolean> {
 // INVESTMENT THESIS HELPERS
 // ============================================================================
 
-export async function getPortfolioTheses(portfolioId: string): Promise<InvestmentThesis[]> {
+export async function getPortfolioTheses1(portfolioId: string): Promise<InvestmentThesis[]> {
   const supabase = await createClient();
 
   const { data, error } = await supabase
@@ -368,7 +368,7 @@ export async function getPortfolioTheses(portfolioId: string): Promise<Investmen
   return data || [];
 }
 
-export async function createThesis(
+export async function createThesis1(
   thesis: Omit<InvestmentThesis, 'id' | 'created_at' | 'updated_at'>
 ): Promise<InvestmentThesis | null> {
   const supabase = await createClient();
@@ -387,7 +387,7 @@ export async function createThesis(
   return data;
 }
 
-export async function updateThesis(
+export async function updateThesis1(
   thesisId: string,
   updates: Partial<Omit<InvestmentThesis, 'id' | 'portfolio_id' | 'created_at' | 'updated_at'>>
 ): Promise<InvestmentThesis | null> {
@@ -412,7 +412,7 @@ export async function updateThesis(
 // CHECKLIST HELPERS
 // ============================================================================
 
-export async function getPortfolioChecklists(portfolioId: string): Promise<DailyChecklist[]> {
+export async function getPortfolioChecklists1(portfolioId: string): Promise<DailyChecklist[]> {
   const supabase = await createClient();
 
   const { data, error } = await supabase
@@ -429,7 +429,7 @@ export async function getPortfolioChecklists(portfolioId: string): Promise<Daily
   return data || [];
 }
 
-export async function getChecklistTasks(checklistId: string): Promise<ChecklistTask[]> {
+export async function getChecklistTasks1(checklistId: string): Promise<ChecklistTask[]> {
   const supabase = await createClient();
 
   const { data, error } = await supabase
@@ -446,7 +446,7 @@ export async function getChecklistTasks(checklistId: string): Promise<ChecklistT
   return data || [];
 }
 
-export async function updateTask(
+export async function updateTask1(
   taskId: string,
   updates: Partial<Omit<ChecklistTask, 'id' | 'checklist_id' | 'portfolio_id' | 'created_at' | 'updated_at'>>
 ): Promise<ChecklistTask | null> {
@@ -471,7 +471,7 @@ export async function updateTask(
 // USAGE TRACKING HELPERS
 // ============================================================================
 
-export async function getUserUsage(userId: string): Promise<UsageTracking[]> {
+export async function getUserUsage1(userId: string): Promise<UsageTracking[]> {
   const supabase = await createClient();
 
   const { data, error } = await supabase
@@ -488,7 +488,7 @@ export async function getUserUsage(userId: string): Promise<UsageTracking[]> {
   return data || [];
 }
 
-export async function createUsageRecord(
+export async function createUsageRecord1(
   usage: Omit<UsageTracking, 'id' | 'created_at'>
 ): Promise<UsageTracking | null> {
   const supabase = await createClient();
