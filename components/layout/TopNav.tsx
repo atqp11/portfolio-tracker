@@ -84,6 +84,10 @@ export default function TopNav({ title }: TopNavProps) {
       // Then call the server-side signout endpoint
       await fetch('/api/auth/signout', { method: 'POST' });
 
+      // Clear local storage
+      localStorage.clear();
+      sessionStorage.clear();
+
       // Clear local state
       setUser(null);
 

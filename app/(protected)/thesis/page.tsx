@@ -4,16 +4,25 @@ import { useState } from 'react';
 import { configs } from '@/lib/config';
 import ThesisCard from '@/components/ThesisCard';
 import { usePortfolio, useStocks, useTheses, usePortfolioMetrics } from '@/lib/hooks/useDatabase';
+import type { InvestmentThesis, ThesisMetric } from '@/lib/types';
 
 export default function ThesisPage() {
   const [active, setActive] = useState<'energy' | 'copper'>('energy');
 
   const config = configs.find(c => c.id === active)!;
-  const { portfolio: dbPortfolio } = usePortfolio(active);
-  const { stocks: dbStocks } = useStocks(dbPortfolio?.id);
-  const { theses: dbTheses } = useTheses(dbPortfolio?.id);
-  const metrics = usePortfolioMetrics(dbStocks, dbPortfolio?.borrowedAmount || 0);
-
+  const { data: dbPortfolio } = usePortfolio(active);
+  const { data: dbStocks, isLoading: stocksLoading } = useStocks(dbPortfolio?.id);
+  const { data: dbTheses } = useTheses(dbPortfolio?.id);
+  const metricsQuery = usePortfolioMetrics(dbStocks, dbPortfolio?.borrowedAmount || 0);
+  const metrics = metricsQuery.data || {
+    currentValue: 0,
+    costBasis: 0,
+    unrealizedPL: 0,
+    unrealizedPLPercent: 0,
+    equityValue: 0,
+    equityPercent: 0,
+    marginCallValue: 0,
+  };
   const currentValue = metrics.currentValue || config.initialValue;
   const marginUsed = dbPortfolio?.borrowedAmount || (active === 'energy' ? 6000 : 3000);
   const equityPercent = metrics.equityPercent || 0;
@@ -21,7 +30,7 @@ export default function ThesisPage() {
 
   // Use database theses or generate default ones
   const theses = dbTheses && dbTheses.length > 0
-    ? dbTheses.map(t => ({
+    ? (dbTheses || []).map((t: InvestmentThesis) => ({
         ...t,
         bearCase: t.bearCase || undefined,
         lastValidated: t.lastValidated ? new Date(t.lastValidated) : undefined,
@@ -111,7 +120,7 @@ export default function ThesisPage() {
 
   // Handler to open modal with thesis data
   const handleEdit = (id: string) => {
-    const thesis = theses.find(t => t.id === id);
+    const thesis = theses.find((t: InvestmentThesis) => t.id === id);
     if (thesis) {
       setEditThesis({ ...thesis });
       setEditModalOpen(true);
@@ -234,19 +243,19 @@ export default function ThesisPage() {
 
       {/* Thesis Cards */}
       <div className="grid gap-4 lg:grid-cols-2">
-        {theses.map((thesis) => (
+        {theses.map((thesis: InvestmentThesis) => (
           <ThesisCard
             key={thesis.id}
             thesis={thesis}
             onValidate={(id) => {
-              const t = theses.find(th => th.id === id);
+              const t = theses.find((th: InvestmentThesis) => th.id === id);
               if (!t) return alert('Thesis not found');
               // Validation checks
               const errors = [];
               if (!t.title || !t.description || !t.rationale) errors.push('Missing required fields');
               if (!t.exitCriteria || !t.exitCriteria.targetValue) errors.push('Exit criteria missing');
               // Example metric check: equity percent above 30%
-              const eqMetric = t.keyMetrics.find(m => m.name.toLowerCase().includes('equity'));
+              const eqMetric = t.keyMetrics.find((m: ThesisMetric) => m.name.toLowerCase().includes('equity'));
               if (eqMetric) {
                 const percent = parseFloat(String(eqMetric.currentValue).replace('%',''));
                 if (!isNaN(percent) && percent < 30) errors.push('Equity percent below margin call threshold');

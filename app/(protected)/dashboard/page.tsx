@@ -16,11 +16,19 @@ import { fetchAndUpdateStockPrice } from '@/lib/utils/priceUpdater';
 import { getPortfolioTheme } from '@/lib/utils/portfolioTheme';
 
 export default function Home() {
-  const { portfolios, loading: portfoliosLoading } = usePortfolios();
+  const { data: portfolios, isLoading: portfoliosLoading, refetch: refetchPortfolios} = usePortfolios();
   const [selectedPortfolioId, setSelectedPortfolioId] = useState<string | null>(null);
-  const { portfolio: selectedPortfolio, refetch: refetchPortfolio } = usePortfolioById(selectedPortfolioId);
-  const { stocks, loading: stocksLoading } = useStocks(selectedPortfolioId || '');
-  const metrics = usePortfolioMetrics(stocks, selectedPortfolio?.borrowedAmount || 0);
+  const { data: selectedPortfolio, refetch: refetchPortfolio } = usePortfolioById(selectedPortfolioId);
+  const { data: stocks, isLoading: stocksLoading } = useStocks(selectedPortfolioId || '');
+  const metrics = usePortfolioMetrics(stocks, selectedPortfolio?.borrowedAmount || 0).data || {
+    currentValue: 0,
+    costBasis: 0,
+    unrealizedPL: 0,
+    unrealizedPLPercent: 0,
+    equityValue: 0,
+    equityPercent: 0,
+    marginCallValue: 0,
+  };
 
   // Modal state
   const [isAddStockModalOpen, setIsAddStockModalOpen] = useState(false);
@@ -221,7 +229,7 @@ export default function Home() {
     console.log(`Refreshing prices for ${stocks.length} stocks...`);
 
     try {
-      const refreshPromises = stocks.map(stock =>
+      const refreshPromises = (stocks || []).map((stock: Stock) =>
         fetchAndUpdateStockPrice(stock.id, stock.symbol, stock.shares, false)
       );
 
@@ -239,8 +247,8 @@ export default function Home() {
   };
 
   // Calculate day change
-  const totalValue = stocks.reduce((a: number, b: Stock) => a + (b.actualValue || 0), 0);
-  const totalPreviousValue = stocks.reduce((sum: number, stock: Stock) => {
+  const totalValue = (stocks || []).reduce((a: number, b: Stock) => a + (b.actualValue || 0), 0);
+  const totalPreviousValue = (stocks || []).reduce((sum: number, stock: Stock) => {
     const prevPrice = stock.previousPrice ?? stock.currentPrice ?? 0;
     if (!prevPrice || isNaN(prevPrice)) return sum;
     return sum + (stock.shares * prevPrice);
@@ -249,10 +257,10 @@ export default function Home() {
   const dayChangePercent = totalPreviousValue > 0 ? (dayChange / totalPreviousValue) * 100 : 0;
 
   // Get current portfolio tickers for AI Co-Pilot
-  const currentPortfolioTickers = stocks.map(stock => stock.symbol);
+  const currentPortfolioTickers = (stocks || []).map((stock: Stock) => stock.symbol);
 
   // Get portfolio theme
-  const allPortfolioIds = portfolios.map(p => p.id);
+  const allPortfolioIds = (portfolios || []).map((p: Portfolio) => p.id);
   const portfolioTheme = selectedPortfolioId
     ? getPortfolioTheme(selectedPortfolioId, allPortfolioIds)
     : getPortfolioTheme('', []);
@@ -336,7 +344,7 @@ export default function Home() {
 
           <button
             onClick={handleRefreshPrices}
-            disabled={!selectedPortfolioId || !stocks.length || isRefreshingPrices}
+            disabled={!selectedPortfolioId || !(stocks || []).length || isRefreshingPrices}
             className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center gap-2"
           >
             <svg
@@ -366,17 +374,17 @@ export default function Home() {
 
         {/* Portfolio Header */}
         <PortfolioHeader
-          accountValue={metrics.currentValue}
+          accountValue={metrics.currentValue }
           dayChange={dayChange}
           dayChangePercent={dayChangePercent}
-          unrealizedGainLoss={metrics.unrealizedPL}
+          unrealizedGainLoss={metrics.unrealizedPL }
           unrealizedGainLossPercent={metrics.unrealizedPLPercent}
           theme={portfolioTheme}
         />
 
         {/* Holdings - Asset Cards */}
         <div className="space-y-4 mb-6">
-          {stocks.length === 0 ? (
+          {(stocks || []).length === 0 ? (
             <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 p-8 rounded-lg text-center">
               <p className="text-gray-600 dark:text-gray-400 mb-4">
                 No stocks in this portfolio yet.
@@ -389,7 +397,7 @@ export default function Home() {
               </button>
             </div>
           ) : (
-            stocks.map(stock => {
+            stocks.map((stock: Stock) => {
               const isUnavailable = stock.currentPrice === null || isNaN(stock.currentPrice);
               const costBasis = stock.shares * stock.avgPrice;
               const currentPrice = isUnavailable ? null : stock.currentPrice;
@@ -504,7 +512,7 @@ export default function Home() {
             )}
 
             <div className="space-y-3">
-              {news.slice(0, 5).map((article, idx) => (
+              {(news || []).slice(0, 5).map((article, idx) => (
                 <NewsCard key={idx} article={article} />
               ))}
             </div>

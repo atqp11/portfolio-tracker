@@ -10,10 +10,12 @@ import { getPortfolioTheme } from '@/lib/utils/portfolioTheme';
 
 export default function RiskPage() {
   // Portfolio state
-  const { portfolios, loading: portfoliosLoading, refetch: refetchPortfolios } = usePortfolios();
+  const { data: portfolios, isLoading: portfoliosLoading, refetch: refetchPortfolios} = usePortfolios();
+
+//  const { portfolios, loading: portfoliosLoading, refetch: refetchPortfolios } = usePortfolios();
   const [selectedPortfolioId, setSelectedPortfolioId] = useState<string | null>(null);
-  const { portfolio, refetch: refetchPortfolio } = usePortfolioById(selectedPortfolioId);
-  const { stocks, loading: stocksLoading } = useStocks(selectedPortfolioId || undefined);
+  const { data: portfolio, refetch: refetchPortfolio } = usePortfolioById(selectedPortfolioId);
+  const { data: stocks, isLoading: stocksLoading } = useStocks(selectedPortfolioId || '');
 
   // Risk metrics state
   const [riskMetrics, setRiskMetrics] = useState<RiskMetrics | null>(null);
@@ -96,7 +98,7 @@ export default function RiskPage() {
   }, [stocks, portfolio]);
 
   // Get portfolio theme
-  const allPortfolioIds = portfolios.map(p => p.id);
+  const allPortfolioIds = (portfolios || []).map((p: Portfolio) => p.id);
   const portfolioTheme = selectedPortfolioId
     ? getPortfolioTheme(selectedPortfolioId, allPortfolioIds)
     : getPortfolioTheme('', []);
@@ -160,7 +162,7 @@ export default function RiskPage() {
       await refetchPortfolios();
 
       if (selectedPortfolioId === portfolio.id) {
-        const remaining = portfolios.filter(p => p.id !== portfolio.id);
+        const remaining = portfolios.filter((p: Portfolio) => p.id !== portfolio.id);
         setSelectedPortfolioId(remaining.length > 0 ? remaining[0].id : null);
       }
     } catch (error) {

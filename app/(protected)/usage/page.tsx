@@ -76,7 +76,7 @@ export default function UsagePage() {
   }
 
   const formatLimit = (limit: number) => {
-    return limit === Infinity ? '∞' : limit.toString();
+    return limit === Infinity ? '∞' : (limit ?? 0).toString();
   };
 
   const getProgressColor = (percentage: number) => {

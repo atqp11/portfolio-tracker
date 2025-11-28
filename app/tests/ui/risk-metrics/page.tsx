@@ -4,13 +4,16 @@ import RiskMetricsPanel from '@/components/RiskMetricsPanel';
 import type { RiskMetrics } from '@/lib/calculator';
 import { usePortfolio, useStocks } from '@/lib/hooks/useDatabase';
 import { getPortfolioTheme } from '@/lib/utils/portfolioTheme';
+import { Stock } from '@/lib/client/types';
 
 
 export default function TestRiskMetricsPage() {
   // For demo, use 'energy' portfolio type. You can make this dynamic if needed.
   const portfolioType: 'energy' | 'copper' = 'energy';
-  const { portfolio, loading: portfolioLoading, error: portfolioError } = usePortfolio(portfolioType);
-  const { stocks, loading: stocksLoading, error: stocksError } = useStocks(portfolio?.id);
+
+  const { data: portfolio, isLoading: portfolioLoading, error: portfolioError} = usePortfolio(portfolioType);
+  const { data: dbStocks, isLoading: stocksLoading, error: stocksError  } = useStocks(portfolio?.id);
+
   const [metrics, setMetrics] = useState<RiskMetrics | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -45,7 +48,7 @@ export default function TestRiskMetricsPage() {
     setError(null);
     try {
       // Compute returns from real data
-      const safeStocks = stocks.map(stock => ({
+      const safeStocks = dbStocks.map((stock: Stock) => ({
         ...stock,
         currentPrice: stock.currentPrice === null ? undefined : stock.currentPrice,
       }));
@@ -87,11 +90,11 @@ export default function TestRiskMetricsPage() {
         {(portfolioLoading || stocksLoading) && (
           <div className="text-blue-400 mb-4">Loading portfolio data...</div>
         )}
-        {portfolioError && <div className="text-red-400 mb-4">Portfolio error: {portfolioError}</div>}
-        {stocksError && <div className="text-red-400 mb-4">Stocks error: {stocksError}</div>}
+        {portfolioError && <div className="text-red-400 mb-4">Portfolio error: {portfolioError.message}</div>}
+        {stocksError && <div className="text-red-400 mb-4">Stocks error: {stocksError.message}</div>}
         <RiskMetricsPanel metrics={metrics} loading={loading} error={error} theme={theme} />
         <div className="mt-8 text-sm text-gray-400">
-          <div>Portfolio Returns: {JSON.stringify(getPortfolioReturns(stocks))}</div>
+          <div>Portfolio Returns: {JSON.stringify(getPortfolioReturns(dbStocks))}</div>
           <div>Market Returns: {JSON.stringify(getMarketReturns())}</div>
         </div>
       </div>

@@ -49,6 +49,7 @@
  */
 
 import { useState, useEffect } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 // Types
 export interface Portfolio {
@@ -157,267 +158,127 @@ export interface ChecklistTask {
  * Hook to fetch all portfolios
  */
 export function usePortfolios() {
- const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const fetchPortfolios = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-
+  return useQuery({
+    queryKey: ['portfolios'],
+    queryFn: async () => {
       const response = await fetch('/api/portfolio');
       if (!response.ok) throw new Error('Failed to fetch portfolios');
-
       const result = await response.json();
-      const data: Portfolio[] = result.success ? result.data : result; // Handle both old and new format
-      setPortfolios(data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchPortfolios();
-  }, []);
-
-  return { portfolios, loading, error, refetch: fetchPortfolios };
+      return result.success ? result.data : result;
+    },
+  });
 }
 
 /**
  * Hook to fetch portfolio by type (energy or copper)
  */
 export function usePortfolio(type: 'energy' | 'copper') {
-  const [portfolio, setPortfolio] = useState<Portfolio | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    async function fetchPortfolio() {
-      try {
-        setLoading(true);
-        setError(null);
-
-        // Fetch all portfolios and find by type
-        const response = await fetch('/api/portfolio');
-        if (!response.ok) throw new Error('Failed to fetch portfolios');
-
-        const result = await response.json();
-        const portfolios: Portfolio[] = result.success ? result.data : result; // Handle both old and new format
-        console.log('[usePortfolio] Fetched portfolios:', portfolios);
-        console.log('[usePortfolio] Looking for type:', type);
-        console.log('[usePortfolio] Portfolio types:', portfolios.map(p => ({ id: p.id, name: p.name, type: p.type })));
-
-        const found = portfolios.find(p => p.type === type);
-        console.log('[usePortfolio] Found portfolio:', found);
-
-        if (found) {
-          setPortfolio(found);
-        } else {
-          setError(`Portfolio ${type} not found`);
-        }
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Unknown error');
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    fetchPortfolio();
-  }, [type]);
-
-  return { portfolio, loading, error, refetch: () => setLoading(true) };
+  return useQuery({
+    queryKey: ['portfolio', type],
+    queryFn: async () => {
+      const response = await fetch('/api/portfolio');
+      if (!response.ok) throw new Error('Failed to fetch portfolios');
+      const result = await response.json();
+      const portfolios = result.success ? result.data : result;
+      const found = portfolios.find((p: Portfolio) => p.type === type);
+      if (!found) throw new Error(`Portfolio ${type} not found`);
+      return found;
+    },
+  });
 }
 
 /**
  * Hook to fetch a single portfolio by ID
  */
 export function usePortfolioById(portfolioId: string | null) {
-  const [portfolio, setPortfolio] = useState<Portfolio | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!portfolioId) {
-      setLoading(false);
-      return;
-    }
-
-    async function fetchPortfolio() {
-      try {
-        setLoading(true);
-        setError(null);
-
-        const response = await fetch(`/api/portfolio?id=${portfolioId}`);
-        if (!response.ok) throw new Error('Failed to fetch portfolio');
-
-        const result = await response.json();
-        const data: Portfolio = result.success ? result.data : result; // Handle both old and new format
-        setPortfolio(data);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Unknown error');
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    fetchPortfolio();
-  }, [portfolioId]);
-
-  return { portfolio, loading, error, refetch: () => setLoading(true) };
+  return useQuery({
+    queryKey: ['portfolioById', portfolioId],
+    queryFn: async () => {
+      if (!portfolioId) return null;
+      const response = await fetch(`/api/portfolio?id=${portfolioId}`);
+      if (!response.ok) throw new Error('Failed to fetch portfolio');
+      const result = await response.json();
+      return result.success ? result.data : result;
+    },
+    enabled: !!portfolioId,
+  });
 }
 
 /**
  * Hook to fetch stocks for a portfolio
  */
 export function useStocks(portfolioId: string | undefined) {
- const [stocks, setStocks] = useState<Stock[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!portfolioId) {
-      setStocks([]);
-      setLoading(false);
-      return;
-    }
-
-    async function fetchStocks() {
-      try {
-        setLoading(true);
-        setError(null);
-
-        const response = await fetch(`/api/stocks?portfolioId=${portfolioId}`);
-        if (!response.ok) throw new Error('Failed to fetch stocks');
-
-        const result = await response.json();
-        // Extract data from wrapped response
-        setStocks(result.data || []);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Unknown error');
-        setStocks([]);
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    fetchStocks();
-  }, [portfolioId]);
-
-  return { stocks, loading, error, refetch: () => setLoading(true) };
+  return useQuery({
+    queryKey: ['stocks', portfolioId],
+    queryFn: async () => {
+      if (!portfolioId) return [];
+      const response = await fetch(`/api/stocks?portfolioId=${portfolioId}`);
+      if (!response.ok) throw new Error('Failed to fetch stocks');
+      const result = await response.json();
+      return result.data || [];
+    },
+    enabled: !!portfolioId,
+  });
 }
 
 /**
  * Hook to fetch investment theses for a portfolio
  */
 export function useTheses(portfolioId: string | undefined) {
-  const [theses, setTheses] = useState<InvestmentThesis[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!portfolioId) {
-      setLoading(false);
-      return;
-    }
-
-    async function fetchTheses() {
-      try {
-        setLoading(true);
-        setError(null);
-        
-        const response = await fetch(`/api/thesis?portfolioId=${portfolioId}`);
-        if (!response.ok) throw new Error('Failed to fetch theses');
-        
-        const data = await response.json();
-        setTheses(data);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Unknown error');
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    fetchTheses();
-  }, [portfolioId]);
-
-  return { theses, loading, error, refetch: () => setLoading(true) };
+  return useQuery({
+    queryKey: ['theses', portfolioId],
+    queryFn: async () => {
+      if (!portfolioId) return [];
+      const response = await fetch(`/api/thesis?portfolioId=${portfolioId}`);
+      if (!response.ok) throw new Error('Failed to fetch theses');
+      return await response.json();
+    },
+    enabled: !!portfolioId,
+  });
 }
 
 /**
  * Hook to fetch today's checklist for a portfolio
  */
 export function useChecklist(portfolioId: string | undefined) {
-  const [checklist, setChecklist] = useState<DailyChecklist | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!portfolioId) {
-      setLoading(false);
-      return;
-    }
-
-    async function fetchChecklist() {
-      try {
-        setLoading(true);
-        setError(null);
-        
-        const today = new Date().toISOString().split('T')[0];
-        const response = await fetch(`/api/checklist?portfolioId=${portfolioId}&date=${today}`);
-        if (!response.ok) throw new Error('Failed to fetch checklist');
-        
-        const data = await response.json();
-        setChecklist(data);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Unknown error');
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    fetchChecklist();
-  }, [portfolioId]);
-
-  return { checklist, loading, error, refetch: () => setLoading(true) };
+  return useQuery({
+    queryKey: ['checklist', portfolioId],
+    queryFn: async () => {
+      if (!portfolioId) return null;
+      const today = new Date().toISOString().split('T')[0];
+      const response = await fetch(`/api/checklist?portfolioId=${portfolioId}&date=${today}`);
+      if (!response.ok) throw new Error('Failed to fetch checklist');
+      return await response.json();
+    },
+    enabled: !!portfolioId,
+  });
 }
 
 /**
  * Hook to calculate portfolio metrics from stocks
  */
 export function usePortfolioMetrics(stocks: Stock[], borrowedAmount: number = 0) {
-  const [metrics, setMetrics] = useState({
-    currentValue: 0,
-    costBasis: 0,
-    unrealizedPL: 0,
-    unrealizedPLPercent: 0,
-    equityValue: 0,
-    equityPercent: 0,
-    marginCallValue: 0,
+  return useQuery({
+    queryKey: ['portfolioMetrics', stocks, borrowedAmount],
+    queryFn: () => {
+      const currentValue = stocks.reduce((sum, s) => sum + (s.actualValue || 0), 0);
+      const costBasis = stocks.reduce((sum, s) => sum + (s.shares * s.avgPrice), 0);
+      const unrealizedPL = currentValue - costBasis;
+      const unrealizedPLPercent = costBasis > 0 ? (unrealizedPL / costBasis) * 100 : 0;
+
+      const equityValue = currentValue - borrowedAmount;
+      const equityPercent = currentValue > 0 ? (equityValue / currentValue) * 100 : 0;
+      const marginCallValue = borrowedAmount / 0.30; // 30% margin call level
+
+      return {
+        currentValue,
+        costBasis,
+        unrealizedPL,
+        unrealizedPLPercent,
+        equityValue,
+        equityPercent,
+        marginCallValue,
+      };
+    },
   });
-
-  useEffect(() => {
-    const currentValue = stocks.reduce((sum, s) => sum + (s.actualValue || 0), 0);
-    const costBasis = stocks.reduce((sum, s) => sum + (s.shares * s.avgPrice), 0);
-    const unrealizedPL = currentValue - costBasis;
-    const unrealizedPLPercent = costBasis > 0 ? (unrealizedPL / costBasis) * 100 : 0;
-    
-    const equityValue = currentValue - borrowedAmount;
-    const equityPercent = currentValue > 0 ? (equityValue / currentValue) * 100 : 0;
-    const marginCallValue = borrowedAmount / 0.30; // 30% margin call level
-
-    setMetrics({
-      currentValue,
-      costBasis,
-      unrealizedPL,
-      unrealizedPLPercent,
-      equityValue,
-      equityPercent,
-      marginCallValue,
-    });
-  }, [stocks, borrowedAmount]);
-
-  return metrics;
 }

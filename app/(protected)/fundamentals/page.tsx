@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { usePortfolios, usePortfolioById, useStocks, Portfolio } from '@/lib/hooks/useDatabase';
+import { usePortfolios, usePortfolioById, useStocks, Portfolio, Stock } from '@/lib/hooks/useDatabase';
 import PortfolioSelector from '@/components/PortfolioSelector';
 import PortfolioModal from '@/components/PortfolioModal';
 import { getPortfolioTheme } from '@/lib/utils/portfolioTheme';
@@ -21,10 +21,14 @@ interface StockFundamentals {
 
 export default function FundamentalsPage() {
   // Portfolio state
-  const { portfolios, loading: portfoliosLoading, refetch: refetchPortfolios } = usePortfolios();
+    const { data: portfolios, isLoading: portfoliosLoading, refetch: refetchPortfolios } = usePortfolios();
+  //const { portfolios, loading: portfoliosLoading, refetch: refetchPortfolios } = usePortfolios();
   const [selectedPortfolioId, setSelectedPortfolioId] = useState<string | null>(null);
-  const { portfolio, refetch: refetchPortfolio } = usePortfolioById(selectedPortfolioId);
-  const { stocks, loading: stocksLoading } = useStocks(selectedPortfolioId || undefined);
+  const { data: selectedPortfolio, refetch: refetchPortfolio } = usePortfolioById(selectedPortfolioId);
+
+  //const { portfolio, refetch: refetchPortfolio } = usePortfolioById(selectedPortfolioId);
+  //const { stocks, loading: stocksLoading } = useStocks(selectedPortfolioId || undefined);
+  const { data: stocks, isLoading: stocksLoading } = useStocks(selectedPortfolioId || undefined);
 
   // Fundamentals state
   const [fundamentals, setFundamentals] = useState<Record<string, StockFundamentals>>({});
@@ -100,7 +104,7 @@ export default function FundamentalsPage() {
   }, [stocks]);
 
   // Get portfolio theme
-  const allPortfolioIds = portfolios.map(p => p.id);
+  const allPortfolioIds = (portfolios || []).map((p: Portfolio) => p.id);
   const portfolioTheme = selectedPortfolioId
     ? getPortfolioTheme(selectedPortfolioId, allPortfolioIds)
     : getPortfolioTheme('', []);
@@ -164,7 +168,7 @@ export default function FundamentalsPage() {
       await refetchPortfolios();
 
       if (selectedPortfolioId === portfolio.id) {
-        const remaining = portfolios.filter(p => p.id !== portfolio.id);
+        const remaining = portfolios.filter((p: Portfolio) => p.id !== portfolio.id);
         setSelectedPortfolioId(remaining.length > 0 ? remaining[0].id : null);
       }
     } catch (error) {
@@ -234,7 +238,7 @@ export default function FundamentalsPage() {
       {/* Fundamentals Grid */}
       {!loading && !loadingFundamentals && stocks && stocks.length > 0 && (
         <div className="space-y-4">
-          {stocks.map((stock) => {
+          {stocks.map((stock: Stock) => {
             const data = fundamentals[stock.symbol];
             if (!data) return null;
 
@@ -317,7 +321,7 @@ export default function FundamentalsPage() {
       )}
 
       {/* Empty State */}
-      {!loading && !loadingFundamentals && (!stocks || stocks.length === 0) && (
+      {!loading && !loadingFundamentals && (stocks || []).length === 0 && (
         <div className="text-center py-12 bg-gray-50 dark:bg-gray-800 rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-600">
           <p className="text-gray-600 dark:text-gray-400">No stocks available in this portfolio</p>
           <p className="text-sm text-gray-500 dark:text-gray-500 mt-2">Add stocks to your portfolio to view fundamentals</p>

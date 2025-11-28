@@ -13,11 +13,20 @@ export default function ChecklistPage() {
   const [isLoading, setIsLoading] = useState(true);
 
   const config = configs.find(c => c.id === active)!;
-  const { portfolio: dbPortfolio } = usePortfolio(active);
-  const { stocks: dbStocks } = useStocks(dbPortfolio?.id);
-  const metrics = usePortfolioMetrics(dbStocks, dbPortfolio?.borrowedAmount || 0);
+  const { data: dbPortfolio } = usePortfolio(active);
+  const { data: dbStocks } = useStocks(dbPortfolio?.id);
+  const metricsQuery = usePortfolioMetrics(dbStocks, dbPortfolio?.borrowedAmount || 0);
+  const metrics = metricsQuery.data || {
+    currentValue: 0,
+    costBasis: 0,
+    unrealizedPL: 0,
+    unrealizedPLPercent: 0,
+    equityValue: 0,
+    equityPercent: 0,
+    marginCallValue: 0,
+  };
 
-  const currentValue = metrics.currentValue || config.initialValue;
+  const currentValue = metrics.currentValue ?? config.initialValue;
 
   useEffect(() => {
     const generateChecklist = async () => {
