@@ -13,11 +13,12 @@
 5. [Usage Tracking](#usage-tracking)
 6. [Quota Enforcement](#quota-enforcement)
 7. [Request Flow](#request-flow)
-8. [Database Schema](#database-schema)
-9. [Security Model](#security-model)
-10. [Caching Strategy](#caching-strategy)
-11. [API Reference](#api-reference)
-12. [Testing](#testing)
+8. [Data Modeling & DTO Architecture](#data-modeling--dto-architecture)
+9. [Database Schema](#database-schema)
+10. [Security Model](#security-model)
+11. [Caching Strategy](#caching-strategy)
+12. [API Reference](#api-reference)
+13. [Testing](#testing)
 
 ---
 
@@ -120,8 +121,8 @@ export async function createClient() {
 - Used for user-facing database operations
 
 **When to Use**:
-- Reading user's own data
-- Updating user's own data
+- Reading user\'s own data
+- Updating user\'s own data
 - Dashboard queries
 - Any operation that should respect user permissions
 
@@ -176,7 +177,7 @@ export function createAdminClient() {
 
 **Example Use Cases**:
 ```typescript
-// Can read/update ANY user's usage
+// Can read/update ANY user\'s usage
 const usage = await supabase
   .from('usage_tracking')
   .update({ chat_queries: count })
@@ -190,10 +191,10 @@ const usage = await supabase
 | Operation | Client Type | Why |
 |-----------|-------------|-----|
 | Display usage dashboard | SSR | User should only see their own data |
-| Check user's quota | SSR | User-facing, respects RLS |
+| Check user\'s quota | SSR | User-facing, respects RLS |
 | Track usage after action | Admin | System operation, must be reliable |
 | Increment usage counter | Admin | Must bypass RLS for accuracy |
-| Read user profile | SSR | User's own data |
+| Read user profile | SSR | User\'s own data |
 | Admin panel queries | Admin | Need to see all users |
 
 ---
@@ -202,7 +203,7 @@ const usage = await supabase
 
 **What is RLS?**
 
-Row Level Security is PostgreSQL's built-in feature to restrict which rows users can see/modify based on policies.
+Row Level Security is PostgreSQL\'s built-in feature to restrict which rows users can see/modify based on policies.
 
 **Example Policy**:
 ```sql
@@ -441,7 +442,7 @@ export async function checkQuota(
   userId: string,
   action: UsageAction,
   tier: TierName
-): Promise<{
+): Promise<{ 
   allowed: boolean;
   remaining: number;
   limit: number;
@@ -659,10 +660,91 @@ export async function POST(req: NextRequest) {
               │ to User          │
               └──────────────────┘
 ```
+---
+
+## 8. Data Modeling & DTO Architecture
+
+This system uses a strict **"database-first"** approach, complemented by a robust API contract layer using Zod.
+
+### 8.1 Design Principles
+
+1.  **Supabase Database Schema is the Single Source of Truth for Data-at-Rest**
+    *   **Why?** To prevent schema drift and ensure the application always reflects the true state of the database.
+    *   The Supabase (PostgreSQL) database defines the authoritative structure of tables, columns, relationships, and constraints.
+    *   This project **does not** duplicate the database schema in other parts of the codebase (e.g., no manual "entity" interfaces). The auto-generated types in `src/lib/supabase/database.types.ts` serve as the code-level representation of this truth.
+
+2.  **Zod Schemas are the Single Source of Truth for API Contracts (DTOs)**
+    *   **Why?** To create a stable, validated, and explicitly defined boundary between the frontend and backend.
+    *   Zod schemas, located in `src/lib/validators/schemas/`, define the shape, types, and validation rules for all data sent to or from an API endpoint (Data-in-Motion).
+    *   These schemas are **intentionally different** from the database models. They hide sensitive fields, rename columns for clarity, and can include computed properties.
+
+3.  **TypeScript DTO Types are Always Inferred From Zod**
+    *   **Why?** To eliminate manual work and ensure the application\'s types can never go out of sync with its runtime validation rules.
+    *   We never write DTO interfaces by hand. All DTO types used by the frontend and backend are inferred using `z.infer<typeof ...>`, ensuring perfect alignment between validation and type safety.
+
+### 8.2 Layered Data Model Strategy
+
+The system maintains three distinct and separate data shapes across its layers:
+
+| Layer | Represents | Source of Truth |
+|---|---|---|
+| **Database Models** | Persistent data-at-rest. | **Supabase DB Schema** |
+| **DTOs (API Contracts)** | Data-in-motion. | **Zod Schemas** |
+| **Internal Types** | Per-module logic types. | **Inferred from Zod** |
+
+This strict layering prevents implementation details (like database table names) from leaking into the frontend.
+
+### 8.3 Final Directory Structure (Authoritative)
+```
+src/
+├─ backend/
+│   └─ modules/
+│       └─ <domain>/
+│           ├─ <entity>.controller.ts  # Handles API requests, validates Zod DTO
+│           ├─ <entity>.service.ts     # Business logic, transforms DB models to DTOs
+│           └─ <entity>.repository.ts  # Queries DB using Prisma Client
+│
+├─ lib/
+│   ├─ supabase/
+│   │   └─ database.types.ts   # Auto-generated from DB schema
+│   ├─ validators/
+│   │   └─ schemas/
+│   │       └─ <entity>.ts         # Zod schemas = API contract
+│   └─ types/
+│       └─ dto.ts                # Auto-inferred DTO types from Zod
+│
+└─ prisma/
+    └─ schema.prisma             # Must be kept in sync with Supabase DB
+```
+
+### 8.4 Developer Workflow & Guidelines
+
+**CRITICAL: Keeping Prisma in Sync**
+Because Supabase is the source of truth, the `prisma.schema` file must be updated after any database change.
+
+1.  Make schema changes in the Supabase UI or with a migration file.
+2.  Generate the updated Supabase types: `supabase gen types typescript > src/lib/supabase/database.types.ts`
+3.  Pull the schema changes into Prisma: `npx prisma db pull`
+4.  Regenerate the Prisma Client: `npx prisma generate`
+
+**Data Type Usage Rules:**
+-   **Use Supabase-generated types** (`database.types.ts`) or **Prisma types** only within the backend, primarily in repositories.
+-   **Use Zod schemas** for validating all API inputs (request bodies, query params).
+-   **Use inferred DTO types** (`z.infer<...>`) for function signatures in services/controllers and for all frontend data handling.
+-   **The frontend must never import types from `database.types.ts` or the Prisma Client.** It should only know about the DTOs.
+-   **Services are responsible for transforming** internal database models into public-facing DTOs.
+
+### 8.5 Summary
+
+This architecture provides a clear, robust, and safe data modeling strategy:
+-   **Supabase/Postgres** defines the persistent data structure.
+-   **Zod** defines the public API contract.
+-   **TypeScript inference** links them together safely.
+-   **Clear separation** prevents leaky abstractions and couples layers loosely.
 
 ---
 
-## Database Schema
+## 9. Database Schema
 
 ### Core Tables
 
@@ -737,7 +819,7 @@ CREATE POLICY "Service role full access"
 
 ---
 
-## Security Model
+## 10. Security Model
 
 ### Authentication Flow
 
@@ -763,11 +845,11 @@ export async function getUserProfile() {
 
 ### Security Layers
 
-1. **Authentication**: All endpoints require valid session
-2. **RLS**: User-facing queries filtered by auth.uid()
-3. **Quota enforcement**: Prevents abuse via usage limits
-4. **Rate limiting**: (TODO) Per-IP limits
-5. **Input validation**: Sanitize all user input
+1.  **Authentication**: All endpoints require valid session
+2.  **RLS**: User-facing queries filtered by auth.uid()
+3.  **Quota enforcement**: Prevents abuse via usage limits
+4.  **Rate limiting**: (TODO) Per-IP limits
+5.  **Input validation**: Sanitize all user input
 
 ### Threat Model
 
@@ -781,7 +863,7 @@ export async function getUserProfile() {
 
 ---
 
-## Caching Strategy
+## 11. Caching Strategy
 
 ### Cache Before Quota
 
@@ -827,7 +909,7 @@ function generateCacheKey(data: any): string {
 
 ---
 
-## API Reference
+## 12. API Reference
 
 ### User-Facing APIs (RLS Protected)
 
@@ -1010,90 +1092,7 @@ Returns quota information for authenticated user.
 
 ---
 
-## Endpoint Implementation Details
-
-### AI Chat Endpoint
-
-**Route**: `/api/ai/chat` (POST)
-**Action**: `chatQuery` (daily quota)
-**Cache TTL**: 12 hours
-
-**Implementation Flow**:
-1. Authenticate user via `getUserProfile()`
-2. Generate cache key from message + portfolioId
-3. Check cache (12hr TTL)
-   - **Cache HIT**: Return immediately (no quota used)
-   - **Cache MISS**: Continue to quota check
-4. Check and track quota via `checkAndTrackUsage()`
-   - **Denied**: Return 429 with reason
-   - **Allowed**: Increment counter and continue
-5. Process AI request via Gemini API
-6. Cache result for 12 hours
-7. Return response to user
-
-**Why 12-hour cache?**: Conversations and portfolio questions don't change rapidly.
-
----
-
-### Portfolio Analysis Endpoint
-
-**Route**: `/api/risk-metrics` (POST)
-**Action**: `portfolioAnalysis` (daily quota)
-**Cache TTL**: 6 hours
-
-**Implementation Flow**:
-1. Authenticate user via `getUserProfile()`
-2. Validate input (portfolioReturns, marketReturns, riskFreeRate)
-3. Generate cache key from data hash (SHA-256)
-4. Check cache (6hr TTL)
-   - **Cache HIT**: Return immediately (no quota used)
-   - **Cache MISS**: Continue to quota check
-5. Check and track quota via `checkAndTrackUsage()`
-   - **Denied**: Return 429 with reason
-   - **Allowed**: Increment counter and continue
-6. Calculate risk metrics (Sharpe, Sortino, Alpha, Beta, Calmar)
-7. Cache result for 6 hours
-8. Return response to user
-
-**Cache Key Generation**:
-```typescript
-const cacheKey = crypto
-  .createHash('sha256')
-  .update(JSON.stringify({
-    portfolioReturns: returns.slice(0, 100),  // Limit data size
-    marketReturns: market.slice(0, 100)
-  }))
-  .digest('hex');
-```
-
-**Why 6-hour cache?**: Portfolio values update throughout the trading day, but risk metrics based on historical returns don't change that frequently.
-
----
-
-### SEC Filings Endpoint
-
-**Route**: `/api/sec-edgar` (GET)
-**Action**: `secFiling` (monthly quota)
-**Cache**: None (always fresh)
-
-**Implementation Flow**:
-1. Authenticate user via `getUserProfile()`
-2. Check and track quota via `checkAndTrackUsage()`
-   - **Denied**: Return 429 with reason
-   - **Allowed**: Increment counter and continue
-3. Validate CIK or resolve from symbol
-4. Fetch filings from SEC EDGAR API
-5. Return filings to user
-
-**Why no cache?**:
-- SEC filings are regulatory data that changes frequently
-- External SEC API has its own caching mechanisms
-- Users expect the most up-to-date filings data
-- Monthly quota is generous enough to not require caching
-
----
-
-## Testing
+## 13. Testing
 
 ### Unit Tests
 
@@ -1191,42 +1190,42 @@ Check console logs for cache indicators:
 
 ### Recommended Enhancements
 
-1. **Usage Alerts**
-   - Email notifications when users approach 80% of quota
-   - In-app warnings before limits are reached
-   - Slack/Discord webhooks for admin monitoring
+1.  **Usage Alerts**
+    - Email notifications when users approach 80% of quota
+    - In-app warnings before limits are reached
+    - Slack/Discord webhooks for admin monitoring
 
-2. **Admin Dashboard**
-   - Monitor usage across all users
-   - Identify abuse patterns and anomalies
-   - Track cache hit rates and efficiency metrics
-   - View quota reset schedules
-   - Bulk quota adjustments
+2.  **Admin Dashboard**
+    - Monitor usage across all users
+    - Identify abuse patterns and anomalies
+    - Track cache hit rates and efficiency metrics
+    - View quota reset schedules
+    - Bulk quota adjustments
 
-3. **Analytics & Insights**
-   - Most popular AI queries
-   - Cache efficiency metrics (hit rate, savings)
-   - Peak usage times and patterns
-   - Tier conversion funnel
-   - Cost analysis per tier
+3.  **Analytics & Insights**
+    - Most popular AI queries
+    - Cache efficiency metrics (hit rate, savings)
+    - Peak usage times and patterns
+    - Tier conversion funnel
+    - Cost analysis per tier
 
-4. **Rate Limiting**
-   - Per-IP rate limits (prevent abuse)
-   - Per-user rate limits (prevent rapid-fire requests)
-   - DDoS protection with services like Cloudflare
-   - Exponential backoff for repeated failures
+4.  **Rate Limiting**
+    - Per-IP rate limits (prevent abuse)
+    - Per-user rate limits (prevent rapid-fire requests)
+    - DDoS protection with services like Cloudflare
+    - Exponential backoff for repeated failures
 
-5. **Enhanced Caching**
-   - Redis/Upstash for distributed caching
-   - Cache warming for common queries
-   - Smarter cache invalidation strategies
-   - CDN integration for static content
+5.  **Enhanced Caching**
+    - Redis/Upstash for distributed caching
+    - Cache warming for common queries
+    - Smarter cache invalidation strategies
+    - CDN integration for static content
 
-6. **Quota Management**
-   - Quota rollover options (configurable per tier)
-   - Temporary quota boosts for special events
-   - Quota sharing within teams/organizations
-   - Usage credits system
+6.  **Quota Management**
+    - Quota rollover options (configurable per tier)
+    - Temporary quota boosts for special events
+    - Quota sharing within teams/organizations
+    - Usage credits system
 
 ---
 
@@ -1268,27 +1267,27 @@ WHERE u.period_start >= CURRENT_DATE
 
 ### Key Design Decisions
 
-1. **Two clients, two purposes**
-   - SSR client: User-facing, RLS protected
-   - Admin client: System operations, bypass RLS
+1.  **Two clients, two purposes**
+    - SSR client: User-facing, RLS protected
+    - Admin client: System operations, bypass RLS
 
-2. **Cache before quota**
-   - Cached responses don't count
-   - Better UX, lower costs
+2.  **Cache before quota**
+    - Cached responses don\'t count
+    - Better UX, lower costs
 
-3. **Lazy period resets**
-   - No cron jobs needed
-   - Automatic via database queries
+3.  **Lazy period resets**
+    - No cron jobs needed
+    - Automatic via database queries
 
-4. **Database-backed**
-   - No in-memory state
-   - Survives restarts
-   - Audit trail
+4.  **Database-backed**
+    - No in-memory state
+    - Survives restarts
+    - Audit trail
 
-5. **Security layered**
-   - Authentication required
-   - RLS for user data
-   - Admin client for reliability
+5.  **Security layered**
+    - Authentication required
+    - RLS for user data
+    - Admin client for reliability
 
 ### File Organization
 
@@ -1321,7 +1320,7 @@ app/api/
 ### When to use SSR vs Admin client
 
 **Use SSR Client when**:
-- Displaying user's own data
+- Displaying user\'s own data
 - User-initiated queries
 - Dashboard/UI operations
 - Should respect user permissions
@@ -1410,7 +1409,7 @@ STOCK_API_PROVIDER=alphavantage  # or 'fmp'
 
 ### Overview
 
-Authentication is handled by **Supabase** with session-based auth using `proxy.ts` (not middleware.ts, following Supabase's Next.js 16+ recommendation).
+Authentication is handled by **Supabase** with session-based auth using `proxy.ts` (not middleware.ts, following Supabase\'s Next.js 16+ recommendation).
 
 ### Authentication Architecture
 
