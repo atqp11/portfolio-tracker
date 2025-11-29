@@ -10,22 +10,22 @@ Audience: Engineers + AI coding assistants (Claude, ChatGPT, Copilot, Gemini)
 - [Core Architecture Overview](#2-core-architecture-overview)
 - [Request Lifecycle — Full Path](#3-request-lifecycle--full-path)
 - [Project Directory Structure (Authoritative)](#4-project-directory-structure-authoritative)
-- [Backend Design — Controllers, Services, Repositories](#5-backend-design--controllers-services-repositories)
+- [Backend Design (Core Patterns)](#5-backend-design-core-patterns)
 - [Supabase Rules (The Source of Truth)](#6-supabase-rules-the-source-of-truth)
 - [Admin Layer — Prisma Allowed](#7-admin-layer--prisma-allowed)
-- [API Route Architecture (Next.js App Router)](#8-api-route-architecture-nextjs-app-router)
-- [Zod as Primary Contract Language](#9-zod--primary-contract-language)
+- [API Route Architecture](#8-api-route-architecture)
+- [Zod — Primary Contract Language](#9-zod--primary-contract-language)
 - [Frontend Architecture & Constraints](#10-frontend-architecture--constraints)
-- [External API Access (Market Data, AI Models)](#11-external-api-access-market-data-ai-models)
-- [Caching Strategy (Multi-layered)](#12-caching-strategy)
-- [Error Handling & Observability Patterns](#13-error-handling--observability-patterns)
-- [Security Guide: RLS, Secrets, Keys, Tokens](#14-security-guide-rls-secrets-keys-tokens)
-- [TypeScript Standards & Style Rules](#15-typescript-standards--style-rules)
-- [Testing Framework & Strategies](#16-testing-framework--strategies)
-- [GOOD vs BAD Examples (Deep Library)](#17-good-vs-bad-examples-deep-library)
-- [Checklist Library (Architecture, PR, Deployment)](#18-checklist-library-architecture-pr-deployment)
-- [AI Assistant Operating Rules (Copilot, ChatGPT, Claude)](#19-ai-assistant-operating-rules-copilot-chatgpt-claude)
-- [Appendix — ASCII Diagrams, Extensions, Migration Paths](#20-appendix--ascii-diagrams-extensions-migration-paths)
+- [External API Access (Market Data, AI models)](#11-external-api-access-market-data-ai-models)
+- [Caching Strategy](#12-caching-strategy)
+- [Error Handling & Observability](#13-error-handling--observability)
+- [Security Guide](#14-security-guide)
+- [TypeScript Standards](#15-typescript-standards)
+- [Testing Strategy](#16-testing-strategy)
+- [GOOD vs BAD Example Library (Extensive)](#17-good-vs-bad-example-library-extensive)
+- [Checklist Library](#18-checklist-library)
+- [AI Assistant Operating Rules](#19-ai-assistant-operating-rules)
+- [Appendix](#20-appendix)
 
 
 1. Introduction & Philosophy
@@ -88,7 +88,7 @@ Zod as the contract language
 
 No direct DB access in client or route handlers
 
-2.1 Architecture Layers
+**2.1 Architecture Layers**
 ┌─────────────────────────────┐
 │         Client UI           │   ← React components, hooks
 └──────────────┬──────────────┘
@@ -118,7 +118,7 @@ No direct DB access in client or route handlers
 │         Supabase DB          │   ← RLS applied
 └─────────────────────────────┘
 
-2.2 Admin Subsystem
+**2.2 Admin Subsystem**
 Admin Interface / Cron Jobs
              |
              v
@@ -200,7 +200,7 @@ scripts/
 
 Backend code must always follow MVC-like layering:
 
-5.1 Controller
+**5.1 Controller**
 
 Responsibilities:
 
@@ -216,7 +216,7 @@ Perform database access
 
 Contain business logic
 
-5.2 Service
+**5.2 Service**
 
 Responsibilities:
 
@@ -236,7 +236,7 @@ Touch Supabase directly
 
 Perform HTTP formatting
 
-5.3 Repository
+**5.3 Repository**
 
 Responsibilities:
 
@@ -256,7 +256,7 @@ Perform business logic
 
 Format HTTP responses
 
-5.4 Example (Full Layer Flow)
+**5.4 Example (Full Layer Flow)**
 stocks.controller.ts
 stocks.service.ts
 stocks.repository.ts
@@ -293,7 +293,7 @@ export async function fetchStocksForAuthenticatedUser() {
 
 
 6. Supabase Rules (The Source of Truth)
-6.1 Supabase usage is server-only
+**6.1 Supabase usage is server-only**
 Allowed
 
 Repository layer
@@ -310,7 +310,7 @@ Services
 
 UI hooks
 
-6.2 Row Level Security (RLS)
+**6.2 Row Level Security (RLS)**
 
 RLS must always be ON for all user tables.
 
@@ -318,7 +318,7 @@ Service role access allowed only in:
 
 /src/backend/admin/**
 
-6.3 Supabase client setup (server-side only)
+**6.3 Supabase client setup (server-side only)**
 import { createClient } from '@supabase/supabase-js';
 
 export function createServerSupabase() {
@@ -342,14 +342,14 @@ In user-facing API routes
 
 In service/repository for the main app
 
-7.1 Admin directory structure
+**7.1 Admin directory structure**
 src/backend/admin/
   prisma/
   jobs/
   admin.service.ts
   admin.utils.ts
 
-7.2 Example Admin Job
+**7.2 Example Admin Job**
 // jobs/rebuildCache.ts
 import { prisma } from '../prisma/client';
 
@@ -360,10 +360,10 @@ export async function rebuildCache() {
 
 
 8. API Route Architecture
-8.1 Mandatory flow
+**8.1 Mandatory flow**
 API route → Controller → Service → Repository → Supabase
 
-8.2 API Route Rules
+**8.2 API Route Rules**
 
 Must be thin
 
@@ -375,7 +375,7 @@ Must not contain Supabase
 
 Must not contain Zod schemas (controller handles that)
 
-8.3 Example
+**8.3 Example**
 // app/api/portfolio/route.ts
 import { getPortfolio } from '@/backend/modules/portfolio/portfolio.controller';
 
@@ -448,7 +448,7 @@ src/lib/api/<provider>.ts
 
 
 12. Caching Strategy
-12.1 Caching Layers
+**12.1 Caching Layers**
 
 Static caching (Next.js fetch with revalidate)
 
@@ -460,15 +460,15 @@ Admin-cron-cache rebuilds
 
 Client-side ephemeral caching (never sensitive data)
 
-12.2 Example: Fetch with Revalidate
+**12.2 Example: Fetch with Revalidate**
 await fetch(url, { next: { revalidate: 60 } });
 
 
 13. Error Handling & Observability
-13.1 Error Response Format
+**13.1 Error Response Format**
 { success: false, error: string, message?: string }
 
-13.2 Logging
+**13.2 Logging**
 
 No secrets
 
@@ -520,21 +520,21 @@ Admin jobs: separate test environment
 
 
 17. GOOD vs BAD Example Library (Extensive)
-17.1 Data Access
+**17.1 Data Access**
 ❌ BAD — DB in API route
 supabase.from('p').select('*');
 
 ✅ GOOD
 return portfolioController.list();
 
-17.2 Client Fetching
+**17.2 Client Fetching**
 ❌ BAD
 fetch('https://api.polygon.io/...'); 
 
 ✅ GOOD
 await fetch('/api/market/quote');
 
-17.3 Business Logic Location
+**17.3 Business Logic Location**
 ❌ BAD — logic in route
 export async function GET() {
   return heavyCompute();
