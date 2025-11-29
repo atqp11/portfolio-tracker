@@ -4,7 +4,7 @@
  * Tests for the refactored checklist task CRUD operations.
  */
 
-import { GET, POST, PUT, DELETE } from '@/app/api/tasks/route';
+import { GET, POST, PUT, DELETE } from '@app/api/tasks/route';
 import { createMockRequest, extractJSON } from '../helpers/test-utils';
 import { taskService } from '@backend/modules/tasks/service/task.service';
 import { NotFoundError } from '@backend/common/middleware/error-handler.middleware';

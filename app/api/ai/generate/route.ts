@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { GoogleGenAI } from '@google/genai';
 import crypto from 'crypto';
-import { routeQuery } from '@/lib/ai/router';
+import { routeQuery } from '@lib/ai/router';
 
 const API_KEY = process.env.AI_API_KEY || process.env.NEXT_PUBLIC_AI_API_KEY;
 // Only Gemini model is used for AI responses with smart routing

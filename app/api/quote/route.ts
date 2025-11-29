@@ -7,7 +7,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { stockDataService } from '@backend/modules/stocks/service/stock-data.service';
-import { SuccessResponse, ErrorResponse } from '@/lib/types/base/response.dto';
+import { SuccessResponse, ErrorResponse } from '@lib/types/base/response.dto';
 import { z } from 'zod';
 
 export const dynamic = 'force-dynamic';

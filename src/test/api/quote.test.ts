@@ -4,7 +4,7 @@
  * Tests for stock quote API route.
  */
 
-import { GET } from '@/app/api/quote/route';
+import { GET } from '@app/api/quote/route';
 import { createMockRequest, extractJSON } from '../helpers/test-utils';
 import { stockDataService } from '@backend/modules/stocks/service/stock-data.service';
 

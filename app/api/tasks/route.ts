@@ -9,7 +9,7 @@ import { taskController } from '@backend/modules/tasks/task.controller';
 import { withErrorHandler } from '@backend/common/middleware/error-handler.middleware';
 import { withValidation } from '@backend/common/middleware/validation.middleware';
 import { z } from 'zod';
-import { commonSchemas, createTaskSchema, updateTaskSchema } from '@/lib/validators/schemas';
+import { commonSchemas, createTaskSchema, updateTaskSchema } from '@lib/validators/schemas';
 
 // Schemas for validation middleware
 const getTaskQuerySchema = z.object({

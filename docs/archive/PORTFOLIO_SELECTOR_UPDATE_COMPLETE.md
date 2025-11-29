@@ -52,7 +52,7 @@ All remaining pages have been updated to use the dynamic portfolio selector inst
 ## Thesis & Checklist Issue:
 
 Both thesis and checklist pages currently:
-1. Import `configs` from `@/lib/config`
+1. Import `configs` from `@lib/config`
 2. Use hardcoded energy/copper configurations
 3. Generate content based on these hardcoded values
 

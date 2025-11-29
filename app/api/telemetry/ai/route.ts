@@ -18,7 +18,7 @@ import {
   clearLogs,
   checkMetricThresholds,
   type TelemetryStats,
-} from '@/lib/telemetry/ai-logger';
+} from '@lib/telemetry/ai-logger';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';

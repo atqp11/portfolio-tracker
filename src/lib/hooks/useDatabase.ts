@@ -22,7 +22,7 @@
  * 
  * Example:
  * ```typescript
- * import { usePortfolios } from '@/lib/hooks/useDatabase';
+ * import { usePortfolios } from '@lib/hooks/useDatabase';
  * 
  * function PortfolioList() {
  *   const { portfolios, loading, error, refetch } = usePortfolios();

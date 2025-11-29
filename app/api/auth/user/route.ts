@@ -5,8 +5,8 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getProfile } from '@/lib/supabase/db';
-import { SuccessResponse, ErrorResponse } from '@/lib/types/base/response.dto';
+import { getProfile } from '@lib/supabase/db';
+import { SuccessResponse, ErrorResponse } from '@lib/types/base/response.dto';
 
 export const dynamic = 'force-dynamic';
 

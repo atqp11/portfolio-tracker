@@ -149,7 +149,7 @@ Transform the portfolio tracker from a personal tool into a professional SaaS pl
 **Auth Callback Route:** ✅ **COMPLETE**
 - [x] Create `app/auth/callback/route.ts` - Handle OAuth redirects ✅
   ```typescript
-  import { createClient } from '@/lib/supabase/server'
+  import { createClient } from '@lib/supabase/server'
   import { NextResponse } from 'next/server'
 
   export async function GET(request: Request) {
@@ -405,11 +405,11 @@ Transform the portfolio tracker from a personal tool into a professional SaaS pl
 - [ ] Replace Prisma client with Supabase client in all API routes
   ```typescript
   // BEFORE (Prisma)
-  import { prisma } from '@/lib/prisma'
+  import { prisma } from '@lib/prisma'
   const portfolios = await prisma.portfolio.findMany()
 
   // AFTER (Supabase)
-  import { createClient } from '@/lib/supabase/server'
+  import { createClient } from '@lib/supabase/server'
   const supabase = createClient()
   const { data: portfolios } = await supabase
     .from('portfolios')

@@ -5,9 +5,9 @@
  */
 import { BaseService } from '@backend/common/services/base.service';
 import { checklistRepository, ChecklistRepository } from '../repository/checklist.repository';
-import { CreateDailyChecklistInput, UpdateDailyChecklistInput } from '@/lib/validators/schemas';
-import { Database } from '@/lib/supabase/database.types';
-import { ChecklistValidator, checklistValidator } from '@/lib/validators/checklist.validator';
+import { CreateDailyChecklistInput, UpdateDailyChecklistInput } from '@lib/validators/schemas';
+import { Database } from '@lib/supabase/database.types';
+import { ChecklistValidator, checklistValidator } from '@lib/validators/checklist.validator';
 import { RepositoryError, RepositoryErrorType } from '@backend/common/repositories/types';
 import { NotFoundError, ConflictError } from '@backend/common/middleware/error-handler.middleware';
 

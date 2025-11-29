@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAdmin } from '@/lib/auth/admin';
-import { updateUserTier, updateUserAdminStatus, getProfileAsAdmin } from '@/lib/supabase/db';
+import { requireAdmin } from '@lib/auth/admin';
+import { updateUserTier, updateUserAdminStatus, getProfileAsAdmin } from '@lib/supabase/db';
 
 export const dynamic = 'force-dynamic';
 

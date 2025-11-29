@@ -7,7 +7,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { formatZodError } from '@/lib/validators/schemas';
+import { formatZodError } from '@lib/validators/schemas';
 
 /**
  * Validation error class

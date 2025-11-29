@@ -7,10 +7,10 @@
  * - Get user profile with tier information
  */
 
-import { createClient } from '@/lib/supabase/server';
+import { createClient } from '@lib/supabase/server';
 import { redirect } from 'next/navigation';
 import type { User } from '@supabase/supabase-js';
-import type { Profile } from '@/lib/supabase/db';
+import type { Profile } from '@lib/supabase/db';
 
 // Re-export types for middleware
 export type { User } from '@supabase/supabase-js';

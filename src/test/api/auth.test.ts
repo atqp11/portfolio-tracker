@@ -4,14 +4,14 @@
  * Tests for authentication-related API routes.
  */
 
-import { POST as SignOut } from '@/app/api/auth/signout/route';
-import { GET as GetUser } from '@/app/api/auth/user/route';
-import { POST as CreateUser } from '@/app/api/auth/create-user/route';
+import { POST as SignOut } from '@app/api/auth/signout/route';
+import { GET as GetUser } from '@app/api/auth/user/route';
+import { POST as CreateUser } from '@app/api/auth/create-user/route';
 import { createMockRequest, extractJSON } from '../helpers/test-utils';
-import * as supabaseDb from '@/lib/supabase/db';
+import * as supabaseDb from '@lib/supabase/db';
 
 // Mock dependencies
-jest.mock('@/lib/supabase/server', () => ({
+jest.mock('@lib/supabase/server', () => ({
   createClient: jest.fn(() => ({
     auth: {
       signOut: jest.fn(),
@@ -19,7 +19,7 @@ jest.mock('@/lib/supabase/server', () => ({
   })),
 }));
 
-jest.mock('@/lib/supabase/db');
+jest.mock('@lib/supabase/db');
 
 // Mock service role Supabase client for create-user
 jest.mock('@supabase/supabase-js', () => ({
@@ -46,7 +46,7 @@ describe('Auth API', () => {
 
   describe('POST /api/auth/signout', () => {
     it('should sign out successfully', async () => {
-      const { createClient } = require('@/lib/supabase/server');
+      const { createClient } = require('@lib/supabase/server');
       const mockSupabase = {
         auth: {
           signOut: jest.fn().mockResolvedValue({ error: null }),
@@ -69,7 +69,7 @@ describe('Auth API', () => {
     });
 
     it('should handle signout errors', async () => {
-      const { createClient } = require('@/lib/supabase/server');
+      const { createClient } = require('@lib/supabase/server');
       const mockSupabase = {
         auth: {
           signOut: jest.fn().mockResolvedValue({ error: { message: 'Signout failed' } }),

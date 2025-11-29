@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { stockService } from '@backend/modules/stocks/service/stock.service';
-import { createStockSchema, updateStockSchema, commonSchemas } from '@/lib/validators/schemas';
+import { createStockSchema, updateStockSchema, commonSchemas } from '@lib/validators/schemas';
 import { NotFoundError } from '@backend/common/middleware/error-handler.middleware';
 
 // Schema for GET request query parameters

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Stock } from '@/lib/hooks/useDatabase';
+import { Stock } from '@lib/hooks/useDatabase';
 
 interface AddStockModalProps {
   isOpen: boolean;

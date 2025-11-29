@@ -7,9 +7,9 @@
  */
 import { BaseService } from '@backend/common/services/base.service';
 import { thesisRepository, ThesisRepository } from '../repository/thesis.repository';
-import { CreateThesisInput, UpdateThesisInput } from '@/lib/validators/schemas';
-import { Database } from '@/lib/supabase/database.types';
-import { ThesisValidator, thesisValidator } from '@/lib/validators/thesis.validator';
+import { CreateThesisInput, UpdateThesisInput } from '@lib/validators/schemas';
+import { Database } from '@lib/supabase/database.types';
+import { ThesisValidator, thesisValidator } from '@lib/validators/thesis.validator';
 import { RepositoryError, RepositoryErrorType } from '@backend/common/repositories/types';
 import { NotFoundError, ConflictError } from '@backend/common/middleware/error-handler.middleware'; // Using existing error classes
 

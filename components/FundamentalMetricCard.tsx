@@ -1,7 +1,7 @@
 // components/FundamentalMetricCard.tsx
 'use client';
 
-import { ValuationIndicator } from '@/lib/calculator';
+import { ValuationIndicator } from '@lib/calculator';
 
 interface FundamentalMetricCardProps {
   name: string;

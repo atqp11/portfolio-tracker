@@ -2,7 +2,7 @@
  * Investment Thesis API Integration Tests (Debug)
  */
 
-import { POST } from '@/app/api/thesis/route';
+import { POST } from '@app/api/thesis/route';
 import { createMockRequest, extractJSON } from '../helpers/test-utils';
 import { thesisRepository } from '@backend/modules/thesis/repository/thesis.repository';
 

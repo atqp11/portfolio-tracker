@@ -1,5 +1,5 @@
 // components/PortfolioHeader.tsx
-import type { ThemeClasses } from '@/lib/utils/portfolioTheme';
+import type { ThemeClasses } from '@lib/utils/portfolioTheme';
 
 interface PortfolioHeaderProps {
   accountValue: number;

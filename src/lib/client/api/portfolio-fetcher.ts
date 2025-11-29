@@ -20,7 +20,7 @@
  * 
  * Example:
  * ```typescript
- * import { portfolioService } from '@/lib/client/api/portfolio-fetcher';
+ * import { portfolioService } from '@lib/client/api/portfolio-fetcher';
  * 
  * async function fetchPortfolios() {
  *   try {
@@ -35,7 +35,7 @@
  * Note: This service is responsible for fetching data from the backend API to be used in frontend pages.
  */
 
-import { Portfolio, Stock } from '@/lib/client/types';
+import { Portfolio, Stock } from '@lib/client/types';
 
 const API_BASE_URL = '/api';
 

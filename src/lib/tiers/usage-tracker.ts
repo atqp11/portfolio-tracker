@@ -9,9 +9,9 @@
  * Uses database-backed tracking with automatic daily/monthly resets.
  */
 
-import { createAdminClient } from '@/lib/supabase/admin';
+import { createAdminClient } from '@lib/supabase/admin';
 import { getTierConfig, TierName } from './config';
-import { UsageTracking } from '@/lib/supabase/db';
+import { UsageTracking } from '@lib/supabase/db';
 
 export type UsageAction = 'chatQuery' | 'portfolioAnalysis' | 'secFiling';
 

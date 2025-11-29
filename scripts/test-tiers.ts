@@ -4,15 +4,7 @@
  * Run with: npx tsx scripts/test-tiers.ts
  */
 
-import {
-  getTierConfig,
-  hasFeature,
-  hasTierLevel,
-  getNextTier,
-  calculateBreakEven,
-  TIER_HIERARCHY,
-  type TierName,
-} from '../lib/tiers';
+import { checkAndTrackUsage, type TierName, getTierConfig, hasFeature, hasTierLevel, getNextTier, getUserUsage, checkQuota, trackUsage, getUsageStats, TIER_HIERARCHY, calculateBreakEven, type UsageAction } from '@lib/tiers';
 
 console.log('🧪 Testing Tier System\n');
 

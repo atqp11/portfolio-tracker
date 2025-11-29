@@ -6,7 +6,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getUser } from './session';
-import { isUserAdmin } from '@/lib/supabase/db';
+import { isUserAdmin } from '@lib/supabase/db';
 
 /**
  * Check if the current user is an admin

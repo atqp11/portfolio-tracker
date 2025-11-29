@@ -6,9 +6,9 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getTierConfig, TIER_CONFIG, EXAMPLE_SCENARIOS, type TierName } from '@/lib/tiers';
-import { getUserProfile } from '@/lib/auth/session';
-import { getCurrentUserUsage } from '@/lib/supabase/db';
+import { getTierConfig, TIER_CONFIG, EXAMPLE_SCENARIOS, type TierName } from '@lib/tiers';
+import { getUserProfile } from '@lib/auth/session';
+import { getCurrentUserUsage } from '@lib/supabase/db';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';

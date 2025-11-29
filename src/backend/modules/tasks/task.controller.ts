@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { taskService } from '@backend/modules/tasks/service/task.service';
-import { createTaskSchema, updateTaskSchema, commonSchemas } from '@/lib/validators/schemas';
+import { createTaskSchema, updateTaskSchema, commonSchemas } from '@lib/validators/schemas';
 import { NotFoundError } from '@backend/common/middleware/error-handler.middleware';
 
 // Schema for GET request query parameters

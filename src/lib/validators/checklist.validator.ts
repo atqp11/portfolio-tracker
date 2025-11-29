@@ -13,7 +13,7 @@ import {
   CreateTaskInput,
   UpdateTaskInput,
   formatZodError
-} from '@/lib/validators/schemas';
+} from '@lib/validators/schemas';
 import { ValidationError } from '@backend/common/middleware/validation.middleware';
 
 export class ChecklistValidator {

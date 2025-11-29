@@ -7,7 +7,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { portfolioController } from '@backend/modules/portfolio/portfolio.controller';
 import { getUserProfile } from '@lib/auth/session';
-import { SuccessResponse, ErrorResponse } from '@/lib/types/base/response.dto';
+import { SuccessResponse, ErrorResponse } from '@lib/types/base/response.dto';
 import { z } from 'zod';
 
 export const dynamic = 'force-dynamic';
@@ -56,11 +56,11 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { createPortfolioSchema } = await import('@/lib/validators/schemas');
+    const { createPortfolioSchema } = await import('@lib/validators/schemas');
 
     const validation = createPortfolioSchema.safeParse(body);
     if (!validation.success) {
-      const { formatZodError } = await import('@/lib/validators/schemas');
+      const { formatZodError } = await import('@lib/validators/schemas');
       const formatted = formatZodError(validation.error);
       return NextResponse.json({ error: 'Invalid portfolio data', details: formatted.errors }, { status: 400 });
     }
@@ -89,11 +89,11 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { updatePortfolioSchema } = await import('@/lib/validators/schemas');
+    const { updatePortfolioSchema } = await import('@lib/validators/schemas');
 
     const validation = updatePortfolioSchema.safeParse(body);
     if (!validation.success) {
-      const { formatZodError } = await import('@/lib/validators/schemas');
+      const { formatZodError } = await import('@lib/validators/schemas');
       const formatted = formatZodError(validation.error);
       return NextResponse.json({ error: 'Invalid portfolio data', details: formatted.errors }, { status: 400 });
     }

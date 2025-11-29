@@ -2,7 +2,7 @@
 
 import './StonksAI.css';
 import React, { useState, useEffect, useRef } from 'react';
-import { loadAICache, saveAICache, AICacheEntry, AIDataType , clearExpiredCache} from '@/lib/utils/aiCache';
+import { loadAICache, saveAICache, AICacheEntry, AIDataType , clearExpiredCache} from '@lib/utils/aiCache';
 // --- Types ---
 type Sender = 'bot' | 'user';
 

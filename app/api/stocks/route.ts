@@ -9,7 +9,7 @@ import { stockController } from '@backend/modules/stocks/stock.controller';
 import { withErrorHandler } from '@backend/common/middleware/error-handler.middleware';
 import { withValidation } from '@backend/common/middleware/validation.middleware';
 import { z } from 'zod';
-import { commonSchemas, createStockSchema, updateStockSchema } from '@/lib/validators/schemas';
+import { commonSchemas, createStockSchema, updateStockSchema } from '@lib/validators/schemas';
 
 // Schemas for validation middleware
 const getStockQuerySchema = z.object({

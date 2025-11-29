@@ -696,9 +696,9 @@ module.exports = {
 ```typescript
 // app/api/chat/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { askAI } from '@/lib/ai';
-import { getCachedQuery, setCachedQuery } from '@/lib/cache/queryCache';
-import { getFactSheet, generateFactSheet } from '@/lib/cache/factSheets';
+import { askAI } from '@lib/ai';
+import { getCachedQuery, setCachedQuery } from '@lib/cache/queryCache';
+import { getFactSheet, generateFactSheet } from '@lib/cache/factSheets';
 
 export const dynamic = 'force-dynamic';
 
@@ -980,8 +980,8 @@ ROI: 5.4x
 
 ```typescript
 // scripts/test-ai-cache.ts
-import { askAI } from '@/lib/ai';
-import { getCachedQuery, setCachedQuery } from '@/lib/cache/queryCache';
+import { askAI } from '@lib/ai';
+import { getCachedQuery, setCachedQuery } from '@lib/cache/queryCache';
 
 async function test() {
   const query = "What is Apple Inc?";

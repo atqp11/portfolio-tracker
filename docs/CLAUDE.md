@@ -836,7 +836,7 @@ This section covers frequently-used patterns in Next.js 14 applications.
 
 import { z } from 'zod';
 import { revalidatePath } from 'next/cache';
-import { prisma } from '@/lib/prisma';
+import { prisma } from '@lib/prisma';
 
 // 1. VALIDATE - Define schema
 const UpdateStockSchema = z.object({
@@ -880,7 +880,7 @@ export async function updateStock(formData: FormData) {
 // components/UpdateStockForm.tsx
 'use client';
 
-import { updateStock } from '@/app/actions/stocks';
+import { updateStock } from '@app/actions/stocks';
 import { useState } from 'react';
 
 export function UpdateStockForm({ stock }: Props) {
@@ -956,7 +956,7 @@ export function ProgressiveForm({ stock }: Props) {
 'use client';
 
 import { useOptimistic } from 'react';
-import { updateStock } from '@/app/actions/stocks';
+import { updateStock } from '@app/actions/stocks';
 
 export function StockList({ stocks }: { stocks: Stock[] }) {
   const [optimisticStocks, addOptimisticUpdate] = useOptimistic(
@@ -1496,7 +1496,7 @@ app/
 
 ```typescript
 // ✅ GOOD
-import { calculatePosition } from '@/lib/calculator';
+import { calculatePosition } from '@lib/calculator';
 import { Portfolio } from '@/types/portfolio';
 
 // ❌ BAD
@@ -1682,7 +1682,7 @@ console.log(`API key: ${apiKey}`); // ❌ NEVER
 
 ```typescript
 // ✅ GOOD
-import { prisma } from '@/lib/prisma';
+import { prisma } from '@lib/prisma';
 
 // ❌ BAD - creating new instances
 import { PrismaClient } from '@prisma/client';
@@ -2077,7 +2077,7 @@ Before submitting code, verify:
 - [ ] React components have proper key props (not index)
 - [ ] Environment variables are not hardcoded
 - [ ] Sensitive data (API keys) never logged
-- [ ] Prisma client used from `@/lib/prisma` (not re-instantiated)
+- [ ] Prisma client used from `@lib/prisma` (not re-instantiated)
 - [ ] Tests pass: `npm test`
 - [ ] Build succeeds: `npm run build`
 - [ ] Console has no errors in browser dev tools
@@ -2202,7 +2202,7 @@ await prisma.stock.update({ data: { shares } }); // SQL injection risk
 // ✅ GOOD - Check auth in Server Actions
 'use server';
 
-import { auth } from '@/lib/auth';
+import { auth } from '@lib/auth';
 import { revalidatePath } from 'next/cache';
 
 export async function updatePortfolio(portfolioId: string, data: any) {
@@ -2625,7 +2625,7 @@ export function reportWebVitals(metric: any) {
 
 ```typescript
 // tests/calculator.test.ts
-import { calculateSharpeRatio, calculateSortinoRatio } from '@/lib/calculator';
+import { calculateSharpeRatio, calculateSortinoRatio } from '@lib/calculator';
 
 describe('Risk Metrics', () => {
   describe('calculateSharpeRatio', () => {
@@ -2761,7 +2761,7 @@ npx playwright test --debug      # Debug mode
 
 ```typescript
 // tests/pages/portfolio.test.ts
-import { getPortfolioData } from '@/app/portfolio/data';
+import { getPortfolioData } from '@app/portfolio/data';
 
 describe('Portfolio Page Data', () => {
   it('should fetch portfolio with stocks', async () => {
@@ -2786,10 +2786,10 @@ describe('Portfolio Page Data', () => {
 
 ```typescript
 // tests/actions/updateStock.test.ts
-import { updateStock } from '@/app/actions/stocks';
-import { prisma } from '@/lib/prisma';
+import { updateStock } from '@app/actions/stocks';
+import { prisma } from '@lib/prisma';
 
-jest.mock('@/lib/prisma', () => ({
+jest.mock('@lib/prisma', () => ({
   prisma: {
     stock: {
       update: jest.fn()

@@ -1,10 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import { configs } from '@/lib/config';
+import { configs } from '@lib/config';
 import ThesisCard from '@/components/ThesisCard';
-import { usePortfolio, useStocks, useTheses, usePortfolioMetrics } from '@/lib/hooks/useDatabase';
-import type { InvestmentThesis, ThesisMetric } from '@/lib/types';
+import { usePortfolio, useStocks, useTheses, usePortfolioMetrics } from '@lib/hooks/useDatabase';
+import type { InvestmentThesis, ThesisMetric } from '@lib/types';
 
 export default function ThesisPage() {
   const [active, setActive] = useState<'energy' | 'copper'>('energy');

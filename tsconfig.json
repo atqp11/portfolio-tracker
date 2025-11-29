@@ -24,8 +24,9 @@
       ],
       "@backend/*": ["./src/backend/*"],
       "@frontend/*": ["./src/frontend/*"],
+      "@components/*": ["./src/components/*"],
       "@shared/*": ["./src/shared/*"],
-      "@lib/*": ["./lib/*"],
+      "@lib/*": ["./src/lib/*"],
       "@app/*": ["./app/*"],
       "@src/*": ["./src/*"],
       "@test/*": ["./src/test/*"]

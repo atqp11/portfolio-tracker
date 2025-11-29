@@ -329,7 +329,7 @@ export interface TierLimits {
 ### Accessing Tier Config
 
 ```typescript
-import { getTierConfig } from '@/lib/tiers';
+import { getTierConfig } from '@lib/tiers';
 
 const config = getTierConfig('free');
 console.log(config.chatQueriesPerDay); // 10

@@ -9,7 +9,7 @@ import { checklistController } from '@backend/modules/checklist/checklist.contro
 import { withErrorHandler } from '@backend/common/middleware/error-handler.middleware';
 import { withValidation } from '@backend/common/middleware/validation.middleware';
 import { z } from 'zod';
-import { commonSchemas, createDailyChecklistSchema, updateDailyChecklistSchema, updateChecklistBodySchema } from '@/lib/validators/schemas';
+import { commonSchemas, createDailyChecklistSchema, updateDailyChecklistSchema, updateChecklistBodySchema } from '@lib/validators/schemas';
 
 // Schemas for validation middleware
 const getChecklistQuerySchema = z.object({

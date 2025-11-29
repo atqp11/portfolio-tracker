@@ -1,5 +1,5 @@
 import { finnhubDAO } from '@backend/modules/stocks/dao/finnhub.dao';
-import { FinnhubNews } from '@/lib/types/finnhub-news.dto';
+import { FinnhubNews } from '@lib/types/finnhub-news.dto';
 
 export class FinnhubService {
   async getCompanyNews(symbol: string, from: string, to: string): Promise<FinnhubNews[]> {

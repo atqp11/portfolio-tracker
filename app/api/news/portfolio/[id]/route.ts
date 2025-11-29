@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { NewsService } from '@backend/modules/news/service/news.service';
 import { portfolioController } from '@backend/modules/portfolio/portfolio.controller';
-import { NewsAPIError } from '@/lib/types/news.dto';
+import { NewsAPIError } from '@lib/types/news.dto';
 
 const newsService = new NewsService();
 

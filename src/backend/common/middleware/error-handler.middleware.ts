@@ -8,7 +8,7 @@
 import { NextResponse } from 'next/server';
 import { ValidationError } from './validation.middleware';
 import { RepositoryError, RepositoryErrorType } from '../repositories/types';
-import { ApiResponse, ErrorResponse, ErrorCode } from '@/lib/types/base/response.dto';
+import { ApiResponse, ErrorResponse, ErrorCode } from '@lib/types/base/response.dto';
 
 /**
  * Custom error classes

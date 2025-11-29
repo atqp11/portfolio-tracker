@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAdmin } from '@/lib/auth/admin';
-import { getProfileAsAdmin } from '@/lib/supabase/db';
-import { createAdminClient } from '@/lib/supabase/admin';
+import { requireAdmin } from '@lib/auth/admin';
+import { getProfileAsAdmin } from '@lib/supabase/db';
+import { createAdminClient } from '@lib/supabase/admin';
 
 export const dynamic = 'force-dynamic';
 

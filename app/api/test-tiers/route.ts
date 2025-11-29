@@ -22,7 +22,7 @@ import {
   getUsageStats,
   type TierName,
   type UsageAction,
-} from '@/lib/tiers';
+} from '@lib/tiers';
 
 export const dynamic = 'force-dynamic';
 

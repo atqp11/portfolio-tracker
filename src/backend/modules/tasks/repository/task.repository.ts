@@ -5,8 +5,8 @@
  * Use this for regular user operations.
  */
 
-import { createClient } from '@/lib/supabase/server';
-import { Database } from '@/lib/supabase/database.types';
+import { createClient } from '@lib/supabase/server';
+import { Database } from '@lib/supabase/database.types';
 
 type ChecklistTask = Database['public']['Tables']['checklist_tasks']['Row'];
 type ChecklistTaskInsert = Database['public']['Tables']['checklist_tasks']['Insert'];

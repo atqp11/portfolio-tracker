@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { get, set } from '@/lib/utils/idbStorage';
+import { get, set } from '@lib/utils/idbStorage';
 import { ActionButton } from '@/components/shared';
 
 interface DecisionRow {

@@ -1,5 +1,5 @@
 // components/AlertBanner.tsx
-import { resetAlerts } from '@/lib/alerts';
+import { resetAlerts } from '@lib/alerts';
 
 export default function AlertBanner({ alerts }: { alerts: any }) {
   if (!alerts) return null;

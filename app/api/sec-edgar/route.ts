@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { secEdgarService } from '@backend/modules/stocks/service/sec-edgar.service';
-import { checkAndTrackUsage, type TierName } from '@/lib/tiers';
-import { getUserProfile } from '@/lib/auth/session';
+import { checkAndTrackUsage, type TierName } from '@lib/tiers';
+import { getUserProfile } from '@lib/auth/session';
 
 export const dynamic = 'force-dynamic';
 

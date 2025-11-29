@@ -6,8 +6,8 @@
  */
 
 import { stockRepository } from '@backend/modules/stocks/repository/stock.repository';
-import { CreateStockInput, UpdateStockInput } from '@/lib/validators/schemas';
-import { Database } from '@/lib/supabase/database.types';
+import { CreateStockInput, UpdateStockInput } from '@lib/validators/schemas';
+import { Database } from '@lib/supabase/database.types';
 
 type Stock = Database['public']['Tables']['stocks']['Row'];
 

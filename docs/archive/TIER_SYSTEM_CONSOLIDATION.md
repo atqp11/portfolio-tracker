@@ -155,10 +155,10 @@ If you have any existing code importing from the old system:
 
 ```typescript
 // OLD (deprecated)
-import { checkQuota, incrementUsage } from '@/lib/auth/tier-limits';
+import { checkQuota, incrementUsage } from '@lib/auth/tier-limits';
 
 // NEW (correct)
-import { checkQuota, trackUsage } from '@/lib/tiers';
+import { checkQuota, trackUsage } from '@lib/tiers';
 ```
 
 **Tier name changes**:

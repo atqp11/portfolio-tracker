@@ -122,7 +122,7 @@ The system provides clear logging to show cache behavior:
 The cache utilities provide functions for manual management:
 
 ```typescript
-import { clearAICache, getAICacheStats } from '@/lib/aiCache';
+import { clearAICache, getAICacheStats } from '@lib/aiCache';
 
 // Clear all cache for a ticker
 clearAICache(undefined, 'AAPL');

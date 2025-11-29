@@ -2,9 +2,9 @@
 
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { createClient } from '@/lib/supabase/client';
+import { createClient } from '@lib/supabase/client';
 import TierBadge from '@/components/shared/TierBadge';
-import { type TierName } from '@/lib/tiers';
+import { type TierName } from '@lib/tiers';
 
 interface TopNavProps {
   title?: string;

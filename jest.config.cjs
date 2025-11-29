@@ -10,7 +10,7 @@ module.exports = {
     '^@/(.*)$': '<rootDir>/$1',
     '^@backend/(.*)$': '<rootDir>/src/backend/$1',
     '^@frontend/(.*)$': '<rootDir>/src/frontend/$1',
-    '^@lib/(.*)$': '<rootDir>/lib/$1',
+    '^@lib/(.*)$': '<rootDir>/src/lib/$1',
     '^@app/(.*)$': '<rootDir>/app/$1',
     '^@src/(.*)$': '<rootDir>/src/$1',
     '^@test/(.*)$': '<rootDir>/src/test/$1',

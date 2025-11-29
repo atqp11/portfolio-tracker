@@ -52,7 +52,7 @@ The portfolio tracker implements a comprehensive telemetry system for tracking A
 ### 1. Log an AI Inference
 
 ```typescript
-import { logInference } from '@/lib/telemetry/ai-logger';
+import { logInference } from '@lib/telemetry/ai-logger';
 
 // After your AI model call
 const response = await model.generateContent(prompt);
@@ -74,7 +74,7 @@ logInference({
 ### 2. Get Telemetry Statistics
 
 ```typescript
-import { getTelemetryStats, checkMetricThresholds } from '@/lib/telemetry/ai-logger';
+import { getTelemetryStats, checkMetricThresholds } from '@lib/telemetry/ai-logger';
 
 // Get stats for last 24 hours
 const stats = getTelemetryStats();
@@ -107,7 +107,7 @@ The dashboard shows:
 ### 4. Record Rate Limits
 
 ```typescript
-import { recordRateLimit } from '@/lib/metrics';
+import { recordRateLimit } from '@lib/metrics';
 
 // When external API returns 429
 try {
@@ -179,7 +179,7 @@ Use specific task types for better analysis:
 ### Pattern 1: Basic AI Call with Telemetry
 
 ```typescript
-import { logInference } from '@/lib/telemetry/ai-logger';
+import { logInference } from '@lib/telemetry/ai-logger';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
 export async function analyzeStockSentiment(ticker: string, news: string[]) {
@@ -242,8 +242,8 @@ export async function analyzeStockSentiment(ticker: string, news: string[]) {
 ### Pattern 2: Confidence-Based Routing with Escalation
 
 ```typescript
-import { logInference } from '@/lib/telemetry/ai-logger';
-import { routeQueryWithConfidence } from '@/lib/ai/confidence-router';
+import { logInference } from '@lib/telemetry/ai-logger';
+import { routeQueryWithConfidence } from '@lib/ai/confidence-router';
 
 export async function processUserQuery(query: string, context: string) {
   const startTime = Date.now();
@@ -277,8 +277,8 @@ export async function processUserQuery(query: string, context: string) {
 ### Pattern 3: Caching Integration
 
 ```typescript
-import { logInference } from '@/lib/telemetry/ai-logger';
-import { getCachedResponse, setCachedResponse } from '@/lib/ai/cache';
+import { logInference } from '@lib/telemetry/ai-logger';
+import { getCachedResponse, setCachedResponse } from '@lib/ai/cache';
 
 export async function getFilingSummary(filingUrl: string) {
   const cacheKey = `filing:${filingUrl}`;
@@ -335,7 +335,7 @@ export async function getFilingSummary(filingUrl: string) {
 ### Pattern 4: Batch Processing with Telemetry
 
 ```typescript
-import { logInference } from '@/lib/telemetry/ai-logger';
+import { logInference } from '@lib/telemetry/ai-logger';
 
 export async function processBatchKPIExtraction(filings: Filing[]) {
   const results = [];
@@ -389,7 +389,7 @@ export async function processBatchKPIExtraction(filings: Filing[]) {
 ### Pattern 5: Rate Limit Handling
 
 ```typescript
-import { recordRateLimit } from '@/lib/metrics';
+import { recordRateLimit } from '@lib/metrics';
 
 export async function fetchStockPrice(ticker: string) {
   try {
@@ -413,7 +413,7 @@ export async function fetchStockPrice(ticker: string) {
 ### Pattern 6: Multi-Provider Fallback
 
 ```typescript
-import { recordRateLimit } from '@/lib/metrics';
+import { recordRateLimit } from '@lib/metrics';
 
 export async function fetchWithRetry(
   provider: string,
@@ -498,7 +498,7 @@ logInference({
 
 **DO:**
 ```typescript
-import { calculateCost } from '@/lib/ai/cost-calculator';
+import { calculateCost } from '@lib/ai/cost-calculator';
 
 const cost = calculateCost(
   'gemini-2.0-flash-exp',
@@ -856,9 +856,9 @@ await recordRateLimit('alpha_vantage', 'API rate limit exceeded');
 
 ```typescript
 // __tests__/my-feature.test.ts
-import { logInference } from '@/lib/telemetry/ai-logger';
+import { logInference } from '@lib/telemetry/ai-logger';
 
-jest.mock('@/lib/telemetry/ai-logger');
+jest.mock('@lib/telemetry/ai-logger');
 
 describe('Stock Sentiment Analysis', () => {
   beforeEach(() => {
@@ -902,7 +902,7 @@ describe('Stock Sentiment Analysis', () => {
 
 ```typescript
 // __tests__/telemetry.integration.test.ts
-import { logInference, getTelemetryStats } from '@/lib/telemetry/ai-logger';
+import { logInference, getTelemetryStats } from '@lib/telemetry/ai-logger';
 
 describe('Telemetry Integration', () => {
   beforeEach(() => {
@@ -983,7 +983,7 @@ const tokensOut = result.usageMetadata?.candidatesTokenCount || 0;
 
 **Solution:**
 ```typescript
-import { calculateCost } from '@/lib/ai/cost-calculator';
+import { calculateCost } from '@lib/ai/cost-calculator';
 
 const cost = calculateCost(
   'gemini-2.0-flash-exp',
@@ -1026,7 +1026,7 @@ if (cached) {
 ### Cost-Aware Feature Toggles
 
 ```typescript
-import { getTelemetryStats } from '@/lib/telemetry/ai-logger';
+import { getTelemetryStats } from '@lib/telemetry/ai-logger';
 
 export async function shouldEnableFeature(featureName: string): Promise<boolean> {
   const stats = getTelemetryStats(24);
@@ -1044,7 +1044,7 @@ export async function shouldEnableFeature(featureName: string): Promise<boolean>
 ### Adaptive Model Selection
 
 ```typescript
-import { getTelemetryStats } from '@/lib/telemetry/ai-logger';
+import { getTelemetryStats } from '@lib/telemetry/ai-logger';
 
 export function selectModelBasedOnPerformance() {
   const stats = getTelemetryStats(1); // Last hour
@@ -1066,7 +1066,7 @@ export function selectModelBasedOnPerformance() {
 ### Daily Cost Alerts
 
 ```typescript
-import { getTelemetryStats } from '@/lib/telemetry/ai-logger';
+import { getTelemetryStats } from '@lib/telemetry/ai-logger';
 
 export async function checkDailyCosts() {
   const stats = getTelemetryStats(24);
@@ -1152,7 +1152,7 @@ This guide covered:
 
 ```typescript
 // Log AI inference
-import { logInference } from '@/lib/telemetry/ai-logger';
+import { logInference } from '@lib/telemetry/ai-logger';
 logInference({
   model: 'gemini-2.0-flash-exp',
   provider: 'gemini',
@@ -1167,11 +1167,11 @@ logInference({
 });
 
 // Get statistics
-import { getTelemetryStats } from '@/lib/telemetry/ai-logger';
+import { getTelemetryStats } from '@lib/telemetry/ai-logger';
 const stats = getTelemetryStats(24);
 
 // Record rate limit
-import { recordRateLimit } from '@/lib/metrics';
+import { recordRateLimit } from '@lib/metrics';
 await recordRateLimit('alpha_vantage', 'Rate limit exceeded');
 
 // View dashboard: /dashboard/costs

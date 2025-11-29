@@ -6,8 +6,8 @@
  */
 
 import { taskRepository } from '@backend/modules/tasks/repository/task.repository';
-import { CreateTaskInput, UpdateTaskInput } from '@/lib/validators/schemas';
-import { Database } from '@/lib/supabase/database.types';
+import { CreateTaskInput, UpdateTaskInput } from '@lib/validators/schemas';
+import { Database } from '@lib/supabase/database.types';
 
 type ChecklistTask = Database['public']['Tables']['checklist_tasks']['Row'];
 

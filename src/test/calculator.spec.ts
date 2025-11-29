@@ -7,7 +7,10 @@ import {
   calculateMaxDrawdown,
   calculateCurrentDrawdown,
   calculateRSquared,
-} from '@/lib/calculator';
+} from '@lib/calculator';
+
+const { calculateGrahamNumber, calculateMarginOfSafety, getValuationIndicator, calculateFundamentalMetrics } = jest.requireActual('@lib/calculator');
+
 describe('risk metrics', () => {
   test('calculateSharpeRatio returns correct value', () => {
     const returns = [0.18, 0.12, 0.15, 0.20];
@@ -83,7 +86,7 @@ import {
   calculateNetMargin,
   calculateOperatingMargin,
   calculateGrossMargin,
-} from '@/lib/calculator';
+} from '@lib/calculator';
 
 describe('calculator basics', () => {
   test('calculatePE returns price / eps', () => {
@@ -160,23 +163,23 @@ describe('additional profitability ratios', () => {
 describe('valuation helpers and robust parsing', () => {
   test('calculateGrahamNumber and marginOfSafety', () => {
     // Graham number requires eps>0 and bookValue>0
-    const graham = require('@/lib/calculator').calculateGrahamNumber(2, 25);
+    const graham = calculateGrahamNumber(2, 25);
     expect(graham).toBeGreaterThan(0);
     // margin of safety: ((intrinsic - price)/intrinsic)*100
-    const mos = require('@/lib/calculator').calculateMarginOfSafety(graham as number, 20);
+    const mos = calculateMarginOfSafety(graham as number, 20);
     expect(typeof mos).toBe('number');
     expect(mos).toBeLessThan(100);
   });
 
   test('getValuationIndicator boundaries', () => {
-    const { getValuationIndicator } = require('@/lib/calculator');
+
     expect(getValuationIndicator(-1, 0, 20)).toBe('undervalued');
     expect(getValuationIndicator(25, 0, 20)).toBe('overvalued');
     expect(getValuationIndicator(15, 0, 20)).toBe('fair');
   });
 
   test('calculateFundamentalMetrics handles "None" and missing fields gracefully', () => {
-    const { calculateFundamentalMetrics } = require('@/lib/calculator');
+
     const overview = {
       DilutedEPSTTM: 'None',
       BookValue: 'None',

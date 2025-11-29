@@ -1,10 +1,10 @@
 "use client";
 import React, { useState, useEffect } from 'react';
 import RiskMetricsPanel from '@/components/RiskMetricsPanel';
-import type { RiskMetrics } from '@/lib/calculator';
-import { usePortfolio, useStocks } from '@/lib/hooks/useDatabase';
-import { getPortfolioTheme } from '@/lib/utils/portfolioTheme';
-import { Stock } from '@/lib/client/types';
+import type { RiskMetrics } from '@lib/calculator';
+import { usePortfolio, useStocks } from '@lib/hooks/useDatabase';
+import { getPortfolioTheme } from '@lib/utils/portfolioTheme';
+import { Stock } from '@lib/client/types';
 
 
 export default function TestRiskMetricsPage() {

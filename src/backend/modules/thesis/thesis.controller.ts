@@ -11,7 +11,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { thesisService } from '@backend/modules/thesis/service/thesis.service';
-import { commonSchemas, createThesisSchema, updateThesisBodySchema } from '@/lib/validators/schemas';
+import { commonSchemas, createThesisSchema, updateThesisBodySchema } from '@lib/validators/schemas';
 import { NotFoundError } from '@backend/common/middleware/error-handler.middleware';
 
 // Define the query schema here as it's specific to the controller's GET method

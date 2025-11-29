@@ -1,11 +1,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { configs } from '@/lib/config';
-import { ChecklistTask, DailyChecklist } from '@/lib/types';
+import { configs } from '@lib/config';
+import { ChecklistTask, DailyChecklist } from '@lib/types';
 import DailyChecklistView from '@/components/DailyChecklistView';
-import { get, set } from '@/lib/utils/idbStorage';
-import { usePortfolio, useStocks, usePortfolioMetrics } from '@/lib/hooks/useDatabase';
+import { get, set } from '@lib/utils/idbStorage';
+import { usePortfolio, useStocks, usePortfolioMetrics } from '@lib/hooks/useDatabase';
 
 export default function ChecklistPage() {
   const [active, setActive] = useState<'energy' | 'copper'>('energy');

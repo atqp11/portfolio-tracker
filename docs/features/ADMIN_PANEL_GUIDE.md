@@ -161,7 +161,7 @@ Once you're an admin, you can grant admin access to others:
 **Authorization Middleware:** `lib/auth/admin.ts`
 
 ```typescript
-import { requireAdmin } from '@/lib/auth/admin';
+import { requireAdmin } from '@lib/auth/admin';
 
 export async function GET(request: NextRequest) {
   // Check admin authorization

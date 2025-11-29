@@ -14,10 +14,10 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { routeQueryWithConfidence, type RouterContext } from '@/lib/ai/confidence-router';
-import { logInference } from '@/lib/telemetry/ai-logger';
-import { checkAndTrackUsage, type TierName } from '@/lib/tiers';
-import { getUserProfile } from '@/lib/auth/session';
+import { routeQueryWithConfidence, type RouterContext } from '@lib/ai/confidence-router';
+import { logInference } from '@lib/telemetry/ai-logger';
+import { checkAndTrackUsage, type TierName } from '@lib/tiers';
+import { getUserProfile } from '@lib/auth/session';
 import crypto from 'crypto';
 
 export const dynamic = 'force-dynamic';
@@ -221,7 +221,7 @@ export async function POST(req: NextRequest) {
  * Returns chat telemetry stats
  */
 export async function GET(req: NextRequest) {
-  const { getTelemetryStats } = await import('@/lib/telemetry/ai-logger');
+  const { getTelemetryStats } = await import('@lib/telemetry/ai-logger');
 
   // Get stats for last 24 hours
   const stats = getTelemetryStats();

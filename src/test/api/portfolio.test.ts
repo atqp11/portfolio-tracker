@@ -4,20 +4,20 @@
  * Tests for portfolio CRUD operations.
  */
 // Hoist mocks so route module reads them when it's imported
-jest.mock('@/lib/auth/session');
+jest.mock('@lib/auth/session');
 jest.mock('@backend/modules/portfolio/portfolio.controller');
 jest.mock('@backend/modules/portfolio/service/portfolio.service');
 
 import { createMockRequest, extractJSON, mockUserSession } from '../helpers/test-utils';
 import { createMockPortfolio } from '../helpers/mock-data';
-import * as authSession from '@/lib/auth/session';
+import * as authSession from '@lib/auth/session';
 import { portfolioController } from '@backend/modules/portfolio/portfolio.controller';
 import { portfolioService } from '@backend/modules/portfolio/service/portfolio.service';
 
 // Import route handlers dynamically after mocks to ensure they pick up mocked modules
 let GET: any, POST: any, PUT: any, DELETE: any;
 beforeAll(async () => {
-  const route = await import('@/app/api/portfolio/route');
+  const route = await import('@app/api/portfolio/route');
   GET = route.GET;
   POST = route.POST;
   PUT = route.PUT;

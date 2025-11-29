@@ -2,8 +2,8 @@
  * Daily Checklist Repository
  */
 import { BaseRepository } from '@backend/common/repositories/base.repository';
-import { Database } from '@/lib/supabase/database.types';
-import { createClient } from '@/lib/supabase/server'; // Import the factory function
+import { Database } from '@lib/supabase/database.types';
+import { createClient } from '@lib/supabase/server'; // Import the factory function
 
 type DailyChecklist = Database['public']['Tables']['daily_checklists']['Row'];
 

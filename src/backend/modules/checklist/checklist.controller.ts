@@ -7,7 +7,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { checklistService } from '@backend/modules/checklist/service/checklist.service';
-import { commonSchemas, createDailyChecklistSchema, updateChecklistBodySchema } from '@/lib/validators/schemas';
+import { commonSchemas, createDailyChecklistSchema, updateChecklistBodySchema } from '@lib/validators/schemas';
 import { NotFoundError } from '../../common/middleware/error-handler.middleware';
 
 // Schema for GET request query parameters

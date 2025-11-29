@@ -5,12 +5,12 @@
  * Aggregates news from multiple sources (Finnhub, Brave Search).
  */
 import { finnhubDAO } from '../../stocks/dao/finnhub.dao';
-import { FinnhubNews } from '@/lib/types/finnhub-news.dto';
+import { FinnhubNews } from '@lib/types/finnhub-news.dto';
 import { braveSearchDAO, BraveSearchResult } from '../dao/brave-search.dao';
-import { loadFromCache, saveToCache, getCacheAge } from '@/lib/utils/serverCache';
+import { loadFromCache, saveToCache, getCacheAge } from '@lib/utils/serverCache';
 import { NewsDAO } from '../dao/news.dao';
-import { NewsArticle as NewsAPIArticle } from '@/lib/types/news.dto';
-import { generateText } from '@/lib/ai/gemini';
+import { NewsArticle as NewsAPIArticle } from '@lib/types/news.dto';
+import { generateText } from '@lib/ai/gemini';
 
 // ============================================================================
 // INTERFACES

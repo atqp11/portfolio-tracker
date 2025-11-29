@@ -6,7 +6,7 @@
  */
 
 import Link from 'next/link';
-import { type TierName } from '@/lib/tiers';
+import { type TierName } from '@lib/tiers';
 
 interface TierBadgeProps {
   tier: TierName;

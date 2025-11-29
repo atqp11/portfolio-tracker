@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { getUsageStats, type TierName } from '@/lib/tiers';
+import { getUsageStats, type TierName } from '@lib/tiers';
 import Link from 'next/link';
 
 interface UsageStats {

@@ -1,5 +1,5 @@
 // lib/drip.ts
-import { get, set } from '@/lib/utils/idbStorage';
+import { get, set } from '@lib/utils/idbStorage';
 
 export const addDividend = async (symbol: string, amount: number) => {
   const state = (await get<Record<string, number>>('drip')) || {};

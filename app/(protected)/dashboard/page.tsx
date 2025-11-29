@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { usePortfolios, usePortfolioById, useStocks, usePortfolioMetrics, Stock, Portfolio, useCreatePortfolio, useUpdatePortfolio, useDeletePortfolio } from '@/lib/hooks/useDatabase';
+import { usePortfolios, usePortfolioById, useStocks, usePortfolioMetrics, Stock, Portfolio, useCreatePortfolio, useUpdatePortfolio, useDeletePortfolio } from '@lib/hooks/useDatabase';
 //import { useCreatePortfolio, useUpdatePortfolio, useDeletePortfolio } from '@/hooks/usePortfolios';
 import PortfolioSelector from '@/components/PortfolioSelector';
 import AddStockModal from '@/components/AddStockModal';
@@ -12,8 +12,8 @@ import AssetCard from '@/components/AssetCard';
 import RiskMetricsPanel from '@/components/RiskMetricsPanel';
 import NewsCard from '@/components/NewsCard';
 import StonksAI from '@/components/StonksAI/StonksAI';
-import { fetchAndUpdateStockPrice } from '@/lib/utils/priceUpdater';
-import { getPortfolioTheme } from '@/lib/utils/portfolioTheme';
+import { fetchAndUpdateStockPrice } from '@lib/utils/priceUpdater';
+import { getPortfolioTheme } from '@lib/utils/portfolioTheme';
 
 export default function Home() {
   const { data: portfolios, isLoading: portfoliosLoading, refetch: refetchPortfolios} = usePortfolios();

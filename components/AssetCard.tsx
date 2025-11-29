@@ -1,6 +1,6 @@
 // components/AssetCard.tsx
 import Link from 'next/link';
-import type { ThemeClasses } from '@/lib/utils/portfolioTheme';
+import type { ThemeClasses } from '@lib/utils/portfolioTheme';
 
 interface AssetCardProps {
   symbol: string;

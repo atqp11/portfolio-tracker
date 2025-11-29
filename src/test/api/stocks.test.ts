@@ -4,7 +4,7 @@
  * Tests for the refactored stock CRUD operations using middleware and service layers.
  */
 
-import { GET, POST, PUT, DELETE } from '@/app/api/stocks/route';
+import { GET, POST, PUT, DELETE } from '@app/api/stocks/route';
 import { createMockRequest, extractJSON } from '../helpers/test-utils';
 import { stockService } from '@backend/modules/stocks/service/stock.service';
 import { NotFoundError } from '@backend/common/middleware/error-handler.middleware';

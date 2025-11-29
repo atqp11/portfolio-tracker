@@ -121,7 +121,7 @@ Run these SQL scripts in Supabase Dashboard → SQL Editor:
 
 **Require Authentication:**
 ```typescript
-import { requireUser } from '@/lib/auth/session';
+import { requireUser } from '@lib/auth/session';
 
 export default async function ProtectedPage() {
   const user = await requireUser(); // Redirects to /auth/signin if not authenticated
@@ -132,7 +132,7 @@ export default async function ProtectedPage() {
 
 **Get User Profile:**
 ```typescript
-import { getUserProfile } from '@/lib/auth/session';
+import { getUserProfile } from '@lib/auth/session';
 
 export default async function DashboardPage() {
   const profile = await getUserProfile();
@@ -152,7 +152,7 @@ export default async function DashboardPage() {
 
 **Require Specific Tier:**
 ```typescript
-import { requireTier } from '@/lib/auth/session';
+import { requireTier } from '@lib/auth/session';
 
 export default async function PremiumPage() {
   const profile = await requireTier('premium'); // Redirects to /pricing if not premium
@@ -164,7 +164,7 @@ export default async function PremiumPage() {
 **API Route with Auth:**
 ```typescript
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createClient } from '@lib/supabase/server';
 
 export async function GET(request: NextRequest) {
   const supabase = await createClient();
@@ -186,7 +186,7 @@ export async function GET(request: NextRequest) {
 ```typescript
 'use client';
 
-import { createClient } from '@/lib/supabase/client';
+import { createClient } from '@lib/supabase/client';
 import { useRouter } from 'next/navigation';
 
 export function SignOutButton() {
@@ -207,7 +207,7 @@ export function SignOutButton() {
 ```typescript
 'use client';
 
-import { createClient } from '@/lib/supabase/client';
+import { createClient } from '@lib/supabase/client';
 import { useEffect, useState } from 'react';
 
 export function UserProfile() {
@@ -228,8 +228,8 @@ export function UserProfile() {
 
 **Fetch User's Portfolios:**
 ```typescript
-import { requireUser } from '@/lib/auth/session';
-import { getUserPortfolios } from '@/lib/supabase/db';
+import { requireUser } from '@lib/auth/session';
+import { getUserPortfolios } from '@lib/supabase/db';
 
 export default async function PortfolioPage() {
   const user = await requireUser();
@@ -250,7 +250,7 @@ export default async function PortfolioPage() {
 
 **Create Portfolio:**
 ```typescript
-import { createPortfolio } from '@/lib/supabase/db';
+import { createPortfolio } from '@lib/supabase/db';
 
 const portfolio = await createPortfolio({
   user_id: user.id,
@@ -265,7 +265,7 @@ const portfolio = await createPortfolio({
 
 **Update Stock:**
 ```typescript
-import { updateStock } from '@/lib/supabase/db';
+import { updateStock } from '@lib/supabase/db';
 
 await updateStock(stockId, {
   shares: 150,
@@ -693,7 +693,7 @@ Supabase supports TOTP-based 2FA. See official docs for implementation.
 
 **5. Usage Tracking**
 ```typescript
-import { createUsageRecord } from '@/lib/supabase/db';
+import { createUsageRecord } from '@lib/supabase/db';
 
 await createUsageRecord({
   user_id: user.id,
@@ -1014,7 +1014,7 @@ export const config = {
 'use client';
 
 import { useSearchParams } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
+import { createClient } from '@lib/supabase/client';
 import { useRouter } from 'next/navigation';
 
 export default function RestrictedPage() {
@@ -1183,7 +1183,7 @@ Check role in API routes:
 
 ```typescript
 // lib/auth/admin.ts
-import { createClient } from '@/lib/supabase/server';
+import { createClient } from '@lib/supabase/server';
 
 export async function requireAdmin() {
   const supabase = await createClient();

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useTheme } from '@/lib/contexts/ThemeContext';
+import { useTheme } from '@lib/contexts/ThemeContext';
 
 export default function SettingsPage() {
   const { theme, setTheme } = useTheme();

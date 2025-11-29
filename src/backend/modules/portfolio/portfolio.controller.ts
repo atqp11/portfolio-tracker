@@ -6,7 +6,7 @@
  */
 
 import { portfolioService } from '@backend/modules/portfolio/service/portfolio.service';
-import { CreatePortfolioInput, UpdatePortfolioInput } from '@/lib/validators/schemas';
+import { CreatePortfolioInput, UpdatePortfolioInput } from '@lib/validators/schemas';
 
 export class PortfolioController {
   /**

@@ -10,7 +10,7 @@
 
 import { User as Profile } from '@prisma/client';
 import { PrismaBaseRepository } from '@backend/common/repositories/prisma-base.repository';
-import { prisma } from '@/lib/prisma';
+import { prisma } from '@lib/prisma';
 
 export class UserRepository extends PrismaBaseRepository<Profile> {
   protected delegate = prisma.user;

@@ -72,7 +72,7 @@
  * This file is critical for ensuring users are notified of significant financial events in real-time, enhancing the application's utility and user experience.
  */
 
-import { get, set } from '@/lib/utils/idbStorage';
+import { get, set } from '@lib/utils/idbStorage';
 
 /**
  * Interface representing the state of various alerts.

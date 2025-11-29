@@ -44,7 +44,7 @@ app/api/ai/
 **Use the confidence-based router for RAG-powered chat:**
 
 ```typescript
-import { routeQueryWithConfidence } from '@/lib/ai/confidence-router';
+import { routeQueryWithConfidence } from '@lib/ai/confidence-router';
 
 const response = await routeQueryWithConfidence({
   userMessage: 'What are TSLA risk factors?',
@@ -96,7 +96,7 @@ Content-Type: application/json
 **Use Groq directly for deterministic batch tasks:**
 
 ```typescript
-import { summarizeFiling, analyzeNewsSentiment } from '@/lib/ai/groq';
+import { summarizeFiling, analyzeNewsSentiment } from '@lib/ai/groq';
 
 // Summarize SEC filing chunks
 const summary = await summarizeFiling(
@@ -125,7 +125,7 @@ console.log(sentiment.relevance);    // 0.0 - 1.0
 **Quick example:**
 
 ```typescript
-import { logInference } from '@/lib/telemetry/ai-logger';
+import { logInference } from '@lib/telemetry/ai-logger';
 
 // Log AI inference
 logInference({
@@ -142,7 +142,7 @@ logInference({
 });
 
 // Get statistics
-import { getTelemetryStats } from '@/lib/telemetry/ai-logger';
+import { getTelemetryStats } from '@lib/telemetry/ai-logger';
 const stats = getTelemetryStats();
 
 // View dashboard: /dashboard/costs
@@ -233,9 +233,9 @@ function estimateConfidence(response: string, context: string): number {
 
 **To migrate:**
 
-1. Replace `import { routeQuery } from '@/lib/ai/router'` with:
+1. Replace `import { routeQuery } from '@lib/ai/router'` with:
    ```typescript
-   import { routeQueryWithConfidence } from '@/lib/ai/confidence-router';
+   import { routeQueryWithConfidence } from '@lib/ai/confidence-router';
    ```
 
 2. Update function calls:

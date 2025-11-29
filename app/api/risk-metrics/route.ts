@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { calculateSharpeRatio, calculateSortinoRatio, calculateAlpha, calculateBeta, calculateStdDev, calculateMaxDrawdown, calculateCurrentDrawdown, calculateRSquared, RiskMetrics } from '@/lib/calculator';
-import { checkAndTrackUsage, type TierName } from '@/lib/tiers';
-import { getUserProfile } from '@/lib/auth/session';
+import { calculateSharpeRatio, calculateSortinoRatio, calculateAlpha, calculateBeta, calculateStdDev, calculateMaxDrawdown, calculateCurrentDrawdown, calculateRSquared, RiskMetrics } from '@lib/calculator';
+import { checkAndTrackUsage, type TierName } from '@lib/tiers';
+import { getUserProfile } from '@lib/auth/session';
 import crypto from 'crypto';
 
 export const dynamic = 'force-dynamic';

@@ -3,7 +3,7 @@
  * Uses ChecklistTask data model and shared UI components
  */
 
-import { ChecklistTask } from '@/lib/types';
+import { ChecklistTask } from '@lib/types';
 import { UrgencyBadge, ExpandableDetails, ActionButton } from '@/components/shared';
 
 interface ChecklistTaskCardProps {

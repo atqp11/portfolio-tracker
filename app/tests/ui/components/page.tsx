@@ -10,7 +10,7 @@ import { UrgencyBadge, ExpandableDetails, ActionButton } from '@/components/shar
 import ThesisCard from '@/components/ThesisCard';
 import ChecklistTaskCard from '@/components/ChecklistTaskCard';
 import DailyChecklistView from '@/components/DailyChecklistView';
-import { ChecklistTask, DailyChecklist, InvestmentThesis } from '@/lib/types';
+import { ChecklistTask, DailyChecklist, InvestmentThesis } from '@lib/types';
 
 export default function TestComponentsPage() {
   // News scraping test state

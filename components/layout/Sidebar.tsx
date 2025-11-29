@@ -3,9 +3,9 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
+import { createClient } from '@lib/supabase/client';
 import TierBadge from '@/components/shared/TierBadge';
-import { type TierName } from '@/lib/tiers';
+import { type TierName } from '@lib/tiers';
 
 interface NavItem {
   label: string;

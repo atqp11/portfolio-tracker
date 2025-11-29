@@ -6,7 +6,7 @@
  * ValidationError that can be caught by the centralized error handler middleware.
  */
 
-import { createThesisSchema, updateThesisSchema, CreateThesisInput, UpdateThesisInput, formatZodError } from '@/lib/validators/schemas';
+import { createThesisSchema, updateThesisSchema, CreateThesisInput, UpdateThesisInput, formatZodError } from '@lib/validators/schemas';
 import { ValidationError } from '@backend/common/middleware/validation.middleware';
 
 export class ThesisValidator {

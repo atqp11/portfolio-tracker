@@ -3,7 +3,7 @@
 import type { Metadata } from 'next';
 import './global.css';
 import QueryProvider from '@/components/QueryProvider';
-import { ThemeProvider } from '@/lib/contexts/ThemeContext'; // Use custom ThemeProvider
+import { ThemeProvider } from '@lib/contexts/ThemeContext'; // Use custom ThemeProvider
 
 export const metadata: Metadata = {
   title: 'Live Portfolio Tracker',

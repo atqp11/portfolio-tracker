@@ -6,8 +6,8 @@
  */
 
 import { portfolioRepository } from '../repository/portfolio.repository';
-import { CreatePortfolioInput, UpdatePortfolioInput } from '@/lib/validators/schemas';
-import { Database } from '@/lib/supabase/database.types';
+import { CreatePortfolioInput, UpdatePortfolioInput } from '@lib/validators/schemas';
+import { Database } from '@lib/supabase/database.types';
 
 type Portfolio = Database['public']['Tables']['portfolios']['Row'];
 

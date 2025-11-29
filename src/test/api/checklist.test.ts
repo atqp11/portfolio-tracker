@@ -2,7 +2,7 @@
  * Daily Checklist API Integration Tests
  */
 
-import { GET, POST, PUT, DELETE } from '@/app/api/checklist/route';
+import { GET, POST, PUT, DELETE } from '@app/api/checklist/route';
 import { createMockRequest, extractJSON } from '../helpers/test-utils';
 import { checklistRepository } from '@backend/modules/checklist/repository/checklist.repository';
 

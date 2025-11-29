@@ -6,7 +6,7 @@
  */
 
 import { PrismaClient } from '@prisma/client';
-import { prisma as globalPrisma } from '@/lib/prisma';
+import { prisma as globalPrisma } from '@lib/prisma';
 import {
   RepositoryError,
   RepositoryErrorType,

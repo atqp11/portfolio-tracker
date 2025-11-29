@@ -14,8 +14,8 @@ import {
   requireTier,
   User,
   UserProfile,
-} from '@/lib/auth/session';
-import { TierName } from '@/lib/tiers/config';
+} from '@lib/auth/session';
+import { TierName } from '@lib/tiers/config';
 import { UnauthorizedError, ForbiddenError } from './error-handler.middleware';
 
 /**

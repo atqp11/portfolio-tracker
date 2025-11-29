@@ -1,12 +1,12 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { usePortfolios, usePortfolioById, useStocks, Portfolio } from '@/lib/hooks/useDatabase';
+import { usePortfolios, usePortfolioById, useStocks, Portfolio } from '@lib/hooks/useDatabase';
 import PortfolioSelector from '@/components/PortfolioSelector';
 import PortfolioModal from '@/components/PortfolioModal';
 import RiskMetricsPanel from '@/components/RiskMetricsPanel';
-import type { RiskMetrics } from '@/lib/calculator';
-import { getPortfolioTheme } from '@/lib/utils/portfolioTheme';
+import type { RiskMetrics } from '@lib/calculator';
+import { getPortfolioTheme } from '@lib/utils/portfolioTheme';
 
 export default function RiskPage() {
   // Portfolio state

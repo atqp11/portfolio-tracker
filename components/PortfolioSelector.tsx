@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Portfolio } from '@/lib/hooks/useDatabase';
+import { Portfolio } from '@lib/hooks/useDatabase';
 
 interface PortfolioSelectorProps {
   portfolios: Portfolio[];

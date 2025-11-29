@@ -1,5 +1,5 @@
 import { BaseDAO } from '@backend/common/dao/base.dao';
-import { NewsArticle, NewsAPIResponse, NewsAPIError } from '@/lib/types/news.dto';
+import { NewsArticle, NewsAPIResponse, NewsAPIError } from '@lib/types/news.dto';
 
 export class NewsDAO extends BaseDAO {
   private readonly apiKey: string;

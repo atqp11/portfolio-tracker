@@ -1,6 +1,6 @@
 import React from 'react';
-import type { RiskMetrics } from '@/lib/calculator';
-import type { ThemeClasses } from '@/lib/utils/portfolioTheme';
+import type { RiskMetrics } from '@lib/calculator';
+import type { ThemeClasses } from '@lib/utils/portfolioTheme';
 
 interface RiskMetricsPanelProps {
   metrics: RiskMetrics | null;

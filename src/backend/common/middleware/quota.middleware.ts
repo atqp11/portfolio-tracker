@@ -5,12 +5,12 @@
  * Provides middleware functions for checking and tracking usage.
  */
 
-import { TierName } from '@/lib/tiers/config';
+import { TierName } from '@lib/tiers/config';
 import {
   checkAndTrackUsage,
   checkQuota,
   UsageAction,
-} from '@/lib/tiers/usage-tracker';
+} from '@lib/tiers/usage-tracker';
 import { QuotaExceededError } from './error-handler.middleware';
 
 /**

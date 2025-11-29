@@ -50,7 +50,7 @@
  * portfolio tracker application by reducing redundant API calls and ensuring data freshness.
  */
 
-import { saveToCache, loadFromCache, getCacheAge } from '@/lib/utils/localStorageCache';
+import { saveToCache, loadFromCache, getCacheAge } from '@lib/utils/localStorageCache';
 
 export interface FundamentalCacheConfig {
   quoteTTL: number;           // 15 min during market hours, 1 hour after

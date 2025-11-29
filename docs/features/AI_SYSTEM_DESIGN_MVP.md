@@ -288,7 +288,7 @@ export async function setCachedQuery(
 
 ```typescript
 // app/api/ai/generate/route.ts
-import { getCachedQuery, setCachedQuery } from '@/lib/cache/queryCache';
+import { getCachedQuery, setCachedQuery } from '@lib/cache/queryCache';
 
 export async function POST(request: NextRequest) {
   const { contents, userId, portfolio } = await request.json();
@@ -417,7 +417,7 @@ export async function POST(request: NextRequest) {
 
 ```typescript
 // lib/analytics/costTracking.ts
-import { supabase } from '@/lib/supabase/admin';
+import { supabase } from '@lib/supabase/admin';
 
 interface TokenUsage {
   userId: string;

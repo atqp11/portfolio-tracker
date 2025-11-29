@@ -2,8 +2,8 @@
  * Investment Thesis Repository
  */
 import { BaseRepository } from '@backend/common/repositories/base.repository';
-import { Database } from '@/lib/supabase/database.types';
-import { createClient } from '@/lib/supabase/server'; // Import the factory function
+import { Database } from '@lib/supabase/database.types';
+import { createClient } from '@lib/supabase/server'; // Import the factory function
 
 // Define the specific types for InvestmentThesis from the generated Supabase types
 type InvestmentThesis = Database['public']['Tables']['investment_theses']['Row'];

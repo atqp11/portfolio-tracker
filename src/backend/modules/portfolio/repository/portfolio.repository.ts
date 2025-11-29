@@ -5,8 +5,8 @@
  * Use this for regular user operations.
  */
 
-import { createClient } from '@/lib/supabase/server';
-import { Database } from '@/lib/supabase/database.types';
+import { createClient } from '@lib/supabase/server';
+import { Database } from '@lib/supabase/database.types';
 
 type Portfolio = Database['public']['Tables']['portfolios']['Row'];
 type PortfolioInsert = Database['public']['Tables']['portfolios']['Insert'];

@@ -188,7 +188,7 @@ This project uses a **hybrid database approach** combining Prisma and Supabase c
 
 ```typescript
 // app/api/portfolios/route.ts
-import { createClient } from '@/lib/supabase/server';
+import { createClient } from '@lib/supabase/server';
 import { NextResponse } from 'next/server';
 
 export async function GET() {
@@ -266,8 +266,8 @@ export async function POST(request: Request) {
 
 ```typescript
 // app/api/admin/users/route.ts
-import { prisma } from '@/lib/prisma';
-import { createClient } from '@/lib/supabase/server';
+import { prisma } from '@lib/prisma';
+import { createClient } from '@lib/supabase/server';
 import { NextResponse } from 'next/server';
 
 export async function GET() {
@@ -394,13 +394,13 @@ const portfolio = await prisma.portfolio.findUnique({
 
 ```typescript
 // ❌ SECURITY ISSUE - Service role bypasses RLS
-import { createAdminClient } from '@/lib/supabase/admin';
+import { createAdminClient } from '@lib/supabase/admin';
 const supabase = createAdminClient();
 const { data } = await supabase.from('portfolios').select('*');
 // ↑ Returns ALL portfolios from ALL users!
 
 // ✅ CORRECT - Use regular client for user operations
-import { createClient } from '@/lib/supabase/server';
+import { createClient } from '@lib/supabase/server';
 const supabase = await createClient();
 const { data } = await supabase.from('portfolios').select('*');
 // ↑ RLS filters to current user
@@ -411,7 +411,7 @@ const { data } = await supabase.from('portfolios').select('*');
 **Prisma (Excellent):**
 
 ```typescript
-import { prisma } from '@/lib/prisma';
+import { prisma } from '@lib/prisma';
 
 // ✅ Full autocomplete and type inference
 const portfolio = await prisma.portfolio.findUnique({
@@ -437,8 +437,8 @@ portfolio?.user?.email;  // string | undefined
 **Supabase (Manual Types):**
 
 ```typescript
-import { createClient } from '@/lib/supabase/server';
-import type { Portfolio } from '@/lib/supabase/db';
+import { createClient } from '@lib/supabase/server';
+import type { Portfolio } from '@lib/supabase/db';
 
 const supabase = await createClient();
 
@@ -698,8 +698,8 @@ types/
 ```typescript
 // lib/services/quoteService.ts (Service)
 import { Quote } from '@/types/models/Quote';
-import { alphaVantageDAO } from '@/lib/dao/external/alphaVantageDAO';
-import { cacheDAO } from '@/lib/dao/cache/cacheDAO';
+import { alphaVantageDAO } from '@lib/dao/external/alphaVantageDAO';
+import { cacheDAO } from '@lib/dao/cache/cacheDAO';
 
 export async function getBatchQuotes(symbols: string[]): Promise<Quote[]> {
   // 1. Check cache (returns Domain Models)
@@ -802,7 +802,7 @@ lib/
 // lib/dao/external/alphaVantageDAO.ts (DAO)
 import { Quote } from '@/types/models/Quote';
 import { AlphaVantageQuoteDTO } from '@/types/dto/external/AlphaVantageDTO';
-import { fromAlphaVantageDTO } from '@/lib/mappers/quoteMapper';
+import { fromAlphaVantageDTO } from '@lib/mappers/quoteMapper';
 
 export async function fetchBatchQuotes(symbols: string[]): Promise<Quote[]> {
   // 1. Build API URL

@@ -5,7 +5,7 @@
  * Provides company news and market data.
  */
 import { BaseDAO } from '@backend/common/dao/base.dao';
-import { FinnhubNews } from '@/lib/types/finnhub-news.dto';
+import { FinnhubNews } from '@lib/types/finnhub-news.dto';
 
 // ============================================================================
 // INTERFACES

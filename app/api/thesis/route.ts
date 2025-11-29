@@ -10,7 +10,7 @@ import { thesisController } from '@backend/modules/thesis/thesis.controller';
 import { withErrorHandler } from '@backend/common/middleware/error-handler.middleware';
 import { withValidation } from '@backend/common/middleware/validation.middleware';
 import { z } from 'zod';
-import { commonSchemas, createThesisSchema, updateThesisSchema, updateThesisBodySchema } from '@/lib/validators/schemas';
+import { commonSchemas, createThesisSchema, updateThesisSchema, updateThesisBodySchema } from '@lib/validators/schemas';
 
 // Define schemas for validation middleware
 const getThesisQuerySchema = z.object({

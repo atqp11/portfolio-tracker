@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import TierBadge from '@/components/shared/TierBadge';
-import { TIER_CONFIG } from '@/lib/tiers/config';
+import { TIER_CONFIG } from '@lib/tiers/config';
 
 interface UserUsage {
   chatQueries: number;

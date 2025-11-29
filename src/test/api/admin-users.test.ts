@@ -4,15 +4,15 @@
  * Tests for admin user management endpoint.
  */
 
-import { GET } from '@/app/api/admin/users/route';
+import { GET } from '@app/api/admin/users/route';
 import { createMockRequest, extractJSON } from '../helpers/test-utils';
-import * as adminAuth from '@/lib/auth/admin';
-import * as supabaseDb from '@/lib/supabase/db';
+import * as adminAuth from '@lib/auth/admin';
+import * as supabaseDb from '@lib/supabase/db';
 import { NextResponse } from 'next/server';
 
 // Mock dependencies
-jest.mock('@/lib/auth/admin');
-jest.mock('@/lib/supabase/db');
+jest.mock('@lib/auth/admin');
+jest.mock('@lib/supabase/db');
 
 describe('Admin Users API', () => {
   const mockUsers = [

@@ -1,10 +1,10 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { usePortfolios, usePortfolioById, useStocks, Portfolio, Stock } from '@/lib/hooks/useDatabase';
+import { usePortfolios, usePortfolioById, useStocks, Portfolio, Stock } from '@lib/hooks/useDatabase';
 import PortfolioSelector from '@/components/PortfolioSelector';
 import PortfolioModal from '@/components/PortfolioModal';
-import { getPortfolioTheme } from '@/lib/utils/portfolioTheme';
+import { getPortfolioTheme } from '@lib/utils/portfolioTheme';
 
 interface StockFundamentals {
   symbol: string;

@@ -3,7 +3,7 @@
  * Uses new InvestmentThesis data model and shared UI components
  */
 
-import { InvestmentThesis } from '@/lib/types';
+import { InvestmentThesis } from '@lib/types';
 import { UrgencyBadge, ExpandableDetails, ActionButton } from '@/components/shared';
 
 interface ThesisCardProps {

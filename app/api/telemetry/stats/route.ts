@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getTelemetryStats } from '../../../../lib/metrics';
+import { getTelemetryStats } from '@lib/metrics';
 
 export async function GET() {
   try {

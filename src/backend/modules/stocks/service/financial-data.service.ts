@@ -6,7 +6,7 @@
  */
 import { alphaVantageDAO } from '@backend/modules/stocks/dao/alpha-vantage.dao';
 import { yahooFinanceDAO, YahooFundamentals } from '@backend/modules/stocks/dao/yahoo-finance.dao';
-import { loadFromCache, saveToCache, getCacheAge } from '@/lib/utils/localStorageCache';
+import { loadFromCache, saveToCache, getCacheAge } from '@lib/utils/localStorageCache';
 
 // ============================================================================
 // INTERFACES
