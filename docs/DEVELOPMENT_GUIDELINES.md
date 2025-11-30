@@ -411,61 +411,139 @@ export default function InteractiveToolbar() {
 <AssetCard stock={stock} /> // internally does fetch/mutations
 ```
 
-### API Route Patterns
+### API Route & Controller Patterns
 
-**1. Always mark routes as dynamic and set runtime:**
+**Architectural Principle: API Routes are Thin Wrappers**
+
+The primary principle for our backend is that API Routes (`app/api/.../route.ts`) must be "thin wrappers." Their only job is to handle the raw web request and response, delegating all business logic to a dedicated `controller` or `service` in the `src/backend/modules/` directory.
+
+- **DO in API Route:**
+    - Parse request data (e.g., `request.json()`, search parameters).
+    - Call a single controller/service function.
+    - Wrap the call in a generic `try...catch` to handle unexpected server errors.
+    - Return a `NextResponse`.
+
+- **DO NOT in API Route:**
+    - Write complex business logic.
+    - Perform detailed input validation (this belongs in the controller).
+    - Create detailed error responses for specific business cases (the controller should do this).
+    - Call the database directly (e.g., Prisma or Supabase client).
+
+**Example of the Correct Pattern:**
 
 ```typescript
-// ✅ GOOD
+// ✅ GOOD: API Route as a thin wrapper
+// app/api/portfolio/route.ts
+import { NextResponse } from 'next/server';
+import { getPortfolioForUser } from '@/src/backend/modules/portfolio/portfolio.controller';
+
 export const dynamic = 'force-dynamic';
-export const runtime = 'nodejs';
 
-export async function GET(request: NextRequest) {
-  // ...
+export async function GET(request: Request) {
+  try {
+    // 1. The API route simply delegates to the controller.
+    const result = await getPortfolioForUser(request); // Pass request for auth/context
+    
+    // The controller handles creating the specific success/error response object
+    if (result.status === 'error') {
+      return NextResponse.json(result, { status: result.statusCode || 400 });
+    }
+    return NextResponse.json(result);
+
+  } catch (error) {
+    // 2. This catch block is for truly unexpected server errors (e.g., the controller crashes).
+    console.error('Unhandled error in /api/portfolio:', error);
+    return NextResponse.json(
+      { status: 'error', message: 'An internal server error occurred.' },
+      { status: 500 }
+    );
+  }
+}
+
+// src/backend/modules/portfolio/portfolio.controller.ts
+// The controller contains all the logic: validation, logging, error responses.
+export async function getPortfolioForUser(request: Request) {
+  // 1. Authentication & Authorization
+  const user = await getUserFromRequest(request);
+  if (!user) {
+    return { status: 'error', message: 'Unauthorized', statusCode: 401 };
+  }
+
+  // 2. Business Logic
+  const portfolio = await portfolioService.findPortfolioByUserId(user.id);
+  if (!portfolio) {
+    return { status: 'error', message: 'Portfolio not found', statusCode: 404 };
+  }
+  
+  // 3. Logging
+  console.log(`Successfully fetched portfolio for user ${user.id}`);
+
+  // 4. Success Response
+  return { status: 'success', data: portfolio };
 }
 ```
 
-**2. Consistent error response structure:**
-
+**Anti-Pattern: Fat API Route**
 ```typescript
-// ✅ GOOD
-return NextResponse.json(
-  { error: 'Rate limit exceeded', code: 'RATE_LIMIT' },
-  { status: 429 }
-);
+// ❌ BAD: Bloated API Route with too much logic
+// app/api/portfolio/route.ts
+import { NextResponse } from 'next/server';
+import { prisma } from '@lib/prisma';
+import { z } from 'zod';
 
-// ❌ BAD - inconsistent error formats
-return NextResponse.json('Error', { status: 500 });
-return new Response('Bad request');
-```
+const PortfolioParams = z.object({ userId: z.string().uuid() });
 
-**3. Validate inputs at the API boundary:**
+export async function GET(request: Request) {
+    // ❌ Logic that should be in a controller:
+    try {
+        const user = await getUser(); // Auth logic
+        if(!user) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
 
-```typescript
-// ✅ GOOD
-const symbols = searchParams.get('symbols');
-if (!symbols) {
-  return NextResponse.json(
-    { error: 'Missing required parameter: symbols' },
-    { status: 400 }
-  );
+        const validation = PortfolioParams.safeParse({ userId: user.id }); // Validation logic
+        if(!validation.success) {
+            return NextResponse.json({ error: 'Invalid user ID' }, { status: 400 });
+        }
+
+        const portfolio = await prisma.portfolio.findFirst({ where: { userId: user.id } }); // Direct DB access
+        if(!portfolio) {
+            return NextResponse.json({ error: 'Not Found' }, { status: 404 });
+        }
+
+        console.log(`Fetched portfolio for user ${user.id}`); // Logging logic
+        return NextResponse.json(portfolio);
+
+    } catch(err) {
+        // ... complex error handling
+    }
 }
-
-// ❌ BAD - assuming parameters exist
-const symbols = searchParams.get('symbols');
-const list = symbols.split(','); // Could crash!
 ```
 
-**4. Log important operations for debugging:**
+### Hybrid Database Access Strategy
 
-```typescript
-// ✅ GOOD
-console.log(`Fetching quotes for ${symbols.length} symbols`);
-console.log(`Rate limit active. Resets in ${hoursRemaining} hours`);
+The application utilizes a hybrid approach for database access to balance security, multi-tenancy, and administrative needs. This strategy is crucial for maintaining data integrity and system security.
 
-// But avoid logging sensitive data
-console.log(`API key: ${apiKey}`); // ❌ NEVER
-```
+#### Supabase Client Usage Rules (For User-Facing Operations)
+
+The Supabase client, which respects Row-Level Security (RLS), is the standard for all user-facing operations. This ensures users can only access their own data.
+
+-   **Allowed Locations:**
+    -   `Repository Layer (e.g., src/backend/modules/some-feature/repository.ts)`: Business logic should interact with the database via a dedicated repository layer that encapsulates data access.
+-   **Forbidden Locations:**
+    -   **Client Components:** Direct Supabase calls from any client components (`'use client'`) are strictly forbidden. This prevents exposing sensitive logic and ensures all queries go through RLS-protected API routes.
+    -   **Frontend Hooks (`src/lib/hooks`):** Hooks must fetch data via API routes, not directly from Supabase.
+
+#### Administrative Layer (Prisma for RLS-Bypass)
+
+Prisma is used for specific, restricted administrative operations that require bypassing RLS.
+
+-   **Allowed Uses:**
+    -   Cron Jobs (e.g., data aggregation, cleanup).
+    -   Analytics & Reporting.
+    -   Cache Rebuilding.
+    -   Backend Admin Dashboards.
+-   **Strict Restriction:** **Never** use Prisma in user-facing API routes. Its use is confined to secure, server-side administrative contexts.
 
 ### Database Patterns (Prisma)
 
@@ -570,84 +648,103 @@ await fetchAPI(); // Blind calls, hit rate limits
 
 ### State Management
 
-For client-side interactivity, use hooks within Client Components (`'use client'`).
+This project uses a hybrid approach to state management, separating client-side UI state from server-side cache management.
 
-**1. Use custom hooks for reusable state logic:**
+#### 1. Local UI State (`useState`, `useReducer`)
 
-When client-side logic is complex and shared, encapsulate it in a custom hook.
+For state that is local to a component and controls its interactivity (e.g., form inputs, modal visibility, hover states), use standard React hooks.
 
-```typescript
-// ✅ GOOD - lib/hooks/useSort.ts
-'use client';
-
-import { useState, useMemo } from 'react';
-
-export function useSort(items) {
-  const [sortKey, setSortKey] = useState('name');
-
-  const sortedItems = useMemo(() => {
-    // sorting logic
-  }, [items, sortKey]);
-
-  return { sortedItems, setSortKey };
-}
-```
-
-**2. Lift state only when necessary:**
-
-This principle remains the same. Keep state as close to where it's used as possible.
+- **Keep state as local as possible:** Only lift state to a parent component when multiple children need to share or coordinate it.
+- **Use custom hooks for reusable logic:** Encapsulate complex, shared client-side logic in a custom hook (e.g., a `useSort` hook).
 
 ```typescript
-// ✅ GOOD - local state when possible
+// ✅ GOOD: Local state for UI interactivity
 function StockCard({ stock }: Props) {
-  const [expanded, setExpanded] = useState(false);
-  // expanded state only used here
+  const [isExpanded, setExpanded] = useState(false);
+  // 'isExpanded' state is only used here
 }
 ```
 
-**3. Avoid fetching data in `useEffect`:**
+#### 2. Server State (Data Fetching, Caching, and Mutations)
 
-Prefer fetching data in Server Components. Only use `useEffect` for client-side data fetching when you need to re-fetch data in response to a user interaction without a full page navigation (e.g., SWR or React Query).
+**Primary Guideline: Use React Query (TanStack Query)**
+
+For managing "server state"—any data fetched from, or sent to, an API—the project is standardizing on **React Query**. New features **must** use this library, and existing features should be migrated when feasible.
+
+- **Why React Query?**
+    - It eliminates complex, manual data-fetching logic using `useState` and `useEffect`.
+    - It provides simple, declarative access to loading, error, and success states.
+    - It handles background data synchronization, request deduplication, and caching automatically.
+    - It simplifies complex UI patterns like optimistic updates.
+
+- **Guideline:** Use `useQuery` for data fetching and `useMutation` for data modifications.
+
+**Example `useQuery` Implementation:**
+
+This example shows how to create a custom hook that wraps `useQuery` for fetching portfolio data.
 
 ```typescript
-// ✅ GOOD - Fetching in a Server Component
-async function Page() {
-  const data = await fetch('/api/stocks');
-  return <Display data={data} />;
+// lib/hooks/usePortfolio.ts (example with React Query)
+import { useQuery } from '@tanstack/react-query';
+
+// The function that performs the actual data fetching
+async function fetchPortfolio(type: string) {
+  const response = await fetch(`/api/portfolio?type=${type}`);
+  if (!response.ok) {
+    throw new Error('Network response was not ok');
+  }
+  return response.json();
 }
 
+// The custom hook that provides the portfolio data to components
+export function usePortfolio(type: string) {
+  return useQuery({
+    queryKey: ['portfolio', type], // A unique key to identify and cache this query
+    queryFn: () => fetchPortfolio(type),
+    staleTime: 1000 * 60 * 5, // Data is considered fresh for 5 minutes
+  });
+}
 
-// ❌ BAD - Using useEffect for initial data load
+// In a component:
+// const { data: portfolio, isLoading, isError, error } = usePortfolio('energy');
+// if (isLoading) return <Spinner />;
+// if (isError) return <ErrorDisplay error={error} />;
+```
+
+**Legacy Pattern (To Be Phased Out):**
+
+Older parts of the codebase may use custom hooks with `useState` and `useEffect` for data fetching. This pattern is prone to race conditions, lacks caching, and should **not** be used for new development.
+
+```typescript
+// ❌ OLD PATTERN - Avoid for new features
 'use client';
-useEffect(() => {
-  fetch(`/api/stocks?type=${portfolioType}`).then(...);
-}, []); // This should be done in a Server Component parent
-```
+import { useState, useEffect } from 'react';
 
-**4. User Experience:**
+function useOldPortfolio(portfolioType: string) {
+    const [data, setData] = useState(null);
+    const [isLoading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
 
-Utilize `loading.tsx` and React `Suspense` for automatic and granular loading UIs.
+    useEffect(() => {
+      setLoading(true);
+      fetch(`/api/portfolio?type=${portfolioType}`)
+        .then(res => res.json())
+        .then(data => setData(data))
+        .catch(err => setError(err))
+        .finally(() => setLoading(false));
+    }, [portfolioType]);
 
-Provide clear and informative loading indicators to improve user experience.
-
-**Pattern: Suspense Boundaries + loading.tsx**
-
-**Automatic loading UI:**
-
-```typescript
-// app/portfolio/loading.tsx
-export default function Loading() {
-  return <PortfolioSkeleton />;
-}
-
-// app/portfolio/page.tsx
-export default async function PortfolioPage() {
-  const portfolio = await fetchPortfolio(); // Suspends while loading
-  return <PortfolioDisplay portfolio={portfolio} />;
+    return { data, isLoading, error };
 }
 ```
 
-**Granular Suspense boundaries:**
+---
+
+### User Experience
+
+Utilize `loading.tsx` and React `Suspense` for automatic and granular loading UIs, especially within Server Components. For client-side data fetching with React Query, use the `isLoading` and `isError` flags to render skeletons, spinners, or error messages.
+
+**Pattern: Suspense Boundaries with Server Components**
 
 ```typescript
 // app/dashboard/page.tsx
@@ -667,55 +764,33 @@ export default function DashboardPage() {
       <Suspense fallback={<NewsSkeleton />}>
         <NewsData />
       </Suspense>
-
-      {/* Chart loads independently */}
-      <Suspense fallback={<ChartSkeleton />}>
-        <ChartData />
-      </Suspense>
     </div>
   );
 }
-
-async function StocksData() {
-  const stocks = await fetchStocks(); // Can be slow
-  return <StocksList stocks={stocks} />;
-}
-
-async function NewsData() {
-  const news = await fetchNews(); // Can be slow
-  return <NewsFeed news={news} />;
-}
 ```
 
-**Streaming with loading states:**
-
-```typescript
-// Components render as data arrives (streaming)
-// User sees content progressively instead of waiting for everything
-```
-
+**Pattern: Loading/Error states with React Query**
 ```typescript
 // ✅ GOOD
 const MyComponent = () => {
-    const { data, isLoading, isError } = useQuery('myKey', fetchData);
+    const { data, isLoading, isError } = useQuery({ queryKey: ['myKey'], queryFn: fetchData });
 
     if (isLoading) {
-    return (
-        <div className="flex flex-col items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
-        <p className="mt-4 text-gray-600">Loading data...</p>
-        </div>
-    );
+      return (
+          <div className="flex items-center justify-center h-64">
+            <p className="mt-4 text-gray-600">Loading data...</p>
+          </div>
+      );
     }
 
     if (isError) {
-    return <ErrorDisplay message="Failed to load data." />;
+      return <ErrorDisplay message="Failed to load data." />;
     }
 
     return (
-    <div>
+      <div>
         {/* Render data */}
-    </div>
+      </div>
     );
 };
 ```
