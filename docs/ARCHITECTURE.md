@@ -22,6 +22,189 @@
 
 ---
 
+## Future-State Target: RSC-First Frontend Architecture
+
+This section outlines the target architecture for evolving the frontend towards a fully optimized, RSC-first approach. The goal is to build a highly modular, scalable, ultra-fast, multi-tenant safe, and maintainable application with clear documentation for developers and automated coding agents.
+
+### 1. Architectural Principles (Future-State Target)
+
+#### 1.1. Pages are Server Components (default)
+All pages under `app/` must be Server Components unless browser APIs are strictly required.
+
+**Why:** Faster TTFB (Time To First Byte), cheaper compute, and enables more granular partial refresh boundaries. Reduces client-side JavaScript.
+
+#### 1.2. Fetch data ONLY in Server Components
+Data fetching should occur exclusively within Server Components.
+
+*   No fetching in Client Components for core domain data.
+*   No browser-side fetching for data required for Server-Side Rendering (SSR).
+*   Avoid using client-side data fetching libraries like React Query or SWR for core domain data; reserve them only for truly real-time, frequently updating use-cases that cannot be handled by RSC.
+
+**Usage Pattern:**
+```typescript
+// ✅ GOOD - Server Fetch
+import "server-only"; // Ensures this module is never bundled for the client
+import { prisma } from '@/lib/prisma'; // Assuming your Prisma client
+
+export async function getPortfolioById(id: string) {
+  const portfolio = await prisma.portfolio.findUnique({
+    where: { id },
+    // Add caching strategy if appropriate (e.g., revalidate: 60)
+  });
+  return portfolio;
+}
+```
+**Why:** Improves security (no database access credentials on client), leverages server-side caching, and enhances performance by fetching data closer to the source.
+
+#### 1.3. Client Components ONLY for interactivity
+Client Components should be strictly limited to providing interactivity. They should never perform data fetching for core domain data.
+
+**Examples:**
+*   Sorting mechanisms
+*   Filtering UI
+*   Dropdown logic
+*   Tab navigation
+*   Complex user interactions requiring browser APIs (e.g., animations, local storage access)
+
+```typescript
+// ✅ GOOD - Client Component for interactivity
+'use client';
+
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+
+export function SortButton({ initialSortOrder }: { initialSortOrder: 'asc' | 'desc' }) {
+  const [sortOrder, setSortOrder] = useState(initialSortOrder);
+  const router = useRouter();
+
+  const toggleSort = () => {
+    const newOrder = sortOrder === 'asc' ? 'desc' : 'asc';
+    setSortOrder(newOrder);
+    router.push(`?sort=${newOrder}`); // Update URL, trigger re-render of Server Components
+  };
+
+  return (
+    <button onClick={toggleSort}>
+      Sort: {sortOrder === 'asc' ? 'Ascending' : 'Descending'}
+    </button>
+  );
+}
+```
+**Why:** Keeps client bundle size minimal, reserves server resources for data-intensive tasks, and maintains a clear separation of concerns.
+
+#### 1.4. Server Actions for mutations
+Server Actions should be the primary mechanism for all data mutations, replacing traditional API routes (`app/api/*`) wherever possible.
+
+*   Mutations must be handled server-side.
+*   All Server Actions must include robust input validation (preferably using Zod schemas).
+
+**Pattern:**
+```typescript
+// ✅ GOOD - Server Action for mutation
+'use server';
+
+import { z } from 'zod';
+import { revalidatePath } from 'next/cache';
+import { prisma } from '@/lib/prisma'; // Assuming your Prisma client
+
+const updatePortfolioSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string().min(3, "Name must be at least 3 characters long."),
+  // ... other fields
+});
+
+export async function updatePortfolio(formData: FormData) {
+  const input = {
+    id: formData.get('id'),
+    name: formData.get('name'),
+    // ... extract other fields
+  };
+
+  const parsed = updatePortfolioSchema.parse(input); // Input validation
+
+  await prisma.portfolio.update({
+    where: { id: parsed.id },
+    data: { name: parsed.name, updatedAt: new Date() },
+  });
+
+  revalidatePath('/dashboard'); // Revalidate relevant data after mutation
+}
+```
+**Why:** Enhanced security (no separate API endpoint to secure), reduced boilerplate, automatic revalidation and partial refresh capabilities, and improved performance.
+
+#### 1.5. Use RSC Boundaries strategically
+Design your component tree such that Server Components act as refreshable units. This allows for fine-grained partial re-rendering without affecting unrelated parts of the UI.
+
+**Considerations:**
+*   Isolate data-fetching logic within specific Server Components.
+*   Use Route Segments (`@folder/component`) and nested Server Components to create explicit refreshable boundaries.
+
+**Examples:**
+*   Holdings list can refresh independently from a portfolio chart.
+*   A stats panel can update without re-rendering the entire summary section.
+*   Transaction logs can refresh without affecting other portfolio details.
+
+**Why:** Improves user experience by providing faster, more targeted updates; avoids over-fetching data; and enhances scalability by minimizing the work done on each refresh.
+
+### 2. Multi-tenant safety
+
+In a multi-tenant application, data isolation is paramount.
+
+*   **Constrain Queries by Tenant/User:** All database queries must explicitly include a tenant or user ID filter, ensuring users only access their own data.
+*   **Enforce RLS in the DB Layer:** Row-Level Security (RLS) must be enabled and properly configured in the database to provide a foundational layer of data protection.
+*   **Server Actions Validate Authorization:** All Server Actions that perform data operations must explicitly validate that the authenticated user is authorized to perform that action on the specified data (e.g., `userId` matches the `portfolio.ownerId`).
+*   **Never Trust Client-Provided Tenant IDs:** Client-side requests should never dictate tenant or user IDs for data access. These should always be derived from the authenticated session on the server.
+
+### 3. Domain Modularization
+
+Adopt a modular, domain-first folder structure. This improves code organization, makes features easier to locate, and promotes better separation of concerns.
+
+**Example Structure:**
+```
+src/
+├── app/
+├── components/
+│   ├── auth/
+│   ├── dashboard/
+│   ├── portfolio/
+│   └── shared/
+├── features/  # New: Domain-centric feature modules
+│   ├── portfolio-management/
+│   │   ├── components/
+│   │   ├── services/
+│   │   ├── actions.ts
+│   │   ├── queries.ts
+│   │   └── types.ts
+│   ├── stock-analysis/
+│   │   ├── components/
+│   │   ├── services/
+│   │   ├── actions.ts
+│   │   └── types.ts
+│   └── user-settings/
+│       ├── components/
+│       ├── services/
+│       └── actions.ts
+├── lib/
+├── prisma/
+└── types/
+```
+
+**Why:** Enhances discoverability, reduces coupling, and simplifies maintenance for larger teams and complex applications.
+
+### 4. Standards & Best Practices
+
+#### 4.1. Naming
+Adopt a consistent and descriptive naming convention to clearly indicate the role and layer of each file.
+
+*   `SomethingServerSection.tsx` → Indicates a Server Component acting as a data-fetching boundary.
+*   `SomethingClient.tsx` → Clearly marks a Client Component focused on interactivity.
+*   `actions.ts` → Contains Server Actions for mutations.
+*   `queries.ts` → Houses server-side functions for data reads (often called from Server Components).
+*   `schemas.ts` → Defines Zod schemas for input validation and DTOs.
+*   `types.ts` → Declares TypeScript domain types.
+
+---
+
 ## Overview
 
 The Portfolio Tracker implements a three-tier subscription system with database-backed usage tracking and intelligent quota enforcement. The system ensures fair resource allocation while providing a smooth user experience through smart caching and automatic period resets.
@@ -860,6 +1043,13 @@ export async function getUserProfile() {
 | **Session hijacking** | Secure cookies, HTTPS only |
 | **Cache poisoning** | Hash-based cache keys |
 | **Abuse** | Tier-based rate limits |
+
+### Multi-tenant Safety
+This is a multi-tenant application, data isolation is paramount.
+1. **Constrain Queries by Tenant/User:** All database queries must explicitly include a tenant or user ID filter, ensuring users only access their own data.
+2. **Enforce RLS in the DB Layer:** Row-Level Security (RLS) must be enabled and properly configured in the database to provide a foundational layer of data protection.
+3. **Server Actions Validate Authorization:** All Server Actions that perform data operations must explicitly validate that the authenticated user is authorized to perform that action on the specified data (e.g., `userId` matches the `portfolio.ownerId`).
+4. **Never Trust Client-Provided Tenant IDs:** Client-side requests should never dictate tenant or user IDs for data access. These should always be derived from the authenticated session on the server.
 
 ---
 
