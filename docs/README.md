@@ -1,64 +1,41 @@
-# Documentation Index
+# Project Documentation
 
-**Portfolio Tracker - Complete Documentation**
+Welcome to the project's documentation hub! This directory contains all the essential guides, architectural overviews, and deep dives necessary for developing, understanding, and maintaining the **Portfolio Tracker** application.
 
----
+The documentation is organized into numbered directories for logical flow and easy navigation.
 
-## 📖 Main Documentation
+## Documentation Structure (Future Target State)
 
-### **[ARCHITECTURE.md](./ARCHITECTURE.md)** ⭐
-**Complete system design and architecture documentation**
+```
+docs/
+├── 0_AI_Coding_Agent_Guide.md  # Specific instructions and context for AI coding agents.
+├── 1_Onboarding/
+│   ├── 1_Project_Overview.md   # High-level summary of the project and its core features.
+│   └── 2_Local_Setup.md        # Step-by-step guide to get the development environment running.
+│
+├── 2_Architecture/
+│   ├── 1_System_Design.md      # Overview of the system's architecture, principles, and key decisions.
+│   ├── 2_Data_Strategy.md      # Details on data management, database choices, and access rules.
+│   └── 3_Frontend_Strategy.md  # Principles of the frontend architecture, including RSCs and state management.
+│
+├── 3_Guides/
+│   ├── 1_Development_Workflow.md # Guidelines for contributing code, PR process, and coding standards.
+│   ├── 2_API_Reference.md      # Comprehensive list and details of all available API endpoints.
+│   ├── 3_Testing_Strategy.md   # How to write, structure, and run tests.
+│   └── 4_Deployment_Guide.md   # Information on the CI/CD pipeline and deployment process.
+│
+└── 4_Deep_Dives/
+    ├── README.md               # Explanation of this folder's purpose.
+    ├── AI_Integration.md       # Detailed explanation of specific complex features (e.g., AI).
+    └── ... (other specific feature deep-dives)
+```
 
-Covers:
-- System overview and components
-- SSR vs Admin client (RLS explained)
-- Tier system and limits
-- Usage tracking and quota enforcement
-- Database schema and security
-- Request flow and caching strategy
-- API reference
-- Testing and monitoring
+## How to Navigate
 
-**Start here for understanding the system!**
+*   **New to the project?** Start with `1_Onboarding/1_Project_Overview.md` and `1_Onboarding/2_Local_Setup.md`.
+*   **Need to understand the system's design?** Refer to the `2_Architecture/` folder.
+*   **Looking for how-to guides or process details?** Check the `3_Guides/` folder.
+*   **Want a deep dive into a specific feature?** Explore the `4_Deep_Dives/` folder.
+*   **Are you an AI coding agent?** Your primary instructions are in `0_AI_Coding_Agent_Guide.md`.
 
----
-
-## 🗂️ Feature Documentation
-
-### **[FEATURE_ROADMAP.md](./FEATURE_ROADMAP.md)**
-Product roadmap and feature planning
-
----
-
-## 📦 Archived Documentation
-
-Old documentation moved to `docs/archive/`:
-- TIER_SYSTEM_CONSOLIDATION.md - Historical tier system migration notes
-- USAGE_TRACKING_SYSTEM.md - Old usage tracking documentation
-- USAGE_TRACKING_IMPLEMENTATION.md - Historical implementation docs
-- USER_TIER_LIMITS.md - Legacy tier limits documentation
-- QUOTA_INTEGRATION_COMPLETE.md - Implementation completion log (now integrated into ARCHITECTURE.md)
-
----
-
-## 🎯 Quick Reference
-
-**Tiers**: Free ($0), Basic ($9.99), Premium ($19.99)
-
-**Actions & Quotas**:
-- \`chatQuery\` - Daily (10/100/unlimited)
-- \`portfolioAnalysis\` - Daily (1/10/unlimited)
-- \`secFiling\` - Monthly (3/unlimited/unlimited)
-
-**Clients**:
-- SSR Client: User-facing, RLS protected
-- Admin Client: System operations, bypass RLS
-
-**Endpoints**:
-- \`/api/ai/chat\` - Chat (daily, 12hr cache)
-- \`/api/risk-metrics\` - Analysis (daily, 6hr cache)
-- \`/api/sec-edgar\` - Filings (monthly, no cache)
-
----
-
-For complete details, see **[ARCHITECTURE.md](./ARCHITECTURE.md)**
+This structure aims to make finding information efficient and intuitive.

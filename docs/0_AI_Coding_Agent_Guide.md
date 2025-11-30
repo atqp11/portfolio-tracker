@@ -1,6 +1,6 @@
-# Gemini Technical Handbook
+# Huide for AI Coding Agents
 
-This document provides a comprehensive overview of the project's architecture, data strategies, and development workflows. It serves as a guide for developers and AI assistants (like Gemini) working on this codebase.
+This document provides a comprehensive overview of the project's architecture, data strategies, and development workflows. It serves as a guide for developers and AI assistants (like Gemini, Claude Code) working on this codebase.
 
 ## 1. Project Overview
 
@@ -15,23 +15,38 @@ This project is a portfolio tracker application built with a modern web stack. I
 
 ## 2. Project Structure
 
-The project follows a standard Next.js `app` directory structure, with a clear separation of concerns.
+The project follows a standard Next.js `app` directory structure, with a clear separation between UI, business logic, and data access layers.
+
+### High-Level Overview
+
+This shows the primary architectural directories.
 
 ```
 /
-├── app/                  # Next.js 14 App Router
-│   ├── (protected)/      # Routes requiring authentication
-│   ├── (public)/         # Publicly accessible routes
-│   ├── api/              # API Route handlers (backend)
-│   └── ...
-├── components/           # Reusable React components
-├── src/
-│   ├── backend/          # Server-side business logic and services
-│   ├── lib/              # Shared libraries, hooks, and utilities
-│   └── ...
-├── prisma/               # Prisma schema and generated client
-└── ...
+├── app/                  # Next.js 14 App Router (UI Pages & API Routes)
+├── components/           # Shared, reusable React components
+├── docs/                 # Project documentation
+├── prisma/               # Prisma schema and database configuration
+├── public/               # Static assets (images, fonts)
+├── scripts/              # Standalone scripts for maintenance, seeding, etc.
+└── src/
+    ├── backend/          # Server-side business logic and services (controllers)
+    └── lib/              # Shared libraries, hooks, and utilities
 ```
+
+### Key Directories & Files
+
+This list highlights the most important files and directories for understanding the project's core functionality. An agent or developer should be familiar with these locations.
+
+-   **`app/api/`**: The backend API layer. Per the "Thin Wrapper" principle, these routes delegate logic to the `src/backend/` modules.
+-   **`src/backend/modules/`**: Contains the core business logic, organized by feature (e.g., `portfolio`, `user`). This is where controllers and services live.
+-   **`src/lib/`**: A collection of shared, reusable code.
+    -   **`src/lib/prisma.ts`**: The singleton instance of the Prisma client for administrative tasks.
+    -   **`src/lib/errors.ts`**: Custom error classes used throughout the application.
+    -   **`src/lib/hooks/`**: Custom React hooks. Note that this is transitioning to React Query for server state.
+-   **`prisma/schema.prisma`**: The single source of truth for the database schema.
+-   **`docs/DEVELOPMENT_GUIDELINES.md`**: The primary document for all coding patterns, guidelines, and best practices.
+
 
 ## 3. Architecture Deep Dive
 
@@ -308,4 +323,153 @@ We are adopting **React Query (also known as TanStack Query)** to manage "server
 
 -   **Coexistence with Local UI State:**
     React Query excels at server state. For purely client-side UI states (like modal open/close, form input values before submission, hover states), standard `useState` and `useReducer` will continue to be the appropriate tools. This creates a clear separation: React Query for *what to show* from the server, and React hooks for *how to interact* with the UI.
+
+
+
+## Common Commands
+
+### Development
+```bash
+npm run dev          # Start Next.js dev server with hot reload
+npm run build        # Production build (generates .next folder)
+npm start            # Start production server
+npm test             # Run all tests with Jest
+```
+
+**Optional commands (not yet configured in package.json):**
+```bash
+npm run dev:turbo    # Start with Turbopack (faster, experimental) - Add to package.json: "dev:turbo": "next dev --turbo"
+npm run lint         # Run ESLint - Add to package.json: "lint": "next lint"
+npm run type-check   # TypeScript validation - Add to package.json: "type-check": "tsc --noEmit"
+```
+
+### Code Generation
+```bash
+npx create-next-app@latest          # Create new Next.js app (for reference)
+npx @next/codemod@latest            # Run codemods for Next.js upgrades
+npx shadcn-ui@latest init           # Initialize shadcn/ui (if using component library)
+```
+
+### Testing
+```bash
+npm test                                        # Run all tests
+npx jest tests/path/to/test.spec.ts --runInBand # Run single test file
+npx jest --watch                                # Run tests in watch mode
+npx jest --coverage                             # Generate coverage report
+```
+
+### Database (Prisma)
+```bash
+npx prisma generate              # Generate Prisma client
+npx prisma db push               # Push schema changes to DB
+npx prisma studio                # Open Prisma Studio GUI
+npx tsx scripts/seed-db.ts       # Seed database
+npx tsx scripts/check-db.ts      # Check database state
+```
+
+### Scripts
+```bash
+npx tsx scripts/populate-positions.ts   # Populate stock positions
+npx tsx scripts/populate-theses.ts      # Populate investment theses
+npx tsx scripts/test-e2e.ts             # End-to-end integration test
+npx tsx scripts/test-models.ts          # Test database models
+```
+
+
+
+
+## Environment Variables
+
+Required keys (see `.env.local.example`):
+
+```bash
+ALPHAVANTAGE_API_KEY=     
+
+
+## Project-Specific Details
+## Key Features
+
+Key features:
+- 70/30 cash-margin portfolio tracking
+- Live commodity prices (WTI, NG, Copper via Polygon)
+- Stop-Loss (-30%) and Take-Profit (+50%) alerts
+- DRIP (Dividend Reinvestment)
+- Investment thesis management with health scoring
+- Daily checklist system with streak tracking
+- Risk metrics (Sharpe, Sortino, Alpha, Beta, Calmar)
+- AI-powered insights via Google Gemini
+- SEC EDGAR filings integration
+- News scraping (NewsAPI, Brave Search, Finnhub)
+
+
+
+
+### API Provider System
+
+The app uses **Alpha Vantage by default** for stock quotes (`app/api/quote/route.ts:6`) because:
+- FMP free tier doesn't support OTC stocks (TRMLF, AETUF)
+- Need USD prices, not CAD from .TO symbols
+
+**Available providers:**
+- Alpha Vantage: `lib/api/alphavantage.ts` (25 requests/day, batch supported)
+- FMP: `lib/api/fmp.ts` (250 requests/day, uses /stable endpoints)
+- Yahoo Finance: `lib/api/yahooFinance.ts` (fundamentals only)
+- Finnhub: `lib/api/finnhub.ts` (news)
+- Brave Search: `lib/api/braveSearch.ts` (news)
+- SEC EDGAR: `lib/api/secEdgar.ts` (filings)
+
+**Switching providers:** Edit `app/api/quote/route.ts:6` to use `process.env.STOCK_API_PROVIDER` instead of hardcoded 'alphavantage'.
+
+
+
+### Core Calculation Logic
+
+All portfolio calculations are centralized in `lib/calculator.ts`:
+
+- **Risk metrics** (Sharpe, Sortino, Alpha, Beta, Calmar, Max Drawdown)
+- **Position sizing** with cash/margin split
+- **Value calculations** considering borrowed amounts
+- **Returns computation** for risk analysis
+
+Risk metrics exposed via `/api/risk-metrics` route and displayed in `RiskMetricsPanel` component.
+
+
+
+### Caching Strategy
+
+**Multi-layer caching:**
+
+1. **LocalStorage** (`lib/cache.ts`): Client-side API response caching with timestamps
+2. **IndexedDB** (`lib/storage.ts`): Persistent browser storage for offline support
+3. **AI Cache** (`lib/aiCache.ts`): Google Gemini prompt caching (15min TTL)
+4. **Rate limit tracking** (`lib/rateLimitTracker.ts`): In-memory API quota management
+
+**Error handling:** `classifyApiError()` in `lib/cache.ts` categorizes API failures (rate limit, network, auth, etc.)
+
+
+
+### AI Integration
+
+**Google Gemini** (`lib/ai/gemini.ts`):
+- Models: gemini-2.0-flash-exp, gemini-exp-1206
+- System instructions in `lib/ai/systemInstructions.ts`
+- Context management in `lib/ai/context.ts`
+- Caching via `lib/aiCache.ts`
+
+**AI Component:** `components/StonksAI/StonksAI.tsx` - Sidebar chat interface
+
+
+
+## Testing
+```bash
+npm test                                        
+
+## Git Workflow
+
+**Husky:** Pre-commit hooks configured in `.husky/`
+
+**Current branch:** main (deploy branch for Vercel)
+
+
+
 
