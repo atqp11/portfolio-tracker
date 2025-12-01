@@ -7,6 +7,13 @@
 // 3. Batch cache stores METADATA only (tickers + timestamp), real data at stock level
 // 4. Individual queries during chat → update individual stock cache
 // 5. On remount: if batch cache expired → refresh all (including individual), else use existing
+// 6. On portfolio change: detect ticker list changes → invalidate batch → fresh fetch
+//
+// EDGE CASES HANDLED:
+// - Browser crash / storage cleared → Fresh batch on next mount
+// - Partial cache (some stocks missing) → Batch refresh for consistency
+// - Long chat session expiry → Individual fetch only for queried stock
+// - Deduplication → TanStack Query handles in-flight request dedup
 
 export interface AICacheEntry {
   data: any;
@@ -56,6 +63,63 @@ const BATCH_TO_INDIVIDUAL_TYPE: Record<AIBatchDataType, AIDataType> = {
   batch_filings: 'filing_list',
   batch_sentiment: 'sentiment',
 };
+
+// ============================================================================
+// ERROR TYPES
+// ============================================================================
+
+export class AICacheError extends Error {
+  constructor(
+    message: string,
+    public readonly code: 'STORAGE_FULL' | 'PARSE_ERROR' | 'STORAGE_UNAVAILABLE' | 'QUOTA_ERROR',
+    public readonly recoverable: boolean = true
+  ) {
+    super(message);
+    this.name = 'AICacheError';
+  }
+}
+
+// ============================================================================
+// STORAGE HEALTH CHECK
+// ============================================================================
+
+/**
+ * Check if localStorage is available and working
+ */
+export function isStorageAvailable(): boolean {
+  if (typeof window === 'undefined') return false;
+  
+  try {
+    const testKey = '__storage_test__';
+    localStorage.setItem(testKey, 'test');
+    localStorage.removeItem(testKey);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Get remaining storage space (approximate)
+ */
+export function getStorageUsage(): { used: number; available: boolean } {
+  if (!isStorageAvailable()) {
+    return { used: 0, available: false };
+  }
+  
+  try {
+    let total = 0;
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key) {
+        total += (localStorage.getItem(key)?.length || 0) * 2; // UTF-16
+      }
+    }
+    return { used: total, available: true };
+  } catch {
+    return { used: 0, available: false };
+  }
+}
 
 /**
  * Generate a consistent hash for AI requests to use as cache key
@@ -527,7 +591,215 @@ export function getBatchCacheTTL(batchType: AIBatchDataType): number {
   return BATCH_CACHE_TTL[batchType];
 }
 
-// Initialize: clear expired cache on module load
+// ============================================================================
+// PORTFOLIO CHANGE DETECTION
+// Detect when portfolio composition changes and invalidate batch caches
+// ============================================================================
+
+const LAST_PORTFOLIO_KEY = 'ai_last_portfolio_tickers';
+
+/**
+ * Check if portfolio has changed since last batch fetch
+ * Returns: { changed: boolean, added: string[], removed: string[] }
+ */
+export function detectPortfolioChange(
+  currentTickers: string[]
+): { changed: boolean; added: string[]; removed: string[]; previousTickers: string[] } {
+  if (typeof window === 'undefined') {
+    return { changed: false, added: [], removed: [], previousTickers: [] };
+  }
+  
+  try {
+    const stored = localStorage.getItem(LAST_PORTFOLIO_KEY);
+    const previousTickers = stored ? JSON.parse(stored) as string[] : [];
+    
+    const currentSet = new Set(currentTickers.map(t => t.toUpperCase()));
+    const previousSet = new Set(previousTickers.map(t => t.toUpperCase()));
+    
+    const added = currentTickers.filter(t => !previousSet.has(t.toUpperCase()));
+    const removed = previousTickers.filter(t => !currentSet.has(t.toUpperCase()));
+    
+    const changed = added.length > 0 || removed.length > 0;
+    
+    if (changed) {
+      console.log(`📊 Portfolio changed: +${added.length} added, -${removed.length} removed`);
+    }
+    
+    return { changed, added, removed, previousTickers };
+  } catch {
+    return { changed: true, added: currentTickers, removed: [], previousTickers: [] };
+  }
+}
+
+/**
+ * Save current portfolio tickers for future change detection
+ */
+export function savePortfolioTickers(tickers: string[]): void {
+  if (typeof window === 'undefined') return;
+  
+  try {
+    localStorage.setItem(LAST_PORTFOLIO_KEY, JSON.stringify(tickers.map(t => t.toUpperCase())));
+  } catch (error) {
+    console.error('Failed to save portfolio tickers:', error);
+  }
+}
+
+/**
+ * Invalidate all batch caches (for portfolio changes)
+ * Clears batch metadata so next mount triggers fresh fetch
+ */
+export function invalidateAllBatchCaches(): void {
+  if (typeof window === 'undefined') return;
+  
+  try {
+    const keysToRemove: string[] = [];
+    
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key?.startsWith('ai_batch_')) {
+        keysToRemove.push(key);
+      }
+    }
+    
+    keysToRemove.forEach(key => localStorage.removeItem(key));
+    console.log(`🗑️ Invalidated ${keysToRemove.length} batch caches for portfolio change`);
+  } catch (error) {
+    console.error('Failed to invalidate batch caches:', error);
+  }
+}
+
+/**
+ * Clear caches for removed tickers only (optimization for portfolio changes)
+ */
+export function clearRemovedTickerCaches(removedTickers: string[]): void {
+  if (typeof window === 'undefined' || removedTickers.length === 0) return;
+  
+  try {
+    let cleared = 0;
+    
+    for (const ticker of removedTickers) {
+      const tickerUpper = ticker.toUpperCase();
+      
+      // Clear all cache types for this ticker
+      for (let i = localStorage.length - 1; i >= 0; i--) {
+        const key = localStorage.key(i);
+        if (key?.includes(`_${tickerUpper}_`)) {
+          localStorage.removeItem(key);
+          cleared++;
+        }
+      }
+    }
+    
+    if (cleared > 0) {
+      console.log(`🗑️ Cleared ${cleared} cache entries for ${removedTickers.length} removed tickers`);
+    }
+  } catch (error) {
+    console.error('Failed to clear removed ticker caches:', error);
+  }
+}
+
+// ============================================================================
+// CACHE HEALTH & RECOVERY
+// ============================================================================
+
+/**
+ * Validate cache integrity - check for corrupted entries
+ */
+export function validateCacheIntegrity(): { valid: boolean; corrupted: number } {
+  if (typeof window === 'undefined') {
+    return { valid: true, corrupted: 0 };
+  }
+  
+  let corrupted = 0;
+  
+  try {
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const key = localStorage.key(i);
+      if (!key?.startsWith('ai_')) continue;
+      
+      try {
+        const value = localStorage.getItem(key);
+        if (value) {
+          JSON.parse(value); // Validate JSON
+        }
+      } catch {
+        // Corrupted entry
+        localStorage.removeItem(key);
+        corrupted++;
+      }
+    }
+  } catch {
+    return { valid: false, corrupted: -1 };
+  }
+  
+  if (corrupted > 0) {
+    console.log(`🔧 Removed ${corrupted} corrupted cache entries`);
+  }
+  
+  return { valid: corrupted === 0, corrupted };
+}
+
+/**
+ * Full cache recovery - clear everything and start fresh
+ */
+export function recoverCache(): void {
+  if (typeof window === 'undefined') return;
+  
+  console.log('🔄 Performing full cache recovery...');
+  clearAICache(); // Clear all AI cache
+  validateCacheIntegrity(); // Clean up any corrupted entries
+}
+
+/**
+ * Check if cache is in a healthy state
+ */
+export function isCacheHealthy(): boolean {
+  if (!isStorageAvailable()) return false;
+  
+  const { corrupted } = validateCacheIntegrity();
+  return corrupted === 0;
+}
+
+// ============================================================================
+// CACHE TIMING UTILITIES
+// ============================================================================
+
+/**
+ * Get time until cache expires for a specific entry
+ */
+export function getTimeUntilExpiry(
+  dataType: AIDataType,
+  ticker: string
+): number {
+  if (typeof window === 'undefined') return 0;
+  
+  const age = getAICacheAge(dataType, ticker);
+  if (age === 0) return 0; // No cache
+  
+  const ttl = CACHE_TTL[dataType];
+  const remaining = ttl - age;
+  
+  return Math.max(0, remaining);
+}
+
+/**
+ * Check if cache will expire within a given time window
+ */
+export function willExpireSoon(
+  dataType: AIDataType,
+  ticker: string,
+  withinMs: number = 5 * 60 * 1000 // Default: 5 minutes
+): boolean {
+  const remaining = getTimeUntilExpiry(dataType, ticker);
+  return remaining > 0 && remaining < withinMs;
+}
+
+// ============================================================================
+// INITIALIZATION
+// ============================================================================
+
+// Initialize: clear expired cache and validate on module load
 if (typeof window !== 'undefined') {
   clearExpiredCache();
+  validateCacheIntegrity();
 }

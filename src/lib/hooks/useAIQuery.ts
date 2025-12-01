@@ -7,6 +7,16 @@
  * 1. On mount: Batch fetch for all portfolio tickers → parse → store individual caches
  * 2. During session: Individual queries check cache first, update individual cache on miss
  * 3. On remount: If batch cache expired → refresh all, else reuse individual caches
+ * 4. Portfolio change: Detect adds/removes → invalidate batch → fresh fetch
+ * 
+ * SCENARIOS HANDLED:
+ * - First visit / page refresh → batch fetch for all stocks
+ * - Navigation away and back → no call if cache valid
+ * - User asks while fresh → instant memory hit (<10ms)
+ * - Batch expires during chat → individual fetch only for queried stock
+ * - User keeps asking same expired stock → deduped by TanStack Query
+ * - Browser crash / storage cleared → fresh batch on next mount
+ * - Portfolio change → fresh batch with new list
  * 
  * TTLs:
  * - News: 1 hour
@@ -16,7 +26,8 @@
  * - SEC Filing (individual): 24 hours
  */
 
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
+import { useEffect, useRef, useCallback } from 'react';
 import { 
   AIDataType, 
   AIBatchDataType,
@@ -29,6 +40,14 @@ import {
   getCacheTTL,
   getBatchCacheTTL,
   saveBatchMetadata,
+  detectPortfolioChange,
+  savePortfolioTickers,
+  invalidateAllBatchCaches,
+  clearRemovedTickerCaches,
+  isStorageAvailable,
+  isCacheHealthy,
+  recoverCache,
+  AICacheError,
 } from '@lib/utils/aiCache';
 
 // ============================================================================
@@ -73,38 +92,166 @@ interface AIResponse {
   errorMessage?: string;
 }
 
+// Error types for better error handling
+export class AIQueryError extends Error {
+  constructor(
+    message: string,
+    public readonly code: 'RATE_LIMITED' | 'NETWORK_ERROR' | 'PARSE_ERROR' | 'API_ERROR',
+    public readonly retryable: boolean = false
+  ) {
+    super(message);
+    this.name = 'AIQueryError';
+  }
+}
+
 // ============================================================================
-// API CALLER
+// API CALLER WITH ENHANCED ERROR HANDLING
 // ============================================================================
 
 async function callAiApi(
   payload: { model: string; contents: string; config?: Record<string, unknown> }
 ): Promise<AIResponse> {
-  const res = await fetch('/api/ai/generate', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
+  try {
+    const res = await fetch('/api/ai/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
 
-  if (!res.ok) {
-    const errorData = await res.json().catch(() => ({}));
-    if (res.status === 429 || errorData.rateLimitExceeded || errorData.quotaExceeded) {
-      const message = errorData.error?.message || 'Rate limit exceeded';
-      return { text: '', rateLimited: true, errorMessage: message };
+    if (!res.ok) {
+      const errorData = await res.json().catch(() => ({}));
+      
+      // Rate limit error
+      if (res.status === 429 || errorData.rateLimitExceeded || errorData.quotaExceeded) {
+        const message = errorData.error?.message || 'Rate limit exceeded';
+        return { text: '', rateLimited: true, errorMessage: message };
+      }
+      
+      // Server errors (retryable)
+      if (res.status >= 500) {
+        throw new AIQueryError(
+          `Server error: ${res.status}`,
+          'API_ERROR',
+          true // retryable
+        );
+      }
+      
+      throw new AIQueryError(
+        errorData.error?.message || `HTTP ${res.status}`,
+        'API_ERROR',
+        false
+      );
     }
-    throw new Error(errorData.error?.message || `HTTP ${res.status}`);
-  }
 
-  return res.json();
+    const result = await res.json();
+    
+    // Validate response structure
+    if (typeof result.text !== 'string') {
+      throw new AIQueryError('Invalid API response format', 'PARSE_ERROR', false);
+    }
+    
+    return result;
+  } catch (error) {
+    // Network errors are retryable
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+      throw new AIQueryError('Network error - please check your connection', 'NETWORK_ERROR', true);
+    }
+    throw error;
+  }
+}
+
+/**
+ * Safely parse JSON response with fallback
+ */
+export function safeParseResponse<T>(text: string | null | undefined, fallback: T): T {
+  if (!text) return fallback;
+  
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    console.warn('Failed to parse AI response, using fallback');
+    return fallback;
+  }
+}
+
+// ============================================================================
+// PORTFOLIO CHANGE HOOK
+// Detects portfolio changes and triggers cache invalidation
+// ============================================================================
+
+/**
+ * Hook to detect portfolio changes and invalidate caches
+ * Should be called at the top of the component that uses AI queries
+ */
+export function usePortfolioChangeDetection(tickers: string[]) {
+  const queryClient = useQueryClient();
+  const previousTickersRef = useRef<string[]>([]);
+  
+  useEffect(() => {
+    if (tickers.length === 0) return;
+    
+    const { changed, added, removed } = detectPortfolioChange(tickers);
+    
+    if (changed) {
+      console.log('🔄 Portfolio changed, invalidating caches...');
+      
+      // Clear caches for removed tickers
+      if (removed.length > 0) {
+        clearRemovedTickerCaches(removed);
+      }
+      
+      // Invalidate all batch caches to trigger fresh fetch
+      invalidateAllBatchCaches();
+      
+      // Invalidate TanStack Query caches
+      queryClient.invalidateQueries({ queryKey: ['ai', 'news', 'batch'] });
+      queryClient.invalidateQueries({ queryKey: ['ai', 'filings', 'batch'] });
+      queryClient.invalidateQueries({ queryKey: ['ai', 'sentiment', 'batch'] });
+      
+      // Save new portfolio for future detection
+      savePortfolioTickers(tickers);
+    } else if (previousTickersRef.current.length === 0) {
+      // First mount - save tickers
+      savePortfolioTickers(tickers);
+    }
+    
+    previousTickersRef.current = tickers;
+  }, [tickers, queryClient]);
+}
+
+// ============================================================================
+// CACHE HEALTH HOOK
+// Checks storage availability and recovers from corruption
+// ============================================================================
+
+export function useCacheHealth() {
+  useEffect(() => {
+    if (!isStorageAvailable()) {
+      console.warn('⚠️ localStorage not available, caching disabled');
+      return;
+    }
+    
+    if (!isCacheHealthy()) {
+      console.warn('⚠️ Cache corruption detected, recovering...');
+      recoverCache();
+    }
+  }, []);
 }
 
 // ============================================================================
 // BATCH QUERY HOOKS
 // These fetch data for all portfolio tickers and cache at individual level
+// Handles: first visit, remount, portfolio changes, storage cleared
 // ============================================================================
 
 /**
  * Batch fetch portfolio news - caches at individual stock level
+ * 
+ * Scenarios:
+ * - First visit: Fetches all, caches individually
+ * - Remount (cache valid): Returns from localStorage, no API call
+ * - Remount (cache expired): Fresh batch fetch
+ * - Portfolio change: Invalidated by usePortfolioChangeDetection
  */
 export function usePortfolioNews(tickers: string[], enabled = true) {
   const queryClient = useQueryClient();
@@ -115,14 +262,21 @@ export function usePortfolioNews(tickers: string[], enabled = true) {
     queryFn: async (): Promise<Map<string, Article[]>> => {
       if (tickers.length === 0) return new Map();
       
-      // Check if batch cache is valid
+      // Check if batch cache is valid (handles remount scenario)
       if (isBatchCacheValid('batch_news', tickers)) {
-        const { cached } = loadCachedStocks<Article[]>('batch_news', tickers);
-        if (cached.size === tickers.length) {
-          console.log('♻️ Using cached news for all tickers');
+        const { cached, missing } = loadCachedStocks<Article[]>('batch_news', tickers);
+        
+        // All stocks cached - instant return (<10ms)
+        if (missing.length === 0) {
+          console.log('♻️ [NEWS] Using cached data for all tickers (remount hit)');
           return cached;
         }
+        
+        // Partial cache - fetch missing only? No, for consistency we refresh all
+        console.log(`⚠️ [NEWS] Partial cache (${missing.length} missing), refreshing all`);
       }
+      
+      console.log(`🔄 [NEWS] Fetching batch for ${tickers.length} tickers`);
       
       // Fetch fresh data
       const response = await callAiApi({
@@ -151,21 +305,30 @@ export function usePortfolioNews(tickers: string[], enabled = true) {
       });
 
       if (response.rateLimited) {
-        throw new Error(response.errorMessage || 'Rate limited');
+        throw new AIQueryError(response.errorMessage || 'Rate limited', 'RATE_LIMITED', false);
       }
 
-      const data = JSON.parse(response.text || '{}');
+      const data = safeParseResponse(response.text, { articles: [] });
       const articles = data.articles || [];
       
       // Parse and cache at individual level
       const stockDataMap = parseBatchAndCacheIndividual<Article>('batch_news', articles, tickers);
+      
+      console.log(`✅ [NEWS] Cached ${stockDataMap.size} stocks`);
       
       return stockDataMap as Map<string, Article[]>;
     },
     staleTime: getBatchCacheTTL('batch_news'),
     gcTime: getBatchCacheTTL('batch_news') * 2,
     enabled: enabled && tickers.length > 0,
-    retry: false,
+    retry: (failureCount, error) => {
+      // Only retry network/server errors, max 2 retries
+      if (error instanceof AIQueryError && error.retryable) {
+        return failureCount < 2;
+      }
+      return false;
+    },
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 5000),
   });
 }
 
@@ -182,12 +345,15 @@ export function usePortfolioFilings(tickers: string[], enabled = true) {
       
       // Check if batch cache is valid
       if (isBatchCacheValid('batch_filings', tickers)) {
-        const { cached } = loadCachedStocks<Filing[]>('batch_filings', tickers);
-        if (cached.size === tickers.length) {
-          console.log('♻️ Using cached filings for all tickers');
+        const { cached, missing } = loadCachedStocks<Filing[]>('batch_filings', tickers);
+        if (missing.length === 0) {
+          console.log('♻️ [FILINGS] Using cached data for all tickers');
           return cached;
         }
+        console.log(`⚠️ [FILINGS] Partial cache, refreshing all`);
       }
+      
+      console.log(`🔄 [FILINGS] Fetching batch for ${tickers.length} tickers`);
       
       const response = await callAiApi({
         model: 'gemini-2.5-flash',
@@ -215,18 +381,27 @@ export function usePortfolioFilings(tickers: string[], enabled = true) {
       });
 
       if (response.rateLimited) {
-        throw new Error(response.errorMessage || 'Rate limited');
+        throw new AIQueryError(response.errorMessage || 'Rate limited', 'RATE_LIMITED', false);
       }
 
-      const data = JSON.parse(response.text || '{}');
+      const data = safeParseResponse(response.text, { filings: [] });
       const filings = data.filings || [];
       
-      return parseBatchAndCacheIndividual<Filing>('batch_filings', filings, tickers) as Map<string, Filing[]>;
+      const stockDataMap = parseBatchAndCacheIndividual<Filing>('batch_filings', filings, tickers);
+      console.log(`✅ [FILINGS] Cached ${stockDataMap.size} stocks`);
+      
+      return stockDataMap as Map<string, Filing[]>;
     },
     staleTime: getBatchCacheTTL('batch_filings'),
     gcTime: getBatchCacheTTL('batch_filings') * 2,
     enabled: enabled && tickers.length > 0,
-    retry: false,
+    retry: (failureCount, error) => {
+      if (error instanceof AIQueryError && error.retryable) {
+        return failureCount < 2;
+      }
+      return false;
+    },
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 5000),
   });
 }
 
@@ -243,12 +418,15 @@ export function usePortfolioSentiment(tickers: string[], enabled = true) {
       
       // Check if batch cache is valid
       if (isBatchCacheValid('batch_sentiment', tickers)) {
-        const { cached } = loadCachedStocks<SentimentData>('batch_sentiment', tickers);
-        if (cached.size === tickers.length) {
-          console.log('♻️ Using cached sentiment for all tickers');
+        const { cached, missing } = loadCachedStocks<SentimentData>('batch_sentiment', tickers);
+        if (missing.length === 0) {
+          console.log('♻️ [SENTIMENT] Using cached data for all tickers');
           return cached;
         }
+        console.log(`⚠️ [SENTIMENT] Partial cache, refreshing all`);
       }
+      
+      console.log(`🔄 [SENTIMENT] Fetching batch for ${tickers.length} tickers`);
       
       const response = await callAiApi({
         model: 'gemini-2.5-flash',
@@ -276,28 +454,44 @@ export function usePortfolioSentiment(tickers: string[], enabled = true) {
       });
 
       if (response.rateLimited) {
-        throw new Error(response.errorMessage || 'Rate limited');
+        throw new AIQueryError(response.errorMessage || 'Rate limited', 'RATE_LIMITED', false);
       }
 
-      const data = JSON.parse(response.text || '{}');
+      const data = safeParseResponse(response.text, { sentiments: [] });
       const sentiments = data.sentiments || [];
       
-      return parseBatchAndCacheIndividual<SentimentData>('batch_sentiment', sentiments, tickers) as Map<string, SentimentData>;
+      const stockDataMap = parseBatchAndCacheIndividual<SentimentData>('batch_sentiment', sentiments, tickers);
+      console.log(`✅ [SENTIMENT] Cached ${stockDataMap.size} stocks`);
+      
+      return stockDataMap as Map<string, SentimentData>;
     },
     staleTime: getBatchCacheTTL('batch_sentiment'),
     gcTime: getBatchCacheTTL('batch_sentiment') * 2,
     enabled: enabled && tickers.length > 0,
-    retry: false,
+    retry: (failureCount, error) => {
+      if (error instanceof AIQueryError && error.retryable) {
+        return failureCount < 2;
+      }
+      return false;
+    },
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 5000),
   });
 }
 
 // ============================================================================
 // INDIVIDUAL QUERY HOOKS
 // These are used for single stock queries during chat
+// Handles: expiry during chat, deduplication (via TanStack Query), fresh fetch
 // ============================================================================
 
 /**
  * Individual stock sentiment - checks cache, updates on miss
+ * 
+ * Scenarios:
+ * - Batch cache hit: Returns from portfolio data (<10ms)
+ * - Individual cache hit: Returns from localStorage
+ * - Cache expired during chat: Fresh individual fetch
+ * - User asks again while fetching: TanStack Query dedupes automatically
  */
 export function useStockSentiment(
   ticker: string, 
@@ -309,20 +503,22 @@ export function useStockSentiment(
   return useQuery({
     queryKey: ['ai', 'sentiment', tickerUpper],
     queryFn: async (): Promise<SentimentData> => {
-      // 1. Check portfolio cache first (from batch query)
+      // 1. Check portfolio cache first (from batch query) - instant
       if (portfolioSentiment?.has(tickerUpper)) {
-        console.log(`♻️ Using portfolio cache for ${tickerUpper} sentiment`);
+        console.log(`♻️ [SENTIMENT] Portfolio cache hit for ${tickerUpper}`);
         return portfolioSentiment.get(tickerUpper)!;
       }
       
-      // 2. Check individual cache
+      // 2. Check individual cache (localStorage)
       const cached = loadIndividualCache<SentimentData>('batch_sentiment', tickerUpper);
       if (cached) {
-        console.log(`♻️ Using individual cache for ${tickerUpper} sentiment`);
+        console.log(`♻️ [SENTIMENT] Individual cache hit for ${tickerUpper}`);
         return cached;
       }
       
-      // 3. Fetch fresh
+      // 3. Fetch fresh (cache expired or never cached)
+      console.log(`🔄 [SENTIMENT] Fetching fresh for ${tickerUpper}`);
+      
       const response = await callAiApi({
         model: 'gemini-2.5-flash',
         contents: `You are a specialized stock market analysis chatbot. Based on recent public news and financial data, perform a sentiment analysis for the stock with the ticker symbol: ${ticker}. Provide a concise summary and 3-5 key bullet points supporting your analysis.`,
@@ -340,20 +536,27 @@ export function useStockSentiment(
       });
 
       if (response.rateLimited) {
-        throw new Error(response.errorMessage || 'Rate limited');
+        throw new AIQueryError(response.errorMessage || 'Rate limited', 'RATE_LIMITED', false);
       }
 
-      const data = JSON.parse(response.text || '{}');
+      const data = safeParseResponse(response.text, { sentiment: 'NEUTRAL', summary: '', key_points: [] });
       
       // Cache the individual result
       saveAICache('sentiment', tickerUpper, data);
+      console.log(`✅ [SENTIMENT] Cached ${tickerUpper}`);
       
       return data;
     },
     staleTime: getCacheTTL('sentiment'),
     gcTime: getCacheTTL('sentiment') * 2,
     enabled: enabled && !!ticker,
-    retry: false,
+    retry: (failureCount, error) => {
+      if (error instanceof AIQueryError && error.retryable) {
+        return failureCount < 2;
+      }
+      return false;
+    },
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 5000),
   });
 }
 
@@ -373,18 +576,20 @@ export function useStockFiling(
       // 1. Check portfolio cache first
       const cachedFilings = portfolioFilings?.get(tickerUpper);
       if (cachedFilings && cachedFilings.length > 0) {
-        console.log(`♻️ Using portfolio cache for ${tickerUpper} filing`);
+        console.log(`♻️ [FILING] Portfolio cache hit for ${tickerUpper}`);
         return cachedFilings[0];
       }
       
       // 2. Check individual cache
       const cached = loadAICache<Filing>('sec_filing', tickerUpper);
       if (cached) {
-        console.log(`♻️ Using individual cache for ${tickerUpper} filing`);
+        console.log(`♻️ [FILING] Individual cache hit for ${tickerUpper}`);
         return cached;
       }
       
       // 3. Fetch fresh
+      console.log(`🔄 [FILING] Fetching fresh for ${tickerUpper}`);
+      
       const response = await callAiApi({
         model: 'gemini-2.5-flash',
         contents: `Provide details for the single most recent important SEC filing (like 8-K, 10-K, 10-Q) for the stock ticker: ${ticker}. Include the form type, the filing date, a brief one-sentence summary, and the direct URL to the filing on the SEC EDGAR website.`,
@@ -392,25 +597,32 @@ export function useStockFiling(
       });
 
       if (response.rateLimited) {
-        throw new Error(response.errorMessage || 'Rate limited');
+        throw new AIQueryError(response.errorMessage || 'Rate limited', 'RATE_LIMITED', false);
       }
 
-      const data = JSON.parse(response.text || '{}');
+      const data = safeParseResponse(response.text, { form_type: '', filing_date: '', summary: '' });
       
       // Cache the individual result
       saveAICache('sec_filing', tickerUpper, data);
+      console.log(`✅ [FILING] Cached ${tickerUpper}`);
       
       return data;
     },
     staleTime: getCacheTTL('sec_filing'),
     gcTime: getCacheTTL('sec_filing') * 2,
     enabled: enabled && !!ticker,
-    retry: false,
+    retry: (failureCount, error) => {
+      if (error instanceof AIQueryError && error.retryable) {
+        return failureCount < 2;
+      }
+      return false;
+    },
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 5000),
   });
 }
 
 /**
- * Company profile query
+ * Company profile query - long TTL (7 days)
  */
 export function useCompanyProfile(ticker: string, enabled = true) {
   const tickerUpper = ticker.toUpperCase();
@@ -421,9 +633,11 @@ export function useCompanyProfile(ticker: string, enabled = true) {
       // Check cache first
       const cached = loadAICache<Profile>('company_profile', tickerUpper);
       if (cached) {
-        console.log(`♻️ Using cached profile for ${tickerUpper}`);
+        console.log(`♻️ [PROFILE] Cache hit for ${tickerUpper}`);
         return cached;
       }
+      
+      console.log(`🔄 [PROFILE] Fetching fresh for ${tickerUpper}`);
       
       const response = await callAiApi({
         model: 'gemini-2.5-flash',
@@ -444,20 +658,27 @@ export function useCompanyProfile(ticker: string, enabled = true) {
       });
 
       if (response.rateLimited) {
-        throw new Error(response.errorMessage || 'Rate limited');
+        throw new AIQueryError(response.errorMessage || 'Rate limited', 'RATE_LIMITED', false);
       }
 
-      const data = JSON.parse(response.text || '{}');
+      const data = safeParseResponse(response.text, { description: '', industry: '', ceo: '', headquarters: '', website: '' });
       
       // Cache the result
       saveAICache('company_profile', tickerUpper, data);
+      console.log(`✅ [PROFILE] Cached ${tickerUpper}`);
       
       return data;
     },
     staleTime: getCacheTTL('company_profile'),
     gcTime: getCacheTTL('company_profile') * 2,
     enabled: enabled && !!ticker,
-    retry: false,
+    retry: (failureCount, error) => {
+      if (error instanceof AIQueryError && error.retryable) {
+        return failureCount < 2;
+      }
+      return false;
+    },
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 5000),
   });
 }
 
@@ -470,11 +691,16 @@ export function useNewsDetail(article: Article | null, enabled = true) {
   return useQuery({
     queryKey: ['ai', 'news_detail', headlineKey],
     queryFn: async (): Promise<{ detailed_summary: string; key_takeaways: string[] }> => {
-      if (!article) throw new Error('No article provided');
+      if (!article) throw new AIQueryError('No article provided', 'API_ERROR', false);
       
       const cacheKey = article.ticker || headlineKey;
       const cached = loadAICache('news_detail', cacheKey);
-      if (cached) return cached;
+      if (cached) {
+        console.log(`♻️ [NEWS_DETAIL] Cache hit`);
+        return cached;
+      }
+      
+      console.log(`🔄 [NEWS_DETAIL] Fetching fresh`);
       
       const response = await callAiApi({
         model: 'gemini-2.5-flash',
@@ -483,21 +709,28 @@ export function useNewsDetail(article: Article | null, enabled = true) {
       });
 
       if (response.rateLimited) {
-        throw new Error(response.errorMessage || 'Rate limited');
+        throw new AIQueryError(response.errorMessage || 'Rate limited', 'RATE_LIMITED', false);
       }
 
-      const data = JSON.parse(response.text || '{}');
+      const data = safeParseResponse(response.text, { detailed_summary: '', key_takeaways: [] }) as Record<string, unknown>;
       saveAICache('news_detail', cacheKey, data);
+      console.log(`✅ [NEWS_DETAIL] Cached`);
       
       return {
-        detailed_summary: data.detailed_summary || data.detailedSummary || '',
-        key_takeaways: data.key_takeaways || data.keyTakeaways || []
+        detailed_summary: (data.detailed_summary || data.detailedSummary || '') as string,
+        key_takeaways: (data.key_takeaways || data.keyTakeaways || []) as string[]
       };
     },
     staleTime: getCacheTTL('news_detail'),
     gcTime: getCacheTTL('news_detail') * 2,
     enabled: enabled && !!article?.headline,
-    retry: false,
+    retry: (failureCount, error) => {
+      if (error instanceof AIQueryError && error.retryable) {
+        return failureCount < 2;
+      }
+      return false;
+    },
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 5000),
   });
 }
 
@@ -511,7 +744,12 @@ export function useStockFilingList(ticker: string, enabled = true) {
     queryKey: ['ai', 'filing_list', tickerUpper],
     queryFn: async (): Promise<Filing[]> => {
       const cached = loadAICache<Filing[]>('filing_list', tickerUpper);
-      if (cached) return cached;
+      if (cached) {
+        console.log(`♻️ [FILING_LIST] Cache hit for ${tickerUpper}`);
+        return cached;
+      }
+      
+      console.log(`🔄 [FILING_LIST] Fetching fresh for ${tickerUpper}`);
       
       const response = await callAiApi({
         model: 'gemini-2.5-flash',
@@ -540,20 +778,27 @@ export function useStockFilingList(ticker: string, enabled = true) {
       });
 
       if (response.rateLimited) {
-        throw new Error(response.errorMessage || 'Rate limited');
+        throw new AIQueryError(response.errorMessage || 'Rate limited', 'RATE_LIMITED', false);
       }
 
-      const data = JSON.parse(response.text || '{}');
+      const data = safeParseResponse(response.text, { filings: [] });
       const filings = data.filings || [];
       
       saveAICache('filing_list', tickerUpper, filings);
+      console.log(`✅ [FILING_LIST] Cached ${tickerUpper}`);
       
       return filings;
     },
     staleTime: getCacheTTL('filing_list'),
     gcTime: getCacheTTL('filing_list') * 2,
     enabled: enabled && !!ticker,
-    retry: false,
+    retry: (failureCount, error) => {
+      if (error instanceof AIQueryError && error.retryable) {
+        return failureCount < 2;
+      }
+      return false;
+    },
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 5000),
   });
 }
 
