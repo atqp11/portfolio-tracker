@@ -1,21 +1,34 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@lib/prisma';
+import { z } from 'zod';
+import { ErrorResponse, SuccessResponse } from '@lib/types/base/response.dto';
 
 export const dynamic = 'force-dynamic';
+
+// Zod schema for waitlist signup
+const waitlistSchema = z.object({
+  email: z.string().email('Please provide a valid email address'),
+  name: z.string().max(100).optional(),
+});
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { email, name } = body;
 
-    // Validate email format (server-side)
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!email || !emailRegex.test(email)) {
+    // Validate with Zod
+    const validation = waitlistSchema.safeParse(body);
+    if (!validation.success) {
       return NextResponse.json(
-        { error: 'Please provide a valid email address' },
+        ErrorResponse.validation(
+          validation.error.issues[0]?.message || 'Invalid request',
+          validation.error.issues[0]?.path[0]?.toString(),
+          validation.error.issues
+        ),
         { status: 400 }
       );
     }
+
+    const { email, name } = validation.data;
 
     // Check if email already exists
     const existingEntry = await prisma.waitlist.findUnique({
@@ -24,11 +37,10 @@ export async function POST(request: NextRequest) {
 
     if (existingEntry) {
       return NextResponse.json(
-        {
-          success: true,
+        SuccessResponse.create({
           message: "You're already on the waitlist! We'll notify you when we launch.",
-          alreadyExists: true
-        }
+          alreadyExists: true,
+        })
       );
     }
 
@@ -42,15 +54,16 @@ export async function POST(request: NextRequest) {
 
     console.log(`New waitlist signup: ${email}${name ? ` (${name})` : ''}`);
 
-    return NextResponse.json({
-      success: true,
-      message: "Thank you for joining our waitlist!",
-      id: waitlistEntry.id,
-    });
+    return NextResponse.json(
+      SuccessResponse.create({
+        message: 'Thank you for joining our waitlist!',
+        id: waitlistEntry.id,
+      })
+    );
   } catch (error) {
     console.error('Error adding to waitlist:', error);
     return NextResponse.json(
-      { error: 'Failed to join waitlist. Please try again.' },
+      ErrorResponse.internal('Failed to join waitlist. Please try again.'),
       { status: 500 }
     );
   }

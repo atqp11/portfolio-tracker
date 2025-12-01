@@ -1,7 +1,7 @@
 module.exports = {
   preset: 'ts-jest',
   testEnvironment: 'node',
-  roots: ['<rootDir>/src/test'],
+  roots: ['<rootDir>/src/test', '<rootDir>/src/backend'],
   setupFilesAfterEnv: ['<rootDir>/src/test/setup.ts'],
   transform: {
     '^.+\\.(ts|tsx)$': ['ts-jest', { tsconfig: 'tsconfig.json', useESM: true }],

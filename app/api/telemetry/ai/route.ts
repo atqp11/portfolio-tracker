@@ -19,6 +19,8 @@ import {
   checkMetricThresholds,
   type TelemetryStats,
 } from '@lib/telemetry/ai-logger';
+import { requireAdmin } from '@lib/auth/admin';
+import { ErrorResponse, SuccessResponse } from '@lib/types/base/response.dto';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -92,12 +94,15 @@ export async function GET(req: NextRequest) {
  * Clear all telemetry logs (admin only, use with caution)
  */
 export async function POST(req: NextRequest) {
-  // TODO: Add authentication check here
+  // Require admin authorization
+  const authError = await requireAdmin(req);
+  if (authError) {
+    return authError;
+  }
 
   clearLogs();
 
-  return NextResponse.json({
-    success: true,
-    message: 'AI telemetry logs cleared',
-  });
+  return NextResponse.json(
+    SuccessResponse.create({ message: 'AI telemetry logs cleared' })
+  );
 }
