@@ -508,14 +508,15 @@ export async function createUsageRecord1(
 }
 
 /**
- * Get current usage for the authenticated user (RLS-protected)
+ * Get current usage for the authenticated user
+ * Uses admin client to ensure we can read records created by admin client
  * For use in user-facing dashboard/UI
  */
 export async function getCurrentUserUsage(userId: string): Promise<{
   daily: UsageTracking | null;
   monthly: UsageTracking | null;
 }> {
-  const supabase = await createClient();
+  const supabase = createAdminClient();
 
   const now = new Date();
 
@@ -526,7 +527,7 @@ export async function getCurrentUserUsage(userId: string): Promise<{
   const dailyEnd = new Date(dailyStart);
   dailyEnd.setUTCHours(23, 59, 59, 999);
 
-  const { data: dailyUsage } = await supabase
+  const { data: dailyUsage, error: dailyError } = await supabase
     .from('usage_tracking')
     .select('*')
     .eq('user_id', userId)
@@ -534,17 +535,25 @@ export async function getCurrentUserUsage(userId: string): Promise<{
     .lte('period_end', dailyEnd.toISOString())
     .single();
 
+  if (dailyError && dailyError.code !== 'PGRST116') {
+    console.error('Error fetching daily usage:', dailyError);
+  }
+
   // Get monthly usage (current month)
   const monthlyStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
   const monthlyEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0, 23, 59, 59, 999));
 
-  const { data: monthlyUsage } = await supabase
+  const { data: monthlyUsage, error: monthlyError } = await supabase
     .from('usage_tracking')
     .select('*')
     .eq('user_id', userId)
     .gte('period_start', monthlyStart.toISOString())
     .lte('period_end', monthlyEnd.toISOString())
     .single();
+
+  if (monthlyError && monthlyError.code !== 'PGRST116') {
+    console.error('Error fetching monthly usage:', monthlyError);
+  }
 
   return {
     daily: dailyUsage || null,

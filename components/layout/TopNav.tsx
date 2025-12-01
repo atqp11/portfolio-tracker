@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { createClient } from '@lib/supabase/client';
 import TierBadge from '@/components/shared/TierBadge';
 import { type TierName } from '@lib/tiers';
+import { get } from '@lib/utils/idbStorage';
 
 interface TopNavProps {
   title?: string;
@@ -14,6 +15,27 @@ interface UserData {
   email: string;
   name?: string;
   tier: TierName;
+}
+
+interface AlertState {
+  stopLoss?: { triggered: boolean; value: number };
+  takeProfit?: { triggered: boolean; value: number };
+  marginCall?: { triggered: boolean; value: number; equityPercent: number };
+}
+
+interface UsageWarnings {
+  chatQueries: boolean;
+  portfolioAnalysis: boolean;
+  secFilings: boolean;
+}
+
+interface UsageStats {
+  percentages: {
+    chatQueries: number;
+    portfolioAnalysis: number;
+    secFilings: number;
+  };
+  warnings: UsageWarnings;
 }
 
 const getPageTitle = (pathname: string): string => {
@@ -43,6 +65,10 @@ export default function TopNav({ title }: TopNavProps) {
 
   const [user, setUser] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [alerts, setAlerts] = useState<AlertState | null>(null);
+  const [usageStats, setUsageStats] = useState<UsageStats | null>(null);
+  const [notificationCount, setNotificationCount] = useState(0);
   const supabase = createClient();
 
   useEffect(() => {
@@ -76,6 +102,69 @@ export default function TopNav({ title }: TopNavProps) {
     fetchUser();
   }, [supabase]);
 
+  // Fetch alerts from IndexedDB
+  useEffect(() => {
+    async function fetchAlerts() {
+      try {
+        const alertState = await get<AlertState>('alerts');
+        if (alertState) {
+          setAlerts(alertState);
+        }
+      } catch (error) {
+        console.error('Error fetching alerts:', error);
+      }
+    }
+
+    fetchAlerts();
+
+    // Poll for alert updates every 5 seconds
+    const interval = setInterval(fetchAlerts, 5000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Fetch usage stats for warnings
+  useEffect(() => {
+    async function fetchUsageStats() {
+      try {
+        const response = await fetch('/api/user/usage');
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success && data.stats) {
+            setUsageStats({
+              percentages: data.stats.percentages,
+              warnings: data.stats.warnings,
+            });
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching usage stats:', error);
+      }
+    }
+
+    fetchUsageStats();
+
+    // Poll for usage updates every 30 seconds
+    const interval = setInterval(fetchUsageStats, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Calculate total notification count
+  useEffect(() => {
+    let count = 0;
+    
+    // Count portfolio alerts
+    if (alerts?.stopLoss?.triggered) count++;
+    if (alerts?.takeProfit?.triggered) count++;
+    if (alerts?.marginCall?.triggered) count++;
+    
+    // Count usage warnings
+    if (usageStats?.warnings?.chatQueries) count++;
+    if (usageStats?.warnings?.portfolioAnalysis) count++;
+    if (usageStats?.warnings?.secFilings) count++;
+    
+    setNotificationCount(count);
+  }, [alerts, usageStats]);
+
   const handleSignOut = async () => {
     try {
       // Sign out from Supabase client-side first
@@ -97,6 +186,10 @@ export default function TopNav({ title }: TopNavProps) {
     } catch (error) {
       console.error('Error signing out:', error);
     }
+  };
+
+  const handleNotificationClick = () => {
+    setShowNotifications((prev) => !prev);
   };
 
   return (
@@ -137,6 +230,7 @@ export default function TopNav({ title }: TopNavProps) {
             className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors relative"
             aria-label="Notifications"
             title="Notifications"
+            onClick={handleNotificationClick}
           >
             <svg
               className="w-5 h-5"
@@ -152,8 +246,94 @@ export default function TopNav({ title }: TopNavProps) {
               />
             </svg>
             {/* Notification badge */}
-            <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
+            {notificationCount > 0 && (
+              <span className="absolute top-1 right-1 w-5 h-5 bg-red-500 rounded-full text-white text-xs flex items-center justify-center font-bold">
+                {notificationCount}
+              </span>
+            )}
           </button>
+
+          {/* Notification Dropdown */}
+          {showNotifications && (
+            <div className="absolute right-0 mt-2 w-80 bg-white dark:bg-gray-800 shadow-lg rounded-lg p-4 z-50 max-h-96 overflow-y-auto" style={{ top: '60px' }}>
+              <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-3">Alerts & Notifications</h3>
+              
+              {notificationCount === 0 ? (
+                <p className="text-sm text-gray-500 dark:text-gray-400">No active alerts</p>
+              ) : (
+                <div className="space-y-2">
+                  {/* Portfolio Alerts */}
+                  {alerts?.stopLoss?.triggered && (
+                    <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md">
+                      <p className="text-sm font-semibold text-red-700 dark:text-red-300">🛑 Stop-Loss Alert</p>
+                      <p className="text-xs text-red-600 dark:text-red-400 mt-1">
+                        Portfolio value: ${alerts.stopLoss.value.toFixed(0)}
+                      </p>
+                    </div>
+                  )}
+                  
+                  {alerts?.takeProfit?.triggered && (
+                    <div className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-md">
+                      <p className="text-sm font-semibold text-green-700 dark:text-green-300">✅ Take-Profit Alert</p>
+                      <p className="text-xs text-green-600 dark:text-green-400 mt-1">
+                        Portfolio value: ${alerts.takeProfit.value.toFixed(0)}
+                      </p>
+                    </div>
+                  )}
+                  
+                  {alerts?.marginCall?.triggered && (
+                    <div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-md">
+                      <p className="text-sm font-semibold text-yellow-700 dark:text-yellow-300">⚠️ Margin Call</p>
+                      <p className="text-xs text-yellow-600 dark:text-yellow-400 mt-1">
+                        Equity: {alerts.marginCall.equityPercent.toFixed(1)}% (below 30% threshold)
+                      </p>
+                      <p className="text-xs text-yellow-600 dark:text-yellow-400">
+                        Portfolio value: ${alerts.marginCall.value.toFixed(0)}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Usage Warnings */}
+                  {usageStats?.warnings?.chatQueries && (
+                    <div className="p-3 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-md">
+                      <p className="text-sm font-semibold text-orange-700 dark:text-orange-300">📊 AI Chat Quota Warning</p>
+                      <p className="text-xs text-orange-600 dark:text-orange-400 mt-1">
+                        {usageStats.percentages.chatQueries.toFixed(0)}% of daily limit used
+                      </p>
+                    </div>
+                  )}
+
+                  {usageStats?.warnings?.portfolioAnalysis && (
+                    <div className="p-3 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-md">
+                      <p className="text-sm font-semibold text-orange-700 dark:text-orange-300">📈 Portfolio Analysis Quota Warning</p>
+                      <p className="text-xs text-orange-600 dark:text-orange-400 mt-1">
+                        {usageStats.percentages.portfolioAnalysis.toFixed(0)}% of daily limit used
+                      </p>
+                    </div>
+                  )}
+
+                  {usageStats?.warnings?.secFilings && (
+                    <div className="p-3 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-md">
+                      <p className="text-sm font-semibold text-orange-700 dark:text-orange-300">📄 SEC Filings Quota Warning</p>
+                      <p className="text-xs text-orange-600 dark:text-orange-400 mt-1">
+                        {usageStats.percentages.secFilings.toFixed(0)}% of monthly limit used
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+              
+              {/* View Usage Link */}
+              <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
+                <a 
+                  href="/usage" 
+                  className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
+                >
+                  View detailed usage →
+                </a>
+              </div>
+            </div>
+          )}
 
           {/* Tier Badge (Prominent) */}
           {!loading && user && (

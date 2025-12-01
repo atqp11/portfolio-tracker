@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server';
 import { GoogleGenAI } from '@google/genai';
 import crypto from 'crypto';
 import { routeQuery } from '@lib/ai/router';
+import { createClient } from '@lib/supabase/server';
+import { trackUsage } from '@lib/tiers/usage-tracker';
+import { type TierName } from '@lib/tiers';
 
 const API_KEY = process.env.AI_API_KEY || process.env.NEXT_PUBLIC_AI_API_KEY;
 // Only Gemini model is used for AI responses with smart routing
@@ -140,6 +143,31 @@ export async function POST(req: Request) {
       requestHash: cacheKey,
     });
     console.log(`✅ Cached new Gemini AI response from ${routingResult.model.name} (key: ${cacheKey.substring(0, 8)}..., entries: ${serverCache.size})`);
+    
+    // Track usage for authenticated users (non-cached responses only)
+    try {
+      const supabase = await createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (user) {
+        // Fetch user's tier from profile
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('tier')
+          .eq('id', user.id)
+          .single();
+        
+        const userTier = (profile?.tier || 'free') as TierName;
+        
+        // Track as chat query usage
+        await trackUsage(user.id, 'chatQuery', userTier);
+        console.log(`📊 Tracked AI usage for user ${user.id} (tier: ${userTier})`);
+      }
+    } catch (trackingError) {
+      // Don't fail the request if usage tracking fails
+      console.error('Failed to track AI usage:', trackingError);
+    }
+    
     return NextResponse.json({ 
       text: responseText,
       cached: false,
