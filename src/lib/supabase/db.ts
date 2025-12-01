@@ -508,6 +508,32 @@ export async function createUsageRecord1(
 }
 
 /**
+ * Normalize timestamp to consistent string format for DB storage/queries
+ * Ensures exact matches between writes and reads
+ */
+function normalizeTimestamp(date: Date): string {
+  return date.toISOString().replace('Z', '+00:00');
+}
+
+function aggregateUsageRows(rows: UsageTracking[] | null): UsageTracking | null {
+  if (!rows || rows.length === 0) {
+    return null;
+  }
+
+  return rows.slice(1).reduce((acc, row) => {
+    acc.chat_queries += row.chat_queries ?? 0;
+    acc.portfolio_analysis += row.portfolio_analysis ?? 0;
+    acc.sec_filings += row.sec_filings ?? 0;
+    return acc;
+  }, {
+    ...rows[0],
+    chat_queries: rows[0].chat_queries ?? 0,
+    portfolio_analysis: rows[0].portfolio_analysis ?? 0,
+    sec_filings: rows[0].sec_filings ?? 0,
+  });
+}
+
+/**
  * Get current usage for the authenticated user
  * Uses admin client to ensure we can read records created by admin client
  * For use in user-facing dashboard/UI
@@ -527,31 +553,43 @@ export async function getCurrentUserUsage(userId: string): Promise<{
   const dailyEnd = new Date(dailyStart);
   dailyEnd.setUTCHours(23, 59, 59, 999);
 
-  const { data: dailyUsage, error: dailyError } = await supabase
+  // Normalize timestamps for exact matching
+  const dailyStartStr = normalizeTimestamp(dailyStart);
+  const dailyEndStr = normalizeTimestamp(dailyEnd);
+
+  // Query for daily records using exact timestamp match
+  // Fetch ALL matching records and aggregate them to handle duplicates
+  const { data: dailyUsageRows, error: dailyError } = await supabase
     .from('usage_tracking')
     .select('*')
     .eq('user_id', userId)
-    .gte('period_start', dailyStart.toISOString())
-    .lte('period_end', dailyEnd.toISOString())
-    .single();
+    .eq('period_start', dailyStartStr)
+    .eq('period_end', dailyEndStr);
 
-  if (dailyError && dailyError.code !== 'PGRST116') {
-    console.error('Error fetching daily usage:', dailyError);
+  const dailyUsage = aggregateUsageRows(dailyUsageRows || null);
+  
+  if (dailyError) {
+    console.error('[getCurrentUserUsage] Error fetching daily usage:', dailyError);
   }
 
   // Get monthly usage (current month)
   const monthlyStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
   const monthlyEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0, 23, 59, 59, 999));
+  
+  // Normalize timestamps for exact matching
+  const monthlyStartStr = normalizeTimestamp(monthlyStart);
+  const monthlyEndStr = normalizeTimestamp(monthlyEnd);
 
-  const { data: monthlyUsage, error: monthlyError } = await supabase
+  const { data: monthlyUsageRows, error: monthlyError } = await supabase
     .from('usage_tracking')
     .select('*')
     .eq('user_id', userId)
-    .gte('period_start', monthlyStart.toISOString())
-    .lte('period_end', monthlyEnd.toISOString())
-    .single();
+    .eq('period_start', monthlyStartStr)
+    .eq('period_end', monthlyEndStr);
 
-  if (monthlyError && monthlyError.code !== 'PGRST116') {
+  const monthlyUsage = aggregateUsageRows(monthlyUsageRows || null);
+
+  if (monthlyError) {
     console.error('Error fetching monthly usage:', monthlyError);
   }
 

@@ -16,6 +16,32 @@ import { UsageTracking } from '@lib/supabase/db';
 export type UsageAction = 'chatQuery' | 'portfolioAnalysis' | 'secFiling';
 
 /**
+ * Normalize timestamp to consistent string format for DB storage/queries
+ * Ensures exact matches between writes and reads
+ */
+function normalizeTimestamp(date: Date): string {
+  return date.toISOString().replace('Z', '+00:00');
+}
+
+function aggregateUsageRows(rows: UsageTracking[] | null): UsageTracking | null {
+  if (!rows || rows.length === 0) {
+    return null;
+  }
+
+  return rows.slice(1).reduce((acc, row) => {
+    acc.chat_queries += row.chat_queries ?? 0;
+    acc.portfolio_analysis += row.portfolio_analysis ?? 0;
+    acc.sec_filings += row.sec_filings ?? 0;
+    return acc;
+  }, {
+    ...rows[0],
+    chat_queries: rows[0].chat_queries ?? 0,
+    portfolio_analysis: rows[0].portfolio_analysis ?? 0,
+    sec_filings: rows[0].sec_filings ?? 0,
+  });
+}
+
+/**
  * Get current usage period
  * Daily period: 00:00 - 23:59 (UTC)
  * Monthly period: 1st - last day of month (UTC)
@@ -51,20 +77,25 @@ async function getOrCreateUsageRecord(
   const supabase = createAdminClient();
   const { start, end } = getCurrentPeriod(periodType);
 
-  // Try to find existing record for current period
+  // Normalize timestamps for consistent matching
+  const startStr = normalizeTimestamp(start);
+  const endStr = normalizeTimestamp(end);
+
+  // Try to find existing record for current period using exact timestamp match
   const { data: existing, error: findError } = await supabase
     .from('usage_tracking')
     .select('*')
     .eq('user_id', userId)
-    .gte('period_start', start.toISOString())
-    .lte('period_end', end.toISOString())
-    .single();
+    .eq('period_start', startStr)
+    .eq('period_end', endStr)
+    .limit(1)
+    .maybeSingle();
 
   if (existing && !findError) {
     return existing;
   }
 
-  // Create new record for current period
+  // Create new record for current period with normalized timestamps
   const { data: newRecord, error: createError } = await supabase
     .from('usage_tracking')
     .insert({
@@ -73,14 +104,14 @@ async function getOrCreateUsageRecord(
       chat_queries: 0,
       portfolio_analysis: 0,
       sec_filings: 0,
-      period_start: start.toISOString(),
-      period_end: end.toISOString(),
+      period_start: startStr,
+      period_end: endStr,
     })
     .select()
     .single();
 
   if (createError) {
-    console.error('Failed to create usage record:', createError);
+    console.error('[getOrCreateUsageRecord] Failed to create usage record:', createError);
     throw new Error(`Failed to initialize usage tracking: ${createError.message}`);
   }
 
@@ -97,25 +128,33 @@ async function getOrCreateUsageRecord(
 export async function getUserUsage(userId: string, tier: TierName) {
   const supabase = createAdminClient();
 
-  // Get daily usage
+  // Get daily usage - use normalized timestamps for exact matching
   const dailyPeriod = getCurrentPeriod('daily');
-  const { data: dailyUsage } = await supabase
-    .from('usage_tracking')
-    .select('*')
-    .eq('user_id', userId)
-    .gte('period_start', dailyPeriod.start.toISOString())
-    .lte('period_end', dailyPeriod.end.toISOString())
-    .single();
+  const dailyStartStr = normalizeTimestamp(dailyPeriod.start);
+  const dailyEndStr = normalizeTimestamp(dailyPeriod.end);
 
-  // Get monthly usage
-  const monthlyPeriod = getCurrentPeriod('monthly');
-  const { data: monthlyUsage } = await supabase
+  const { data: dailyUsageRows } = await supabase
     .from('usage_tracking')
     .select('*')
     .eq('user_id', userId)
-    .gte('period_start', monthlyPeriod.start.toISOString())
-    .lte('period_end', monthlyPeriod.end.toISOString())
-    .single();
+    .eq('period_start', dailyStartStr)
+    .eq('period_end', dailyEndStr);
+
+  const dailyUsage = aggregateUsageRows(dailyUsageRows || null);
+
+  // Get monthly usage - use normalized timestamps for exact matching
+  const monthlyPeriod = getCurrentPeriod('monthly');
+  const monthlyStartStr = normalizeTimestamp(monthlyPeriod.start);
+  const monthlyEndStr = normalizeTimestamp(monthlyPeriod.end);
+
+  const { data: monthlyUsageRows } = await supabase
+    .from('usage_tracking')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('period_start', monthlyStartStr)
+    .eq('period_end', monthlyEndStr);
+
+  const monthlyUsage = aggregateUsageRows(monthlyUsageRows || null);
 
   const tierConfig = getTierConfig(tier);
 
@@ -255,7 +294,7 @@ export async function trackUsage(
     .eq('id', record.id);
 
   if (error) {
-    console.error('Failed to track usage:', error);
+    console.error('[Usage Tracker] Failed to track usage:', error);
     // Don't throw - allow request to proceed even if tracking fails
   }
 }
