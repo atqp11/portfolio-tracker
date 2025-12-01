@@ -23,7 +23,7 @@ type Sender = 'bot' | 'user';
 interface ModalContent {
     title: string;
     summary: string;
-    takeaways: string[];
+    takeaways: Array<string | { point?: string; elaboration?: string }>;
 }
 
 // Discriminated union for messages - TypeScript will narrow based on 'type'
@@ -279,7 +279,14 @@ function getRateLimitMessage(response: any): string {
                                     <div className="modal-takeaways">
                                         <h4>Key Takeaways</h4>
                                         <ul>
-                                            {content.takeaways.map((p: string, i: number) => <li key={i}>{p}</li>)}
+                                            {content.takeaways.map((p: string | { point?: string; elaboration?: string }, i: number) => {
+                                                if (typeof p === 'string') return <li key={i}>{p}</li>;
+                                                if (p && typeof p === 'object') {
+                                                    const text = p.point || p.elaboration || JSON.stringify(p);
+                                                    return <li key={i}>{text}</li>;
+                                                }
+                                                return null;
+                                            })}
                                         </ul>
                                     </div>
                                 )}
