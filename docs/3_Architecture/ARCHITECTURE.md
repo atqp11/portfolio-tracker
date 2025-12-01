@@ -17,8 +17,9 @@
 9. [Database Schema](#database-schema)
 10. [Security Model](#security-model)
 11. [Caching Strategy](#caching-strategy)
-12. [API Reference](#api-reference)
-13. [Testing](#testing)
+12. [AI Call Flow & Usage Tracking](#ai-call-flow--usage-tracking)
+13. [API Reference](#api-reference)
+14. [Testing](#testing)
 
 ---
 
@@ -1099,7 +1100,374 @@ function generateCacheKey(data: any): string {
 
 ---
 
-## 12. API Reference
+## 12. AI Call Flow & Usage Tracking
+
+This section documents the complete flow of AI calls through the system, including caching at both browser and server levels, and quota tracking.
+
+### 12.1 Architecture Overview
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                              Browser                                     │
+│  ┌─────────────────┐    ┌─────────────────┐    ┌──────────────────────┐ │
+│  │  StonksAI Chat  │    │  Browser Cache  │    │  /api/ai/generate    │ │
+│  │    Component    │───►│   (IndexedDB)   │───►│    API Route         │ │
+│  └─────────────────┘    └─────────────────┘    └──────────┬───────────┘ │
+└──────────────────────────────────────────────────────────┼──────────────┘
+                                                           │
+                                                           ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│                              Server                                      │
+│  ┌─────────────────┐    ┌─────────────────┐    ┌──────────────────────┐ │
+│  │  withCacheAndQuota │  │  Server Cache   │    │  generateService     │ │
+│  │    Middleware      │──►│  (In-Memory)   │───►│  (Gemini API)        │ │
+│  └─────────────────┘    └─────────────────┘    └──────────────────────┘ │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### 12.2 Complete Request Flow
+
+```
+User Action (e.g., "Analyze AAPL sentiment")
+    │
+    ▼
+┌─────────────────────────────────────────────────────────────┐
+│ 1. BROWSER CACHE CHECK (IndexedDB via aiCache.ts)           │
+│    Key: {dataType}:{ticker} (e.g., "sentiment:AAPL")        │
+│    TTL: 1 hour                                               │
+│    ├─► HIT:  Return cached data ✅ (NO API call)            │
+│    └─► MISS: Continue to API...                              │
+└─────────────────────────────────────────────────────────────┘
+    │
+    ▼
+┌─────────────────────────────────────────────────────────────┐
+│ 2. API CALL: POST /api/ai/generate                          │
+│    Body: { model, contents, config }                         │
+└─────────────────────────────────────────────────────────────┘
+    │
+    ▼
+┌─────────────────────────────────────────────────────────────┐
+│ 3. MIDDLEWARE: withErrorHandler                              │
+│    Wraps all errors in standardized responses                │
+└─────────────────────────────────────────────────────────────┘
+    │
+    ▼
+┌─────────────────────────────────────────────────────────────┐
+│ 4. MIDDLEWARE: withCacheAndQuota                             │
+│    a. Authenticate user (get profile.tier)                   │
+│    b. SERVER CACHE CHECK (In-Memory Map)                     │
+│       Key: SHA256(model + contents + config)                 │
+│       TTL: 5 minutes                                         │
+│       ├─► HIT:  Return cached ✅ (NO quota used)            │
+│       └─► MISS: Continue to quota check...                   │
+│    c. CHECK & TRACK QUOTA                                    │
+│       ├─► EXCEEDED: Return 429 error                         │
+│       └─► OK: Increment usage, continue...                   │
+└─────────────────────────────────────────────────────────────┘
+    │
+    ▼
+┌─────────────────────────────────────────────────────────────┐
+│ 5. HANDLER: generateService.generate()                       │
+│    a. Check AI provider rate limit                           │
+│    b. Smart routing (query → model selection)                │
+│    c. Call Gemini API                                        │
+│    d. Cache response in server cache                         │
+│    e. Return { text, cached: false, model, tier }           │
+└─────────────────────────────────────────────────────────────┘
+    │
+    ▼
+┌─────────────────────────────────────────────────────────────┐
+│ 6. BROWSER: Cache response in IndexedDB (1 hour TTL)         │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 12.3 StonksAI Component Load Behavior
+
+When the StonksAI chat window first loads, it triggers **automatic background fetches** for the user's portfolio:
+
+| # | Action | Triggered By | Quota Used |
+|---|--------|--------------|------------|
+| 1 | Clear expired browser cache | `useEffect` on mount | ❌ No |
+| 2 | **Fetch Portfolio News** | `useEffect` when `tickers` changes | ✅ Yes (if cache miss) |
+| 3 | **Fetch Portfolio Filings** | `useEffect` when `tickers` changes | ✅ Yes (if cache miss) |
+| 4 | **Fetch Portfolio Sentiment** | `useEffect` when `tickers` changes | ✅ Yes (if cache miss) |
+
+**Key Point**: These requests are **batched by portfolio**, not per-stock:
+
+```typescript
+// All tickers in ONE request - efficient!
+const response = await callAi({
+    contents: `Provide news for: ${portfolioTickers.join(', ')}`,
+    // e.g., "Provide news for: AAPL, MSFT, GOOGL"
+}, { dataType: 'news', ticker: tickersKey });
+```
+
+| Portfolio Size | Calls on Load | Quota Impact (if no cache) |
+|----------------|---------------|---------------------------|
+| 1 stock        | 3             | -3 chatQuery              |
+| 10 stocks      | 3             | -3 chatQuery              |
+| 50 stocks      | 3             | -3 chatQuery              |
+
+**Trade-off**: The extra call on load (+1 for sentiment) enables **significant quota savings** during user interactions by reusing portfolio-level data for individual stock queries. See [Section 12.10](#1210-portfolio-level-cache-optimization) for details.
+
+### 12.4 User Actions & Quota Tracking
+
+**All AI calls from StonksAI use `chatQuery` quota:**
+
+| Action | User Trigger | Quota Type | Period |
+|--------|--------------|------------|--------|
+| Sentiment Analysis | "Analyze AAPL" | `chatQuery` | Daily |
+| Latest SEC Filing | "Get filing for MSFT" | `chatQuery` | Daily |
+| Company Profile | Click "Profile" button | `chatQuery` | Daily |
+| Last 10 Filings | Click "Last 10" button | `chatQuery` | Daily |
+| News Detail Modal | Click on news item | `chatQuery` | Daily |
+| Filing Detail Modal | Click on filing item | `chatQuery` | Daily |
+| Background News Fetch | Component load | `chatQuery` | Daily |
+| Background Filings Fetch | Component load | `chatQuery` | Daily |
+
+**Note**: The `secFiling` quota type is reserved for the dedicated SEC EDGAR API (`/api/sec-edgar/*`), not AI-generated filing summaries.
+
+### 12.5 Cache Strategy Summary
+
+| Layer | Storage | TTL | Key Pattern | Quota Impact |
+|-------|---------|-----|-------------|--------------|
+| **Browser** | IndexedDB | 1 hour | `{dataType}:{ticker}` | ❌ No API call made |
+| **Server** | In-Memory Map | 5 min | SHA256(request body) | ✅ Free (checked before quota) |
+
+### 12.6 Cache Key Examples
+
+**Browser Cache Keys:**
+- `sentiment:AAPL` - Sentiment for single stock
+- `news:AAPL,GOOGL,MSFT` - News for portfolio (sorted)
+- `filing_list:AAPL,GOOGL,MSFT` - Filings for portfolio
+- `company_profile:TSLA` - Company profile
+- `sec_filing:AAPL_10-K_2024-10-31` - Specific filing detail
+
+**Server Cache Keys:**
+- SHA256 hash of `{ model, contents, config }`
+- Identical requests within 5 minutes return cached response
+
+### 12.7 Quota Enforcement Flow
+
+```
+Request arrives at /api/ai/generate
+    │
+    ├─► Auth: Get user profile + tier
+    │
+    ├─► Server Cache: Check for cached response
+    │   ├─► HIT: Return immediately (FREE, no quota used)
+    │   └─► MISS: Continue...
+    │
+    ├─► Quota Check: checkAndTrackUsage(userId, 'chatQuery', tier)
+    │   │
+    │   ├─► Get current period's usage from DB
+    │   │
+    │   ├─► Compare against tier limits:
+    │   │   ├─► free:    10 chatQuery/day
+    │   │   ├─► basic:   100 chatQuery/day
+    │   │   └─► premium: ∞ chatQuery/day
+    │   │
+    │   ├─► If current >= limit:
+    │   │   └─► Return 429: "Daily chat query limit reached (10/day)"
+    │   │
+    │   └─► If allowed:
+    │       └─► Increment: chat_queries = chat_queries + 1
+    │
+    └─► Continue to AI generation...
+```
+
+### 12.8 Rate Limit Handling
+
+The system handles two types of rate limits:
+
+**1. User Quota Limits (Tier-based)**
+- Checked by `withCacheAndQuota` middleware
+- Returns friendly error: "Daily chat query limit reached (10/day)"
+- Cached responses returned even after quota exceeded
+
+**2. AI Provider Rate Limits (Gemini API)**
+- Tracked in `generateService` via `aiRateLimitResetTime`
+- Returns: "AI rate limit active. Please wait a moment and try again."
+- Automatically clears after cooldown period
+
+### 12.9 Example Scenarios
+
+**Scenario 1: Fresh user, first request of the day**
+```
+1. Browser cache: MISS (no cache)
+2. Server cache: MISS (no cache)
+3. Quota check: 0/10 used → OK, now 1/10
+4. Gemini API call
+5. Server cache: Store response
+6. Browser cache: Store response
+7. Return to user
+```
+
+**Scenario 2: Same request within 5 minutes**
+```
+1. Browser cache: MISS (different exact content)
+2. Server cache: HIT ✅
+3. Quota: NOT CHECKED (cache hit bypasses quota)
+4. Return cached response
+5. Usage still at 1/10
+```
+
+**Scenario 3: Same request after 1 hour**
+```
+1. Browser cache: MISS (expired)
+2. Server cache: MISS (5min TTL expired)
+3. Quota check: 1/10 used → OK, now 2/10
+4. Gemini API call
+5. Cache responses
+6. Return to user
+```
+
+**Scenario 4: Quota exhausted, but cache exists**
+```
+1. Browser cache: MISS
+2. Server cache: HIT ✅
+3. Quota: NOT CHECKED (cache hit)
+4. Return cached response (user can still use cached data!)
+```
+
+**Scenario 5: Quota exhausted, no cache**
+```
+1. Browser cache: MISS
+2. Server cache: MISS
+3. Quota check: 10/10 used → DENIED
+4. Return 429: "Daily chat query limit reached (10/day)"
+```
+
+### 12.10 Portfolio-Level Cache Optimization
+
+To minimize quota usage, the StonksAI component implements **portfolio-level caching** that allows individual stock queries to reuse data from the initial portfolio-wide fetch.
+
+#### How It Works
+
+On component load, three batched API calls are made:
+1. **News** for all portfolio tickers
+2. **Filings** for all portfolio tickers  
+3. **Sentiment** for all portfolio tickers
+
+These responses are stored in component state and reused for individual stock queries:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ COMPONENT LOAD (3 API calls)                                 │
+│                                                              │
+│  Portfolio: [AAPL, GOOGL, MSFT]                             │
+│                                                              │
+│  1. Fetch News    → Cache key: "news:AAPL,GOOGL,MSFT"       │
+│     Response: { articles: [{ticker: "AAPL"}, {ticker: "GOOGL"}, ...] }
+│     → Store in: news[] state                                │
+│                                                              │
+│  2. Fetch Filings → Cache key: "filing_list:AAPL,GOOGL,MSFT"│
+│     Response: { filings: [{ticker: "AAPL"}, {ticker: "GOOGL"}, ...] }
+│     → Store in: filings[] state                             │
+│                                                              │
+│  3. Fetch Sentiment → Cache key: "sentiment_batch:AAPL,GOOGL,MSFT"
+│     Response: { sentiments: [{ticker: "AAPL"}, {ticker: "GOOGL"}, ...] }
+│     → Store in: portfolioSentiment[] state                  │
+└─────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────┐
+│ USER INTERACTION: "Analyze sentiment for AAPL"              │
+│                                                              │
+│  1. Check portfolioSentiment.find(s => s.ticker === 'AAPL') │
+│     ├─► FOUND: Return from state (NO API call, NO quota) ✅ │
+│     └─► NOT FOUND: Make individual API call (uses quota)   │
+└─────────────────────────────────────────────────────────────┘
+```
+
+#### Quota Savings Comparison
+
+| Action | Without Optimization | With Optimization |
+|--------|---------------------|-------------------|
+| Open chat (5-stock portfolio) | -2 quota | -3 quota (+sentiment) |
+| Ask sentiment for stock IN portfolio | -1 quota | **FREE** |
+| Ask sentiment for 5 stocks in portfolio | -5 quota | **FREE** |
+| Ask filing for stock IN portfolio | -1 quota | **FREE** |
+| Ask for stock NOT in portfolio | -1 quota | -1 quota |
+
+#### Example Session (5-Stock Portfolio)
+
+**Before Optimization:**
+```
+Load:           -2 (news + filings)
+5 sentiments:   -5
+3 filings:      -3
+─────────────────
+Total:          -10 quota (FREE TIER EXHAUSTED)
+```
+
+**After Optimization:**
+```
+Load:           -3 (news + filings + sentiment)
+5 sentiments:   FREE (from portfolioSentiment cache)
+3 filings:      FREE (from filings cache)
+─────────────────
+Total:          -3 quota (7 remaining for other queries)
+```
+
+#### Cache Reuse Logic
+
+```typescript
+// Sentiment: Check portfolio cache first
+const fetchSentimentAnalysis = async (stockTicker: string) => {
+    // 1. Check portfolio-level cache
+    const cached = portfolioSentiment.find(
+        s => s.ticker?.toUpperCase() === stockTicker.toUpperCase()
+    );
+    if (cached) {
+        // Use cached data - NO API call, NO quota
+        setMessages(prev => [...prev, { 
+            sender: 'bot', 
+            type: 'sentiment', 
+            content: cached, 
+            stockTicker 
+        }]);
+        return;
+    }
+    
+    // 2. Stock not in portfolio - fetch individually (uses quota)
+    const response = await callAi({...});
+};
+
+// Filing: Check portfolio cache first
+const fetchLatestFiling = async (stockTicker: string) => {
+    // 1. Check portfolio-level cache
+    const cached = filings.find(
+        f => f.ticker?.toUpperCase() === stockTicker.toUpperCase()
+    );
+    if (cached) {
+        // Use cached data - NO API call, NO quota
+        setMessages(prev => [...prev, 
+            { sender: 'bot', type: 'filing', content: cached, stockTicker },
+            { sender: 'bot', type: 'action_options', stockTicker }
+        ]);
+        return;
+    }
+    
+    // 2. Stock not in portfolio - fetch individually (uses quota)
+    const response = await callAi({...});
+};
+```
+
+#### Browser Cache TTLs
+
+| Data Type | TTL | Rationale |
+|-----------|-----|-----------|
+| `company_profile` | 7 days | Company info rarely changes |
+| `sec_filing` | 24 hours | Filings are historical |
+| `filing_list` | 6 hours | New filings may be added |
+| `sentiment` | 1 hour | Sentiment changes with market |
+| `sentiment_batch` | 1 hour | Portfolio sentiment |
+| `news` | 30 minutes | News updates frequently |
+| `news_detail` | 1 hour | Detailed analysis |
+
+---
+
+## 13. API Reference
 
 ### User-Facing APIs (RLS Protected)
 
@@ -1282,7 +1650,7 @@ Returns quota information for authenticated user.
 
 ---
 
-## 13. Testing
+## 14. Testing
 
 ### Unit Tests
 

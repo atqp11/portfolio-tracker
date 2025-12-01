@@ -7,6 +7,7 @@ import { loadAICache, saveAICache, AICacheEntry, AIDataType , clearExpiredCache}
 type Sender = 'bot' | 'user';
 
 interface SentimentData {
+    ticker?: string;
     sentiment?: string;
     summary?: string;
     key_points?: string[];
@@ -343,6 +344,8 @@ function getRateLimitMessage(response: any): string {
     const [messages, setMessages] = useState<Message[]>([]);
     const [news, setNews] = useState<Article[]>([]);
     const [filings, setFilings] = useState<Filing[]>([]);
+    const [portfolioSentiment, setPortfolioSentiment] = useState<SentimentData[]>([]);
+    const [isSentimentLoading, setIsSentimentLoading] = useState(false);
         const [isLoading, setIsLoading] = useState(false);
         const [isNewsLoading, setIsNewsLoading] = useState(false);
         const [isFilingsLoading, setIsFilingsLoading] = useState(false);
@@ -475,6 +478,59 @@ function getRateLimitMessage(response: any): string {
             fetchFilingsForPortfolio(tickers || []);
         }, [tickers]);
 
+        // Fetch portfolio-level sentiment on load (enables cache reuse for individual stock queries)
+        useEffect(() => {
+            const fetchSentimentForPortfolio = async (portfolioTickers: string[]) => {
+                if (portfolioTickers.length === 0) {
+                    setPortfolioSentiment([]);
+                    return;
+                }
+                setIsSentimentLoading(true);
+                try {
+                    const tickersKey = portfolioTickers.sort().join(',');
+                    const response = await callAi({
+                        model: 'gemini-2.5-flash',
+                        contents: `You are a specialized stock market analysis chatbot. For each of the following stock tickers: ${portfolioTickers.join(', ')}, provide a sentiment analysis. For each stock, include the ticker symbol, overall sentiment ('BULLISH', 'BEARISH', or 'NEUTRAL'), a concise summary, and 3-5 key bullet points supporting your analysis.`,
+                        config: {
+                            responseMimeType: 'application/json',
+                            responseSchema: {
+                                type: 'object',
+                                properties: {
+                                    sentiments: {
+                                        type: 'array',
+                                        description: 'Sentiment analysis for each stock.',
+                                        items: {
+                                            type: 'object',
+                                            properties: {
+                                                ticker: { type: 'string' },
+                                                sentiment: { type: 'string' },
+                                                summary: { type: 'string' },
+                                                key_points: { type: 'array', items: { type: 'string' } }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }, { dataType: 'sentiment_batch', ticker: tickersKey });
+
+                    if (isRateLimited(response)) {
+                        setPortfolioSentiment([]);
+                        return;
+                    }
+                    const sentimentData = JSON.parse(response.text || '{}');
+                    setPortfolioSentiment(sentimentData.sentiments || []);
+                } catch (err) {
+                    console.error('Error fetching portfolio sentiment:', err);
+                    setPortfolioSentiment([]);
+                } finally {
+                    setIsSentimentLoading(false);
+                }
+            };
+
+            fetchSentimentForPortfolio(tickers || []);
+        }, [tickers]);
+
         useEffect(() => {
             chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
         }, [messages, isLoading]);
@@ -482,6 +538,16 @@ function getRateLimitMessage(response: any): string {
         const fetchSentimentAnalysis = async (stockTicker: string) => {
             setIsLoading(true);
             setMessages((prev) => [...prev, { sender: 'user', type: 'text', content: `Analyze sentiment for ${stockTicker}` }]);
+            
+            // Check portfolio cache first - reuse data from initial load
+            const cachedSentiment = portfolioSentiment.find(s => s.ticker?.toUpperCase() === stockTicker.toUpperCase());
+            if (cachedSentiment) {
+                setMessages((prev) => [...prev, { sender: 'bot', type: 'sentiment', content: cachedSentiment, stockTicker }]);
+                setIsLoading(false);
+                return;
+            }
+            
+            // Stock not in portfolio cache - fetch individually
             try {
                 const response = await callAi({
                     model: 'gemini-2.5-flash',
@@ -517,6 +583,19 @@ function getRateLimitMessage(response: any): string {
         const fetchLatestFiling = async (stockTicker: string) => {
             setIsLoading(true);
             setMessages((prev) => [...prev, { sender: 'user', type: 'text', content: `Get latest SEC filing for ${stockTicker}` }]);
+            
+            // Check portfolio filings cache first - reuse data from initial load
+            const cachedFiling = filings.find(f => f.ticker?.toUpperCase() === stockTicker.toUpperCase());
+            if (cachedFiling) {
+                setMessages((prev) => [...prev, 
+                    { sender: 'bot', type: 'filing', content: cachedFiling, stockTicker }, 
+                    { sender: 'bot', type: 'action_options', stockTicker }
+                ]);
+                setIsLoading(false);
+                return;
+            }
+            
+            // Stock not in portfolio cache - fetch individually
             try {
                 const response = await callAi({
                     model: 'gemini-2.5-flash',

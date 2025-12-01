@@ -13,6 +13,7 @@ export type AIDataType =
   | 'sec_filing'           // Static - cache for 24 hours
   | 'filing_list'          // Semi-static - cache for 6 hours
   | 'sentiment'            // Dynamic - cache for 1 hour
+  | 'sentiment_batch'      // Dynamic - cache for 1 hour (portfolio-level)
   | 'news'                 // Dynamic - cache for 30 minutes
   | 'news_detail';         // Dynamic - cache for 1 hour
 
@@ -22,6 +23,7 @@ const CACHE_TTL: Record<AIDataType, number> = {
   sec_filing: 24 * 60 * 60 * 1000,           // 24 hours - filings are historical
   filing_list: 6 * 60 * 60 * 1000,           // 6 hours - list can have new filings
   sentiment: 60 * 60 * 1000,                 // 1 hour - sentiment changes with market
+  sentiment_batch: 60 * 60 * 1000,           // 1 hour - portfolio sentiment
   news: 30 * 60 * 1000,                      // 30 minutes - news is frequently updated
   news_detail: 60 * 60 * 1000,               // 1 hour - detailed analysis
 };
