@@ -27,32 +27,31 @@ export interface QueryContext {
 }
 
 // Multi-model configuration as per PRD
+// Note: Google models are listed first since /api/ai/generate only supports Google GenAI SDK
+// OpenRouter models are disabled until OpenRouter integration is implemented
 export const defaultAIRouterConfig: AIRouterConfig = {
-  // Tier 1 (Fast/Cheap): DeepSeek, Qwen Plus, Llama 3.1-70B
+  // Tier 1 (Fast/Cheap): Gemini Flash for quick queries
   tier1: [
-    { name: 'DeepSeek v3', provider: 'openrouter', modelId: 'deepseek/deepseek-chat', enabled: true, costPerToken: 0.00000027 },
-    { name: 'Qwen Plus', provider: 'openrouter', modelId: 'qwen/qwen-2.5-72b-instruct', enabled: true, costPerToken: 0.0000005 },
-    { name: 'Llama 3.1 70B', provider: 'openrouter', modelId: 'meta-llama/llama-3.1-70b-instruct', enabled: true, costPerToken: 0.00000035 },
     { name: 'Gemini 2.5 Flash', provider: 'google', modelId: 'gemini-2.5-flash', enabled: true },
+    { name: 'DeepSeek v3', provider: 'openrouter', modelId: 'deepseek/deepseek-chat', enabled: false, costPerToken: 0.00000027 },
+    { name: 'Qwen Plus', provider: 'openrouter', modelId: 'qwen/qwen-2.5-72b-instruct', enabled: false, costPerToken: 0.0000005 },
+    { name: 'Llama 3.1 70B', provider: 'openrouter', modelId: 'meta-llama/llama-3.1-70b-instruct', enabled: false, costPerToken: 0.00000035 },
   ],
-  // Tier 2 (Quality): Gemini (instead of Claude), Qwen Max, Kimi K2
+  // Tier 2 (Quality): Gemini for quality responses
   tier2: [
-    { name: 'Gemini 2.0 Flash Thinking', provider: 'google', modelId: 'gemini-2.0-flash-thinking-exp', enabled: true },
-    { name: 'Qwen Max', provider: 'openrouter', modelId: 'qwen/qwen-2.5-coder-32b-instruct', enabled: true, costPerToken: 0.0000005 },
     { name: 'Gemini 2.5 Flash', provider: 'google', modelId: 'gemini-2.5-flash', enabled: true },
+    { name: 'Qwen Max', provider: 'openrouter', modelId: 'qwen/qwen-2.5-coder-32b-instruct', enabled: false, costPerToken: 0.0000005 },
   ],
-  // Tier 3 (Reasoning): Gemini (instead of Claude), DeepSeek Reasoner
+  // Tier 3 (Reasoning): Gemini for complex reasoning
   tier3: [
-    { name: 'Gemini 2.0 Flash Thinking', provider: 'google', modelId: 'gemini-2.0-flash-thinking-exp', enabled: true },
-    { name: 'DeepSeek Reasoner', provider: 'openrouter', modelId: 'deepseek/deepseek-r1', enabled: true, costPerToken: 0.00000055 },
-    { name: 'Gemini 2.0 Flash Exp', provider: 'google', modelId: 'gemini-2.0-flash-exp', enabled: true },
+    { name: 'Gemini 2.5 Flash', provider: 'google', modelId: 'gemini-2.5-flash', enabled: true },
+    { name: 'DeepSeek Reasoner', provider: 'openrouter', modelId: 'deepseek/deepseek-r1', enabled: false, costPerToken: 0.00000055 },
   ],
-  // Fallback: Mistral Large, Llama 3.1-405B, Gemini
+  // Fallback: Gemini models only
   fallback: [
-    { name: 'Mistral Large', provider: 'openrouter', modelId: 'mistralai/mistral-large', enabled: true, costPerToken: 0.000002 },
-    { name: 'Llama 3.1 405B', provider: 'openrouter', modelId: 'meta-llama/llama-3.1-405b-instruct', enabled: true, costPerToken: 0.0000027 },
-    { name: 'Gemini 1.5 Flash', provider: 'google', modelId: 'gemini-1.5-flash', enabled: true },
-    { name: 'Gemini 1.5 Pro', provider: 'google', modelId: 'gemini-1.5-pro', enabled: true },
+    { name: 'Gemini 2.5 Flash', provider: 'google', modelId: 'gemini-2.5-flash', enabled: true },
+    { name: 'Mistral Large', provider: 'openrouter', modelId: 'mistralai/mistral-large', enabled: false, costPerToken: 0.000002 },
+    { name: 'Llama 3.1 405B', provider: 'openrouter', modelId: 'meta-llama/llama-3.1-405b-instruct', enabled: false, costPerToken: 0.0000027 },
   ],
 };
 

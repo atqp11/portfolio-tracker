@@ -65,7 +65,7 @@ export async function routeQueryWithConfidence(
   const { userMessage, ragContext = '', portfolio, preferModel, maxRetries = 2 } = context;
 
   let retries = 0;
-  let currentModel: GeminiModel = 'gemini-2.0-flash-exp';
+  let currentModel: GeminiModel = 'gemini-2.5-flash';
   let escalated = false;
 
   // Build full context
@@ -90,11 +90,11 @@ export async function routeQueryWithConfidence(
     retries++;
 
     if (response.confidence >= thresholds.escalate) {
-      // Escalate to Gemini Pro (higher quality)
+      // Escalate to Gemini Flash Latest (higher quality)
       console.log(
-        `⬆️ Router: Escalating to Gemini Pro (confidence ${response.confidence.toFixed(2)} < ${thresholds.accept})`
+        `⬆️ Router: Escalating to Gemini Flash Latest (confidence ${response.confidence.toFixed(2)} < ${thresholds.accept})`
       );
-      currentModel = 'gemini-1.5-pro';
+      currentModel = 'gemini-1.5-flash-latest';
       escalated = true;
 
       response = await generateChatResponse(userMessage, fullContext, {
@@ -103,14 +103,14 @@ export async function routeQueryWithConfidence(
       });
 
       console.log(
-        `📊 Router: Gemini Pro returned confidence ${response.confidence.toFixed(2)}`
+        `📊 Router: Gemini Flash Latest returned confidence ${response.confidence.toFixed(2)}`
       );
     } else {
-      // Low confidence (<0.60) - Flag for review and try Pro
+      // Low confidence (<0.60) - Flag for review and try alternate model
       console.warn(
         `⚠️ Router: Low confidence ${response.confidence.toFixed(2)} < ${thresholds.review}. Flagging for review.`
       );
-      currentModel = 'gemini-1.5-pro';
+      currentModel = 'gemini-1.5-flash-latest';
       escalated = true;
 
       response = await generateChatResponse(userMessage, fullContext, {
@@ -119,7 +119,7 @@ export async function routeQueryWithConfidence(
       });
 
       console.log(
-        `📊 Router: Gemini Pro (review) returned confidence ${response.confidence.toFixed(2)}`
+        `📊 Router: Gemini Flash Latest (review) returned confidence ${response.confidence.toFixed(2)}`
       );
 
       // If still low, break and return with warning
@@ -203,12 +203,12 @@ ${ragContext}
  */
 function calculateResponseCost(response: GeminiResponse, model: GeminiModel): number {
   const pricing: Record<GeminiModel, { input: number; output: number }> = {
-    'gemini-2.0-flash-exp': { input: 0.075, output: 0.30 },
-    'gemini-1.5-flash': { input: 0.075, output: 0.30 },
-    'gemini-1.5-pro': { input: 1.25, output: 5.0 },
+    'gemini-2.5-flash': { input: 0.075, output: 0.30 },
+    'gemini-2.0-flash': { input: 0.075, output: 0.30 },
+    'gemini-1.5-flash-latest': { input: 0.075, output: 0.30 },
   };
 
-  const modelPricing = pricing[model] || pricing['gemini-2.0-flash-exp'];
+  const modelPricing = pricing[model] || pricing['gemini-2.5-flash'];
 
   const inputCost = (response.tokensUsed.input / 1_000_000) * modelPricing.input;
   const outputCost = (response.tokensUsed.output / 1_000_000) * modelPricing.output;

@@ -2,17 +2,18 @@
  * Portfolio API Tests
  *
  * Tests for portfolio CRUD operations.
+ * Mocks the service layer and auth session.
  */
-// Hoist mocks so route module reads them when it's imported
+
+// Hoist mocks so modules pick them up when imported
 jest.mock('@lib/auth/session');
-jest.mock('@backend/modules/portfolio/portfolio.controller');
 jest.mock('@backend/modules/portfolio/service/portfolio.service');
 
 import { createMockRequest, extractJSON, mockUserSession } from '../helpers/test-utils';
 import { createMockPortfolio } from '../helpers/mock-data';
 import * as authSession from '@lib/auth/session';
-import { portfolioController } from '@backend/modules/portfolio/portfolio.controller';
 import { portfolioService } from '@backend/modules/portfolio/service/portfolio.service';
+import { NotFoundError, ForbiddenError } from '@backend/common/middleware/error-handler.middleware';
 
 // Import route handlers dynamically after mocks to ensure they pick up mocked modules
 let GET: any, POST: any, PUT: any, DELETE: any;
@@ -31,6 +32,11 @@ describe('Portfolio API', () => {
     tier: 'free',
   });
 
+  const mockAuthUser = {
+    id: 'user-123',
+    email: 'test@example.com',
+  };
+
   const mockPortfolio = createMockPortfolio(mockUser.profile.id);
 
   beforeEach(() => {
@@ -39,6 +45,7 @@ describe('Portfolio API', () => {
 
   describe('GET /api/portfolio', () => {
     it('should return unauthorized if user is not authenticated', async () => {
+      (authSession.getUser as jest.Mock).mockResolvedValue(null);
       (authSession.getUserProfile as jest.Mock).mockResolvedValue(null);
 
       const request = createMockRequest({ url: 'http://localhost:3000/api/portfolio' });
@@ -46,25 +53,29 @@ describe('Portfolio API', () => {
       const data = await extractJSON(response);
 
       expect(response.status).toBe(401);
-      expect(data.error).toBe('Unauthorized'); // Updated to match the API response
+      expect(data.success).toBe(false);
+      expect(data.error.code).toBe('UNAUTHORIZED');
     });
 
     it('should return user portfolios', async () => {
+      (authSession.getUser as jest.Mock).mockResolvedValue(mockAuthUser);
       (authSession.getUserProfile as jest.Mock).mockResolvedValue(mockUser.profile);
-      (portfolioController.getUserPortfolios as jest.Mock).mockResolvedValue([mockPortfolio]);
+      (portfolioService.findAll as jest.Mock).mockResolvedValue([mockPortfolio]);
 
       const request = createMockRequest({ url: 'http://localhost:3000/api/portfolio' });
       const response = await GET(request);
       const data = await extractJSON(response);
 
       expect(response.status).toBe(200);
-      expect(data[0].id).toBe(mockPortfolio.id); // Updated to match API response structure
-      expect(data[0].name).toBe(mockPortfolio.name); // Ensure name field is included
+      expect(data.success).toBe(true);
+      expect(data.data[0].id).toBe(mockPortfolio.id);
+      expect(data.data[0].name).toBe(mockPortfolio.name);
     });
 
     it('should return single portfolio by ID', async () => {
+      (authSession.getUser as jest.Mock).mockResolvedValue(mockAuthUser);
       (authSession.getUserProfile as jest.Mock).mockResolvedValue(mockUser.profile);
-      (portfolioController.getPortfolioById as jest.Mock).mockResolvedValue(mockPortfolio);
+      (portfolioService.findById as jest.Mock).mockResolvedValue(mockPortfolio);
 
       const request = createMockRequest({
         url: 'http://localhost:3000/api/portfolio',
@@ -74,24 +85,28 @@ describe('Portfolio API', () => {
       const data = await extractJSON(response);
 
       expect(response.status).toBe(200);
-      expect(data.id).toBe(mockPortfolio.id); // Updated to match API response structure
-      expect(data.name).toBe(mockPortfolio.name); // Ensure name field is included
+      expect(data.success).toBe(true);
+      expect(data.data.id).toBe(mockPortfolio.id);
+      expect(data.data.name).toBe(mockPortfolio.name);
     });
 
     it('should return 404 if portfolio not found', async () => {
+      (authSession.getUser as jest.Mock).mockResolvedValue(mockAuthUser);
       (authSession.getUserProfile as jest.Mock).mockResolvedValue(mockUser.profile);
-      (portfolioController.getPortfolioById as jest.Mock).mockRejectedValue(
-        new Error('Portfolio not found')
+      (portfolioService.findById as jest.Mock).mockRejectedValue(
+        new NotFoundError('Portfolio not found')
       );
 
       const request = createMockRequest({
         url: 'http://localhost:3000/api/portfolio',
-        searchParams: { id: 'non-existent' },
+        searchParams: { id: mockPortfolio.id },
       });
       const response = await GET(request);
       const data = await extractJSON(response);
 
       expect(response.status).toBe(404);
+      expect(data.success).toBe(false);
+      expect(data.error.code).toBe('NOT_FOUND');
     });
   });
 
@@ -99,13 +114,14 @@ describe('Portfolio API', () => {
     const validPortfolioData = {
       name: 'Test Portfolio',
       type: 'Investment',
-      initialValue: 10000, // Updated to camelCase
-      targetValue: 15000, // Updated to camelCase
-      borrowedAmount: 0, // Updated to camelCase
-      marginCallLevel: 30, // Updated to camelCase
+      initialValue: 10000,
+      targetValue: 15000,
+      borrowedAmount: 0,
+      marginCallLevel: 30,
     };
 
     it('should return unauthorized if user is not authenticated', async () => {
+      (authSession.getUser as jest.Mock).mockResolvedValue(null);
       (authSession.getUserProfile as jest.Mock).mockResolvedValue(null);
 
       const request = createMockRequest({
@@ -117,12 +133,14 @@ describe('Portfolio API', () => {
       const data = await extractJSON(response);
 
       expect(response.status).toBe(401);
-      expect(data.error).toBe('Unauthorized'); // Updated to match the API response
+      expect(data.success).toBe(false);
+      expect(data.error.code).toBe('UNAUTHORIZED');
     });
 
     it('should create portfolio with valid data', async () => {
+      (authSession.getUser as jest.Mock).mockResolvedValue(mockAuthUser);
       (authSession.getUserProfile as jest.Mock).mockResolvedValue(mockUser.profile);
-      (portfolioController.createPortfolio as jest.Mock).mockResolvedValue(mockPortfolio);
+      (portfolioService.create as jest.Mock).mockResolvedValue(mockPortfolio);
 
       const request = createMockRequest({
         method: 'POST',
@@ -133,8 +151,9 @@ describe('Portfolio API', () => {
       const data = await extractJSON(response);
 
       expect(response.status).toBe(201);
-      expect(data.id).toBe(mockPortfolio.id);
-      expect(portfolioController.createPortfolio).toHaveBeenCalledWith(
+      expect(data.success).toBe(true);
+      expect(data.data.id).toBe(mockPortfolio.id);
+      expect(portfolioService.create).toHaveBeenCalledWith(
         expect.objectContaining(validPortfolioData)
       );
     });
@@ -143,10 +162,11 @@ describe('Portfolio API', () => {
   describe('PUT /api/portfolio', () => {
     const updateData = {
       name: 'Updated Portfolio',
-      targetValue: 20000, // Updated to camelCase
+      targetValue: 20000,
     };
 
     it('should return unauthorized if user is not authenticated', async () => {
+      (authSession.getUser as jest.Mock).mockResolvedValue(null);
       (authSession.getUserProfile as jest.Mock).mockResolvedValue(null);
 
       const request = createMockRequest({
@@ -159,10 +179,12 @@ describe('Portfolio API', () => {
       const data = await extractJSON(response);
 
       expect(response.status).toBe(401);
-      expect(data.error).toBe('Unauthorized'); // Updated to match the API response
+      expect(data.success).toBe(false);
+      expect(data.error.code).toBe('UNAUTHORIZED');
     });
 
     it('should return 400 if ID is missing', async () => {
+      (authSession.getUser as jest.Mock).mockResolvedValue(mockAuthUser);
       (authSession.getUserProfile as jest.Mock).mockResolvedValue(mockUser.profile);
 
       const request = createMockRequest({
@@ -174,12 +196,15 @@ describe('Portfolio API', () => {
       const data = await extractJSON(response);
 
       expect(response.status).toBe(400);
+      expect(data.success).toBe(false);
+      expect(data.error.code).toBe('VALIDATION_ERROR');
     });
 
     it('should update portfolio with valid data', async () => {
+      (authSession.getUser as jest.Mock).mockResolvedValue(mockAuthUser);
       (authSession.getUserProfile as jest.Mock).mockResolvedValue(mockUser.profile);
       const updatedPortfolio = { ...mockPortfolio, ...updateData };
-      (portfolioController.updatePortfolio as jest.Mock).mockResolvedValue(updatedPortfolio);
+      (portfolioService.update as jest.Mock).mockResolvedValue(updatedPortfolio);
 
       const request = createMockRequest({
         method: 'PUT',
@@ -191,13 +216,15 @@ describe('Portfolio API', () => {
       const data = await extractJSON(response);
 
       expect(response.status).toBe(200);
-      expect(data.name).toBe(updateData.name); // Updated to use optional chaining
+      expect(data.success).toBe(true);
+      expect(data.data.name).toBe(updateData.name);
     });
 
     it('should return 403 if user does not own portfolio', async () => {
+      (authSession.getUser as jest.Mock).mockResolvedValue(mockAuthUser);
       (authSession.getUserProfile as jest.Mock).mockResolvedValue(mockUser.profile);
-      (portfolioController.updatePortfolio as jest.Mock).mockRejectedValue(
-        new Error('Portfolio not found or access denied')
+      (portfolioService.update as jest.Mock).mockRejectedValue(
+        new ForbiddenError('Access denied')
       );
 
       const request = createMockRequest({
@@ -210,11 +237,14 @@ describe('Portfolio API', () => {
       const data = await extractJSON(response);
 
       expect(response.status).toBe(403);
+      expect(data.success).toBe(false);
+      expect(data.error.code).toBe('FORBIDDEN');
     });
   });
 
   describe('DELETE /api/portfolio', () => {
     it('should return unauthorized if user is not authenticated', async () => {
+      (authSession.getUser as jest.Mock).mockResolvedValue(null);
       (authSession.getUserProfile as jest.Mock).mockResolvedValue(null);
 
       const request = createMockRequest({
@@ -226,10 +256,12 @@ describe('Portfolio API', () => {
       const data = await extractJSON(response);
 
       expect(response.status).toBe(401);
-      expect(data.error).toBe('Unauthorized'); // Updated to match the API response
+      expect(data.success).toBe(false);
+      expect(data.error.code).toBe('UNAUTHORIZED');
     });
 
     it('should return 400 if ID is missing', async () => {
+      (authSession.getUser as jest.Mock).mockResolvedValue(mockAuthUser);
       (authSession.getUserProfile as jest.Mock).mockResolvedValue(mockUser.profile);
 
       const request = createMockRequest({
@@ -240,11 +272,14 @@ describe('Portfolio API', () => {
       const data = await extractJSON(response);
 
       expect(response.status).toBe(400);
+      expect(data.success).toBe(false);
+      expect(data.error.code).toBe('VALIDATION_ERROR');
     });
 
     it('should delete portfolio successfully', async () => {
+      (authSession.getUser as jest.Mock).mockResolvedValue(mockAuthUser);
       (authSession.getUserProfile as jest.Mock).mockResolvedValue(mockUser.profile);
-      (portfolioService.delete as jest.Mock).mockResolvedValue({ success: true });
+      (portfolioService.delete as jest.Mock).mockResolvedValue(undefined);
 
       const request = createMockRequest({
         method: 'DELETE',
@@ -252,18 +287,16 @@ describe('Portfolio API', () => {
         searchParams: { id: mockPortfolio.id },
       });
       const response = await DELETE(request);
-      const data = await extractJSON(response);
 
-      // DELETE success should return 204 No Content
       expect(response.status).toBe(204);
-      expect(data).toBeNull();
-      expect(portfolioController.deletePortfolio).toHaveBeenCalledWith(mockPortfolio.id);
+      expect(portfolioService.delete).toHaveBeenCalledWith(mockPortfolio.id);
     });
 
     it('should return 403 if user does not own portfolio', async () => {
+      (authSession.getUser as jest.Mock).mockResolvedValue(mockAuthUser);
       (authSession.getUserProfile as jest.Mock).mockResolvedValue(mockUser.profile);
-      (portfolioController.deletePortfolio as jest.Mock).mockRejectedValue(
-        new Error('Failed to delete portfolio: access denied')
+      (portfolioService.delete as jest.Mock).mockRejectedValue(
+        new ForbiddenError('Access denied')
       );
 
       const request = createMockRequest({
@@ -275,6 +308,8 @@ describe('Portfolio API', () => {
       const data = await extractJSON(response);
 
       expect(response.status).toBe(403);
+      expect(data.success).toBe(false);
+      expect(data.error.code).toBe('FORBIDDEN');
     });
   });
 });

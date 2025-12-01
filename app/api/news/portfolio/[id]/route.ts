@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { NewsService } from '@backend/modules/news/service/news.service';
 import { portfolioController } from '@backend/modules/portfolio/portfolio.controller';
 import { NewsAPIError } from '@lib/types/news.dto';
+import { ErrorResponse } from '@lib/types/base/response.dto';
+import { getUserProfile } from '@lib/auth/session';
 
 const newsService = new NewsService();
 
@@ -10,11 +12,20 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    // Auth check
+    const profile = await getUserProfile();
+    if (!profile) {
+      return NextResponse.json(
+        ErrorResponse.unauthorized(),
+        { status: 401 }
+      );
+    }
+
     const { id: portfolioId } = await params;
 
     if (!portfolioId) {
       return NextResponse.json(
-        { error: 'Portfolio ID is required' },
+        ErrorResponse.validation('Portfolio ID is required'),
         { status: 400 }
       );
     }
@@ -37,20 +48,28 @@ export async function GET(
       publishedAt: article.publishedAt,
     }));
 
-    return NextResponse.json(news);
+    return NextResponse.json({ success: true, data: news });
   } catch (error: any) {
     console.error('Error fetching portfolio news:', error);
 
     // Handle specific NewsAPI errors
     if (error instanceof NewsAPIError) {
       return NextResponse.json(
-        { error: error.message, type: error.type },
+        ErrorResponse.create(error.type, error.message),
         { status: error.status }
       );
     }
 
+    // Handle not found
+    if (error.message?.includes('not found')) {
+      return NextResponse.json(
+        ErrorResponse.notFound('Portfolio'),
+        { status: 404 }
+      );
+    }
+
     return NextResponse.json(
-      { error: error.message || 'Failed to fetch portfolio news' },
+      ErrorResponse.internal(error.message || 'Failed to fetch portfolio news'),
       { status: 500 }
     );
   }

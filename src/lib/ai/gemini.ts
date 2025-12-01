@@ -20,7 +20,7 @@ const genai = new GoogleGenAI({
   apiKey: process.env.GEMINI_API_KEY || process.env.AI_API_KEY || '',
 });
 
-export type GeminiModel = 'gemini-2.0-flash-exp' | 'gemini-1.5-flash' | 'gemini-1.5-pro';
+export type GeminiModel = 'gemini-2.5-flash' | 'gemini-2.0-flash' | 'gemini-1.5-flash-latest';
 
 export interface GeminiOptions {
   temperature?: number;
@@ -115,7 +115,7 @@ export async function generateText(
   const {
     temperature = 0.3,
     maxTokens = 200,
-    model = 'gemini-2.5-flash',
+    model = 'gemini-2.0-flash-exp',
   } = options;
 
   try {
@@ -202,12 +202,12 @@ export function calculateCost(
   model: GeminiModel
 ): number {
   const pricing: Record<GeminiModel, { input: number; output: number }> = {
-    'gemini-2.0-flash-exp': { input: 0.075, output: 0.30 },
-    'gemini-1.5-flash': { input: 0.075, output: 0.30 },
-    'gemini-1.5-pro': { input: 1.25, output: 5.0 },
+    'gemini-2.5-flash': { input: 0.075, output: 0.30 },
+    'gemini-2.0-flash': { input: 0.075, output: 0.30 },
+    'gemini-1.5-flash-latest': { input: 0.075, output: 0.30 },
   };
 
-  const modelPricing = pricing[model] || pricing['gemini-2.0-flash-exp'];
+  const modelPricing = pricing[model] || pricing['gemini-2.5-flash'];
 
   const inputCost = (tokensUsed.input / 1_000_000) * modelPricing.input;
   const outputCost = (tokensUsed.output / 1_000_000) * modelPricing.output;

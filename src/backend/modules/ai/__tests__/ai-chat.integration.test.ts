@@ -142,7 +142,9 @@ describe('AI Chat Integration Tests', () => {
       const data = await response.json();
 
       expect(response.status).toBe(401);
-      expect(data.error).toBe('Authentication required');
+      expect(data.success).toBe(false);
+      expect(data.error.code).toBe('UNAUTHORIZED');
+      expect(data.error.message).toBe('Authentication required');
     });
 
     it('should return 400 for invalid request', async () => {
@@ -158,8 +160,10 @@ describe('AI Chat Integration Tests', () => {
       const data = await response.json();
 
       expect(response.status).toBe(400);
-      expect(data.error).toBe('Invalid request');
-      expect(data.details).toBeDefined();
+      expect(data.success).toBe(false);
+      expect(data.error.code).toBe('VALIDATION_ERROR');
+      expect(data.error.message).toContain('Validation failed');
+      expect(data.error.details).toBeDefined();
     });
 
     it('should return 429 if quota exceeded', async () => {
@@ -179,8 +183,9 @@ describe('AI Chat Integration Tests', () => {
       const data = await response.json();
 
       expect(response.status).toBe(429);
-      expect(data.error).toBe('Quota exceeded');
-      expect(data.reason).toBe('Daily limit of 10 queries exceeded');
+      expect(data.success).toBe(false);
+      expect(data.error.code).toBe('QUOTA_EXCEEDED');
+      expect(data.error.message).toContain('Daily limit');
     });
 
     it('should bypass cache when requested', async () => {
@@ -290,7 +295,9 @@ describe('AI Chat Integration Tests', () => {
       const data = await response.json();
 
       expect(response.status).toBe(500);
-      expect(data.error).toBe('AI service timeout');
+      expect(data.success).toBe(false);
+      expect(data.error.code).toBe('INTERNAL_ERROR');
+      expect(data.error.message).toBe('AI service timeout');
     });
   });
 
@@ -300,9 +307,14 @@ describe('AI Chat Integration Tests', () => {
         totalInferences: 50,
         cacheHits: 15,
         totalCost: 0.25,
+        cacheSize: 10,
       };
 
-      (getTelemetryStats as jest.Mock).mockReturnValue(mockStats);
+      (getTelemetryStats as jest.Mock).mockReturnValue({
+        totalInferences: 50,
+        cacheHits: 15,
+        totalCost: 0.25,
+      });
 
       const request = new NextRequest('http://localhost:3000/api/ai/chat', {
         method: 'GET',
@@ -312,8 +324,9 @@ describe('AI Chat Integration Tests', () => {
       const data = await response.json();
 
       expect(response.status).toBe(200);
-      expect(data.stats).toEqual(mockStats);
-      expect(data.cacheSize).toBeDefined();
+      expect(data.success).toBe(true);
+      expect(data.data.stats.totalInferences).toBe(50);
+      expect(data.data.cacheSize).toBeDefined();
     });
   });
 });

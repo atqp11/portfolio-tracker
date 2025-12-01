@@ -2,12 +2,13 @@
  * API Route for Daily Checklists
  *
  * This route file delegates all logic to the ChecklistController, using middleware
- * for error handling and validation to keep it lean.
+ * for error handling, auth, and validation to keep it lean.
  */
 import { NextRequest } from 'next/server';
 import { checklistController } from '@backend/modules/checklist/checklist.controller';
 import { withErrorHandler } from '@backend/common/middleware/error-handler.middleware';
 import { withValidation } from '@backend/common/middleware/validation.middleware';
+import { withAuth } from '@backend/common/middleware/auth.middleware';
 import { z } from 'zod';
 import { commonSchemas, createDailyChecklistSchema, updateDailyChecklistSchema, updateChecklistBodySchema } from '@lib/validators/schemas';
 
@@ -29,8 +30,10 @@ const deleteChecklistQuerySchema = z.object({
  * Handles retrieving checklists.
  */
 export const GET = withErrorHandler(
-  withValidation(undefined, getChecklistQuerySchema)(
-    (req: NextRequest, context: any) => checklistController.get(req, context)
+  withAuth(
+    withValidation(undefined, getChecklistQuerySchema)(
+      (req: NextRequest, context: any) => checklistController.get(req, context)
+    )
   )
 );
 
@@ -39,8 +42,10 @@ export const GET = withErrorHandler(
  * Handles creating a new daily checklist.
  */
 export const POST = withErrorHandler(
-  withValidation(createDailyChecklistSchema)(
-    (req: NextRequest, context: any) => checklistController.create(req, context)
+  withAuth(
+    withValidation(createDailyChecklistSchema)(
+      (req: NextRequest, context: any) => checklistController.create(req, context)
+    )
   )
 );
 
@@ -49,8 +54,10 @@ export const POST = withErrorHandler(
  * Handles updating an existing daily checklist.
  */
 export const PUT = withErrorHandler(
-  withValidation(updateChecklistBodySchema)(
-    (req: NextRequest, context: any) => checklistController.update(req, context)
+  withAuth(
+    withValidation(updateChecklistBodySchema)(
+      (req: NextRequest, context: any) => checklistController.update(req, context)
+    )
   )
 );
 
@@ -59,7 +66,9 @@ export const PUT = withErrorHandler(
  * Handles deleting a daily checklist.
  */
 export const DELETE = withErrorHandler(
-  withValidation(undefined, deleteChecklistQuerySchema)(
-    (req: NextRequest, context: any) => checklistController.delete(req, context)
+  withAuth(
+    withValidation(undefined, deleteChecklistQuerySchema)(
+      (req: NextRequest, context: any) => checklistController.delete(req, context)
+    )
   )
 );

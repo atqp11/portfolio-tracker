@@ -78,7 +78,15 @@ async function callAi(
             console.error('Rate limit reached. Circuit broken to prevent further retries.');
             throw new Error('RATE_LIMIT: Too many requests. Please try again later.');
         }
-        const txt = errorData.error || `HTTP ${res.status}`;
+        // Handle both string errors and object errors { error: { message: string } }
+        let txt: string;
+        if (typeof errorData.error === 'string') {
+            txt = errorData.error;
+        } else if (errorData.error?.message) {
+            txt = errorData.error.message || `HTTP ${res.status}`;
+        } else {
+            txt = `HTTP ${res.status}`;
+        }
         throw new Error(txt);
     }
 

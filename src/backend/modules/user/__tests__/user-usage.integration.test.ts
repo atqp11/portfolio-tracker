@@ -93,7 +93,9 @@ describe('User Usage Integration Tests', () => {
       const data = await response.json();
 
       expect(response.status).toBe(401);
-      expect(data.error).toContain('Authentication required');
+      expect(data.success).toBe(false);
+      expect(data.error.code).toBe('UNAUTHORIZED');
+      expect(data.error.message).toContain('Authentication required');
     });
 
     it('should return warnings when usage >= 80%', async () => {
@@ -268,7 +270,8 @@ describe('User Usage Integration Tests', () => {
 
       expect(response.status).toBe(500);
       expect(data.success).toBe(false);
-      expect(data.error).toContain('Database connection failed');
+      expect(data.error.code).toBe('INTERNAL_ERROR');
+      expect(data.error.message).toContain('Database connection failed');
     });
 
     it('should handle quota exceeded scenario', async () => {

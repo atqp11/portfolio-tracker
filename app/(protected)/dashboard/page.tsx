@@ -80,7 +80,22 @@ export default function Home() {
         }
 
         const newsData = await response.json();
-        setNews(newsData);
+
+        // API may return either an array of articles or an object { success, data }
+        // Normalize to an array to avoid runtime errors when rendering.
+        let articles: any[] = [];
+        if (Array.isArray(newsData)) {
+          articles = newsData;
+        } else if (newsData && Array.isArray(newsData.data)) {
+          articles = newsData.data;
+        } else if (newsData && Array.isArray(newsData.articles)) {
+          // Some services return { articles: [...] }
+          articles = newsData.articles;
+        } else {
+          console.warn('Unexpected news API response shape:', newsData);
+        }
+
+        setNews(articles);
       } catch (err: any) {
         console.error('Error fetching news:', err);
         setNewsError(err.message || 'Failed to load news');

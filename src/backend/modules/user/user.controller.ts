@@ -1,10 +1,29 @@
+/**
+ * User Controller
+ *
+ * Thin HTTP controller for user operations.
+ * Auth is handled by middleware.
+ * Delegates business logic to services.
+ */
+
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { UserService } from '@backend/modules/user/service/user.service';
 import { NotFoundError } from '@backend/common/middleware/error-handler.middleware';
-import { getUserProfile } from '@lib/auth/session';
 import { type TierName } from '@lib/tiers';
 import { usageService } from '@backend/modules/user/service/usage.service';
+
+/**
+ * Auth context from middleware
+ */
+interface AuthContext {
+  userId: string;
+  userTier: TierName;
+  profile: {
+    id: string;
+    tier: string;
+  };
+}
 
 // Schema for GET request query parameters
 const getProfileQuerySchema = z
@@ -26,49 +45,26 @@ class UserController {
 
   /**
    * GET /api/user/usage
-   * 
+   *
    * Returns current usage statistics for authenticated user.
-   * Uses RLS-protected SSR client for security.
+   * Auth is handled by middleware.
    */
-  async getUsage(request: NextRequest): Promise<NextResponse> {
-    try {
-      // Authenticate user
-      const profile = await getUserProfile();
-      
-      if (!profile) {
-        return NextResponse.json(
-          { 
-            error: 'Authentication required. Please sign in to view your usage statistics.' 
-          },
-          { status: 401 }
-        );
-      }
-      
-      // Delegate to service layer
-      const stats = await usageService.getUserUsageStats(
-        profile.id,
-        profile.tier as TierName
-      );
-      
-      return NextResponse.json({
-        success: true,
-        stats,
-      });
-      
-    } catch (error) {
-      console.error('❌ Error fetching user usage:', error);
-      
-      return NextResponse.json(
-        {
-          success: false,
-          error: error instanceof Error 
-            ? error.message 
-            : 'Failed to fetch usage stats',
-          details: error instanceof Error ? error.stack : undefined,
-        },
-        { status: 500 }
-      );
-    }
+  async getUsage(
+    request: NextRequest,
+    context: { auth: AuthContext }
+  ): Promise<NextResponse> {
+    const { auth } = context;
+
+    // Delegate to service layer
+    const stats = await usageService.getUserUsageStats(
+      auth.userId,
+      auth.userTier
+    );
+
+    return NextResponse.json({
+      success: true,
+      stats,
+    });
   }
 }
 

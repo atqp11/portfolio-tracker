@@ -2,12 +2,13 @@
  * API Route for Stocks
  *
  * This route delegates all logic to the StockController and uses middleware
- * for error handling and validation.
+ * for error handling, auth, and validation.
  */
 import { NextRequest } from 'next/server';
 import { stockController } from '@backend/modules/stocks/stock.controller';
 import { withErrorHandler } from '@backend/common/middleware/error-handler.middleware';
 import { withValidation } from '@backend/common/middleware/validation.middleware';
+import { withAuth } from '@backend/common/middleware/auth.middleware';
 import { z } from 'zod';
 import { commonSchemas, createStockSchema, updateStockSchema } from '@lib/validators/schemas';
 
@@ -32,8 +33,10 @@ const updateStockBodySchema = updateStockSchema.extend({
  * Handles retrieving stocks.
  */
 export const GET = withErrorHandler(
-  withValidation(undefined, getStockQuerySchema)(
-    (req: NextRequest, context: any) => stockController.get(req, context)
+  withAuth(
+    withValidation(undefined, getStockQuerySchema)(
+      (req: NextRequest, context: any) => stockController.get(req, context)
+    )
   )
 );
 
@@ -42,8 +45,10 @@ export const GET = withErrorHandler(
  * Handles creating a new stock.
  */
 export const POST = withErrorHandler(
-  withValidation(createStockSchema)(
-    (req: NextRequest, context: any) => stockController.create(req, context)
+  withAuth(
+    withValidation(createStockSchema)(
+      (req: NextRequest, context: any) => stockController.create(req, context)
+    )
   )
 );
 
@@ -52,8 +57,10 @@ export const POST = withErrorHandler(
  * Handles updating an existing stock.
  */
 export const PUT = withErrorHandler(
-  withValidation(updateStockBodySchema)(
-    (req: NextRequest, context: any) => stockController.update(req, context)
+  withAuth(
+    withValidation(updateStockBodySchema)(
+      (req: NextRequest, context: any) => stockController.update(req, context)
+    )
   )
 );
 
@@ -62,7 +69,9 @@ export const PUT = withErrorHandler(
  * Handles deleting a stock.
  */
 export const DELETE = withErrorHandler(
-  withValidation(undefined, deleteStockQuerySchema)(
-    (req: NextRequest, context: any) => stockController.delete(req, context)
+  withAuth(
+    withValidation(undefined, deleteStockQuerySchema)(
+      (req: NextRequest, context: any) => stockController.delete(req, context)
+    )
   )
 );

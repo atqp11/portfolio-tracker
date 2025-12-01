@@ -3,12 +3,13 @@
  *
  * This route file is intentionally kept thin. It acts as the entry point for thesis-related API calls
  * and delegates all logic to the ThesisController. It uses middleware wrappers for
- * centralized error handling and request validation.
+ * centralized error handling, auth, and request validation.
  */
 import { NextRequest } from 'next/server';
 import { thesisController } from '@backend/modules/thesis/thesis.controller';
 import { withErrorHandler } from '@backend/common/middleware/error-handler.middleware';
 import { withValidation } from '@backend/common/middleware/validation.middleware';
+import { withAuth } from '@backend/common/middleware/auth.middleware';
 import { z } from 'zod';
 import { commonSchemas, createThesisSchema, updateThesisSchema, updateThesisBodySchema } from '@lib/validators/schemas';
 
@@ -31,8 +32,10 @@ const deleteThesisQuerySchema = z.object({
  * Handles retrieving a single thesis by ID or all theses for a portfolio.
  */
 export const GET = withErrorHandler(
-  withValidation(undefined, getThesisQuerySchema)(
-    (req: NextRequest, context: any) => thesisController.get(req, context)
+  withAuth(
+    withValidation(undefined, getThesisQuerySchema)(
+      (req: NextRequest, context: any) => thesisController.get(req, context)
+    )
   )
 );
 
@@ -41,8 +44,10 @@ export const GET = withErrorHandler(
  * Handles creating a new investment thesis.
  */
 export const POST = withErrorHandler(
-  withValidation(createThesisSchema)(
-    (req: NextRequest, context: any) => thesisController.create(req, context)
+  withAuth(
+    withValidation(createThesisSchema)(
+      (req: NextRequest, context: any) => thesisController.create(req, context)
+    )
   )
 );
 
@@ -51,8 +56,10 @@ export const POST = withErrorHandler(
  * Handles updating an existing investment thesis.
  */
 export const PUT = withErrorHandler(
-  withValidation(updateThesisBodySchema)(
-    (req: NextRequest, context: any) => thesisController.update(req, context)
+  withAuth(
+    withValidation(updateThesisBodySchema)(
+      (req: NextRequest, context: any) => thesisController.update(req, context)
+    )
   )
 );
 
@@ -61,7 +68,9 @@ export const PUT = withErrorHandler(
  * Handles deleting an investment thesis.
  */
 export const DELETE = withErrorHandler(
-  withValidation(undefined, deleteThesisQuerySchema)(
-    (req: NextRequest, context: any) => thesisController.delete(req, context)
+  withAuth(
+    withValidation(undefined, deleteThesisQuerySchema)(
+      (req: NextRequest, context: any) => thesisController.delete(req, context)
+    )
   )
 );

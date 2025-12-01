@@ -2,12 +2,13 @@
  * API Route for Checklist Tasks
  *
  * This route delegates all logic to the TaskController and uses middleware
- * for error handling and validation.
+ * for error handling, auth, and validation.
  */
 import { NextRequest } from 'next/server';
 import { taskController } from '@backend/modules/tasks/task.controller';
 import { withErrorHandler } from '@backend/common/middleware/error-handler.middleware';
 import { withValidation } from '@backend/common/middleware/validation.middleware';
+import { withAuth } from '@backend/common/middleware/auth.middleware';
 import { z } from 'zod';
 import { commonSchemas, createTaskSchema, updateTaskSchema } from '@lib/validators/schemas';
 
@@ -30,8 +31,10 @@ const idQuerySchema = z.object({
  * Handles retrieving tasks.
  */
 export const GET = withErrorHandler(
-  withValidation(undefined, getTaskQuerySchema)(
-    (req: NextRequest, context: any) => taskController.get(req, context)
+  withAuth(
+    withValidation(undefined, getTaskQuerySchema)(
+      (req: NextRequest, context: any) => taskController.get(req, context)
+    )
   )
 );
 
@@ -40,8 +43,10 @@ export const GET = withErrorHandler(
  * Handles creating a new task.
  */
 export const POST = withErrorHandler(
-  withValidation(createTaskSchema)(
-    (req: NextRequest, context: any) => taskController.create(req, context)
+  withAuth(
+    withValidation(createTaskSchema)(
+      (req: NextRequest, context: any) => taskController.create(req, context)
+    )
   )
 );
 
@@ -50,8 +55,10 @@ export const POST = withErrorHandler(
  * Handles updating an existing task.
  */
 export const PUT = withErrorHandler(
-  withValidation(updateTaskSchema, idQuerySchema)(
-    (req: NextRequest, context: any) => taskController.update(req, context)
+  withAuth(
+    withValidation(updateTaskSchema, idQuerySchema)(
+      (req: NextRequest, context: any) => taskController.update(req, context)
+    )
   )
 );
 
@@ -60,7 +67,9 @@ export const PUT = withErrorHandler(
  * Handles deleting a task.
  */
 export const DELETE = withErrorHandler(
-  withValidation(undefined, idQuerySchema)(
-    (req: NextRequest, context: any) => taskController.delete(req, context)
+  withAuth(
+    withValidation(undefined, idQuerySchema)(
+      (req: NextRequest, context: any) => taskController.delete(req, context)
+    )
   )
 );

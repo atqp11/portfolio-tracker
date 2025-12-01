@@ -8,9 +8,24 @@ import { GET, POST, PUT, DELETE } from '@app/api/tasks/route';
 import { createMockRequest, extractJSON } from '../helpers/test-utils';
 import { taskService } from '@backend/modules/tasks/service/task.service';
 import { NotFoundError } from '@backend/common/middleware/error-handler.middleware';
+import { getUser, getUserProfile } from '@lib/auth/session';
 
 // Mock the service layer
 jest.mock('@backend/modules/tasks/service/task.service');
+
+// Mock auth session
+jest.mock('@lib/auth/session');
+
+const mockUser = {
+  id: 'user-uuid',
+  email: 'test@example.com',
+};
+
+const mockProfile = {
+  id: 'user-uuid',
+  email: 'test@example.com',
+  tier: 'free',
+};
 
 const mockTask = {
   id: '550e8400-e29b-41d4-a716-446655440002',
@@ -34,6 +49,8 @@ describe('Task API (Refactored)', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    (getUser as jest.Mock).mockResolvedValue(mockUser);
+    (getUserProfile as jest.Mock).mockResolvedValue(mockProfile);
   });
 
   describe('GET /api/tasks', () => {

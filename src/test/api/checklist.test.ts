@@ -5,6 +5,7 @@
 import { GET, POST, PUT, DELETE } from '@app/api/checklist/route';
 import { createMockRequest, extractJSON } from '../helpers/test-utils';
 import { checklistRepository } from '@backend/modules/checklist/repository/checklist.repository';
+import * as authSession from '@lib/auth/session';
 
 // Mock the entire repository module
 jest.mock('@backend/modules/checklist/repository/checklist.repository', () => ({
@@ -18,6 +19,15 @@ jest.mock('@backend/modules/checklist/repository/checklist.repository', () => ({
       delete: jest.fn(),
     },
   }));
+jest.mock('@lib/auth/session');
+
+// Mock authenticated user
+const mockUser = {
+  id: '550e8400-e29b-41d4-a716-446655440099',
+  email: 'test@example.com',
+  tier: 'free',
+  is_admin: false,
+};
 
 const mockTask = { id: 't1', task: 'Test task', completed: false };
 const mockChecklist = {
@@ -35,6 +45,8 @@ describe('Checklist API (Integration)', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    // Mock authenticated user by default
+    (authSession.getUser as jest.Mock).mockResolvedValue(mockUser);
   });
 
   describe('GET /api/checklist', () => {

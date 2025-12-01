@@ -44,6 +44,31 @@ export class RiskService {
     this.cache.set(key, { metrics, timestamp: Date.now() });
   }
 
+  /**
+   * Check cache and return cached response if available
+   * Returns null if cache miss or bypassCache is true
+   */
+  checkCache(request: RiskRequestDto): RiskResponseDto | null {
+    if (request.bypassCache) {
+      return null;
+    }
+
+    const cacheKey = this.generateCacheKey(request.portfolioReturns, request.marketReturns);
+    const cached = this.getFromCache(cacheKey);
+
+    if (!cached) {
+      return null;
+    }
+
+    console.log(`♻️ Returning cached risk metrics (age: ${Math.floor(cached.age / 1000)}s) - NO QUOTA USED`);
+
+    return {
+      ...cached.entry.metrics,
+      cached: true,
+      cacheAge: cached.age,
+    };
+  }
+
   async calculateRiskMetrics(req: RiskRequestDto): Promise<RiskResponseDto> {
     const { portfolioReturns, marketReturns, riskFreeRate = 0.045, marketReturn, portfolioReturn, beta } = req;
 

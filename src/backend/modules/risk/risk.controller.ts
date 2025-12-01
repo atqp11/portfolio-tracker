@@ -1,84 +1,47 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { riskRequestSchema, type RiskRequestDto, type RiskMetricsDto } from '@backend/modules/risk/dto/risk.dto';
-import { riskService } from './service/risk.service';
-import { getUserProfile } from '@lib/auth/session';
-import { checkAndTrackUsage, type TierName } from '@lib/tiers';
-import { ErrorResponse } from '@lib/types/base/response.dto';
-import { RISK_METRICS_CACHE_TTL_MS } from '@backend/common/constants';
+/**
+ * Risk Controller
+ *
+ * Thin HTTP controller for risk metrics operations.
+ * Auth, validation, cache, and quota are handled by middleware.
+ * Delegates business logic to RiskService.
+ */
 
-interface RiskMetricsCacheEntry {
-  metrics: RiskMetricsDto;
-  timestamp: number;
+import { NextRequest, NextResponse } from 'next/server';
+import { riskService } from './service/risk.service';
+import type { RiskRequestDto } from '@backend/modules/risk/dto/risk.dto';
+
+/**
+ * Auth context from middleware
+ */
+interface AuthContext {
+  userId: string;
+  userTier: string;
 }
 
-// Simple in-memory cache local to controller (keeps parity with previous behavior)
-const riskMetricsCache = new Map<string, RiskMetricsCacheEntry>();
-
 export class RiskController {
-  async calculate(req: NextRequest): Promise<NextResponse> {
-    try {
-      const startTime = Date.now();
+  /**
+   * POST - Calculate risk metrics
+   *
+   * Auth, validation, cache check, and quota are handled by middleware.
+   * Controller just calculates and caches the metrics.
+   */
+  async calculate(
+    req: NextRequest,
+    context: { body: RiskRequestDto; auth: AuthContext }
+  ): Promise<NextResponse> {
+    const { body: riskReq, auth } = context;
+    const startTime = Date.now();
 
-      const body = await req.json();
-      const validation = riskRequestSchema.safeParse(body);
-      if (!validation.success) {
-        return NextResponse.json(
-          ErrorResponse.validation('Invalid request', undefined, validation.error.issues),
-          { status: 400 }
-        );
-      }
+    // Calculate metrics via service
+    const metrics = await riskService.calculateRiskMetrics(riskReq);
 
-      const riskReq: RiskRequestDto = validation.data;
+    // Cache the result
+    const cacheKey = riskService.generateCacheKey(riskReq.portfolioReturns, riskReq.marketReturns);
+    riskService.setCache(cacheKey, metrics);
 
-      // Authenticate
-      const profile = await getUserProfile();
-      if (!profile) {
-        return NextResponse.json(ErrorResponse.unauthorized(), { status: 401 });
-      }
+    console.log(`📊 Risk metrics calculated (user: ${auth.userId}, tier: ${auth.userTier}, latency: ${Date.now() - startTime}ms)`);
 
-      // generate cache key
-      const cacheKey = riskService.generateCacheKey(riskReq.portfolioReturns, riskReq.marketReturns);
-
-      // check cache first (cached responses don't count against quota)
-      const cached = riskMetricsCache.get(cacheKey);
-      if (cached) {
-        const age = Date.now() - cached.timestamp;
-        if (age < RISK_METRICS_CACHE_TTL_MS && !riskReq.bypassCache) {
-          console.log(`♻️ Returning cached risk metrics (age: ${Math.floor(age / 1000)}s) - NO QUOTA USED`);
-          return NextResponse.json({ ...cached.metrics, cached: true, cacheAge: age });
-        } else {
-          riskMetricsCache.delete(cacheKey);
-        }
-      }
-
-      // quota check
-      const quotaCheck = await checkAndTrackUsage(profile.id, 'portfolioAnalysis', profile.tier as TierName);
-      if (!quotaCheck.allowed) {
-        return NextResponse.json(
-          ErrorResponse.quotaExceeded('Daily portfolio analysis quota exceeded', {
-            reason: quotaCheck.reason,
-            upgradeUrl: '/pricing',
-          }),
-          { status: 429 }
-        );
-      }
-
-      // perform calculation via service
-      const metrics = await riskService.calculateRiskMetrics(riskReq);
-
-      // cache result
-      riskMetricsCache.set(cacheKey, { metrics, timestamp: Date.now() });
-
-      console.log(`📊 Risk metrics calculated (user: ${profile.id}, tier: ${profile.tier}, latency: ${Date.now() - startTime}ms)`);
-
-      return NextResponse.json(metrics);
-    } catch (error) {
-      console.error('❌ Error calculating risk metrics:', error);
-      return NextResponse.json(
-        ErrorResponse.internal(error instanceof Error ? error.message : 'Failed to calculate risk metrics'),
-        { status: 500 }
-      );
-    }
+    return NextResponse.json(metrics);
   }
 }
 
