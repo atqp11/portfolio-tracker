@@ -1,5 +1,12 @@
 // AI-specific caching utilities with intelligent TTL management
 // Different types of AI data have different cache durations based on how static they are
+//
+// CACHING STRATEGY:
+// 1. On component mount, fetch batch data for all portfolio tickers
+// 2. Parse batch responses → store individual stock caches
+// 3. Batch cache stores METADATA only (tickers + timestamp), real data at stock level
+// 4. Individual queries during chat → update individual stock cache
+// 5. On remount: if batch cache expired → refresh all (including individual), else use existing
 
 export interface AICacheEntry {
   data: any;
@@ -8,24 +15,46 @@ export interface AICacheEntry {
   dataType: AIDataType;
 }
 
+// Metadata-only batch cache entry (stores which tickers were fetched, not the data)
+export interface AIBatchCacheMetadata {
+  tickers: string[];
+  timestamp: number;
+  dataType: AIDataType;
+}
+
 export type AIDataType = 
   | 'company_profile'      // Very static - cache for 7 days
   | 'sec_filing'           // Static - cache for 24 hours
-  | 'filing_list'          // Semi-static - cache for 6 hours
+  | 'filing_list'          // Semi-static - cache for 1 day
   | 'sentiment'            // Dynamic - cache for 1 hour
-  | 'sentiment_batch'      // Dynamic - cache for 1 hour (portfolio-level)
-  | 'news'                 // Dynamic - cache for 30 minutes
+  | 'news'                 // Dynamic - cache for 1 hour
   | 'news_detail';         // Dynamic - cache for 1 hour
+
+// Batch metadata types (metadata only - real data at individual level)
+export type AIBatchDataType = 'batch_news' | 'batch_filings' | 'batch_sentiment';
 
 // Cache TTL (time-to-live) in milliseconds for different data types
 const CACHE_TTL: Record<AIDataType, number> = {
   company_profile: 7 * 24 * 60 * 60 * 1000,  // 7 days - company info rarely changes
   sec_filing: 24 * 60 * 60 * 1000,           // 24 hours - filings are historical
-  filing_list: 6 * 60 * 60 * 1000,           // 6 hours - list can have new filings
+  filing_list: 24 * 60 * 60 * 1000,          // 1 day - list can have new filings
   sentiment: 60 * 60 * 1000,                 // 1 hour - sentiment changes with market
-  sentiment_batch: 60 * 60 * 1000,           // 1 hour - portfolio sentiment
-  news: 30 * 60 * 1000,                      // 30 minutes - news is frequently updated
+  news: 60 * 60 * 1000,                      // 1 hour - news updated frequently
   news_detail: 60 * 60 * 1000,               // 1 hour - detailed analysis
+};
+
+// Batch metadata TTL (same as individual data TTL)
+const BATCH_CACHE_TTL: Record<AIBatchDataType, number> = {
+  batch_news: 60 * 60 * 1000,                // 1 hour
+  batch_filings: 24 * 60 * 60 * 1000,        // 1 day  
+  batch_sentiment: 60 * 60 * 1000,           // 1 hour
+};
+
+// Map batch type to individual data type
+const BATCH_TO_INDIVIDUAL_TYPE: Record<AIBatchDataType, AIDataType> = {
+  batch_news: 'news',
+  batch_filings: 'filing_list',
+  batch_sentiment: 'sentiment',
 };
 
 /**
@@ -298,6 +327,204 @@ function formatTTL(ttlMs: number): string {
   if (days > 0) return `${days} days`;
   if (hours > 0) return `${hours} hours`;
   return `${minutes} minutes`;
+}
+
+// ============================================================================
+// BATCH CACHE UTILITIES
+// Batch cache stores metadata only; real data is at individual stock level
+// ============================================================================
+
+/**
+ * Generate cache key for batch metadata
+ */
+function generateBatchCacheKey(batchType: AIBatchDataType, tickers: string[]): string {
+  const sortedTickers = [...tickers].sort().join(',');
+  return `ai_batch_${batchType}_${sortedTickers}`;
+}
+
+/**
+ * Save batch metadata (tickers + timestamp, NOT the actual data)
+ */
+export function saveBatchMetadata(
+  batchType: AIBatchDataType,
+  tickers: string[]
+): void {
+  if (typeof window === 'undefined') return;
+  
+  const key = generateBatchCacheKey(batchType, tickers);
+  const metadata: AIBatchCacheMetadata = {
+    tickers: [...tickers].sort(),
+    timestamp: Date.now(),
+    dataType: BATCH_TO_INDIVIDUAL_TYPE[batchType],
+  };
+  
+  try {
+    localStorage.setItem(key, JSON.stringify(metadata));
+    console.log(`✅ Saved batch metadata for ${batchType} (${tickers.length} tickers)`);
+  } catch (error) {
+    console.error('Failed to save batch metadata:', error);
+  }
+}
+
+/**
+ * Check if batch cache is still valid
+ */
+export function isBatchCacheValid(
+  batchType: AIBatchDataType,
+  tickers: string[]
+): boolean {
+  if (typeof window === 'undefined') return false;
+  
+  const key = generateBatchCacheKey(batchType, tickers);
+  
+  try {
+    const cached = localStorage.getItem(key);
+    if (!cached) return false;
+    
+    const metadata = JSON.parse(cached) as AIBatchCacheMetadata;
+    const age = Date.now() - metadata.timestamp;
+    const ttl = BATCH_CACHE_TTL[batchType];
+    
+    if (age > ttl) {
+      console.log(`🕐 Batch cache expired for ${batchType}`);
+      return false;
+    }
+    
+    // Check if all tickers match
+    const cachedTickers = metadata.tickers.sort().join(',');
+    const requestedTickers = [...tickers].sort().join(',');
+    
+    if (cachedTickers !== requestedTickers) {
+      console.log(`📝 Ticker mismatch - batch needs refresh`);
+      return false;
+    }
+    
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Parse batch response and store individual stock caches
+ * This is the key function that bridges batch→individual caching
+ */
+export function parseBatchAndCacheIndividual<T extends { ticker?: string }>(
+  batchType: AIBatchDataType,
+  items: T[],
+  tickers: string[]
+): Map<string, T | T[]> {
+  if (typeof window === 'undefined') return new Map();
+  
+  const individualType = BATCH_TO_INDIVIDUAL_TYPE[batchType];
+  const stockDataMap = new Map<string, T | T[]>();
+  
+  // Group items by ticker
+  const itemsByTicker = new Map<string, T[]>();
+  for (const item of items) {
+    const ticker = item.ticker?.toUpperCase();
+    if (!ticker) continue;
+    
+    if (!itemsByTicker.has(ticker)) {
+      itemsByTicker.set(ticker, []);
+    }
+    itemsByTicker.get(ticker)!.push(item);
+  }
+  
+  // Save each ticker's data to individual cache
+  for (const ticker of tickers) {
+    const tickerUpper = ticker.toUpperCase();
+    const tickerItems = itemsByTicker.get(tickerUpper) || [];
+    
+    // For sentiment, we expect one item per ticker
+    // For news/filings, we expect multiple items per ticker
+    if (batchType === 'batch_sentiment') {
+      const data = tickerItems[0] || null;
+      if (data) {
+        saveAICache(individualType, tickerUpper, data);
+        stockDataMap.set(tickerUpper, data);
+      }
+    } else {
+      // News/filings: store array of items
+      saveAICache(individualType, tickerUpper, tickerItems);
+      stockDataMap.set(tickerUpper, tickerItems);
+    }
+  }
+  
+  // Save batch metadata
+  saveBatchMetadata(batchType, tickers);
+  
+  console.log(`✅ Parsed batch and cached ${stockDataMap.size} individual stocks for ${batchType}`);
+  
+  return stockDataMap;
+}
+
+/**
+ * Load individual stock data from cache (set during batch or individual query)
+ */
+export function loadIndividualCache<T = any>(
+  batchType: AIBatchDataType,
+  ticker: string
+): T | null {
+  const individualType = BATCH_TO_INDIVIDUAL_TYPE[batchType];
+  return loadAICache<T>(individualType, ticker.toUpperCase());
+}
+
+/**
+ * Load all cached data for a list of tickers
+ * Returns: { cached: Map<ticker, data>, missing: string[] }
+ */
+export function loadCachedStocks<T = any>(
+  batchType: AIBatchDataType,
+  tickers: string[]
+): { cached: Map<string, T>; missing: string[] } {
+  const individualType = BATCH_TO_INDIVIDUAL_TYPE[batchType];
+  const cached = new Map<string, T>();
+  const missing: string[] = [];
+  
+  for (const ticker of tickers) {
+    const data = loadAICache<T>(individualType, ticker.toUpperCase());
+    if (data) {
+      cached.set(ticker.toUpperCase(), data);
+    } else {
+      missing.push(ticker);
+    }
+  }
+  
+  return { cached, missing };
+}
+
+/**
+ * Check which stocks need refresh based on batch expiry
+ * On remount: if batch expired, all stocks need refresh (even if individually cached)
+ */
+export function getStocksNeedingRefresh(
+  batchType: AIBatchDataType,
+  tickers: string[]
+): { needsBatchRefresh: boolean; tickersToRefresh: string[] } {
+  // If batch cache expired, refresh all
+  if (!isBatchCacheValid(batchType, tickers)) {
+    return { needsBatchRefresh: true, tickersToRefresh: tickers };
+  }
+  
+  // Batch is valid, check individual caches for any gaps
+  const { missing } = loadCachedStocks(batchType, tickers);
+  
+  return { needsBatchRefresh: false, tickersToRefresh: missing };
+}
+
+/**
+ * Get TTL for cache types (exposed for TanStack Query staleTime)
+ */
+export function getCacheTTL(dataType: AIDataType): number {
+  return CACHE_TTL[dataType];
+}
+
+/**
+ * Get TTL for batch cache types
+ */
+export function getBatchCacheTTL(batchType: AIBatchDataType): number {
+  return BATCH_CACHE_TTL[batchType];
 }
 
 // Initialize: clear expired cache on module load

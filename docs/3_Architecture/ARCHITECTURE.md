@@ -1338,45 +1338,161 @@ The system handles two types of rate limits:
 4. Return 429: "Daily chat query limit reached (10/day)"
 ```
 
-### 12.10 Portfolio-Level Cache Optimization
+### 12.10 Portfolio-Level Cache Optimization (TanStack Query)
 
-To minimize quota usage, the StonksAI component implements **portfolio-level caching** that allows individual stock queries to reuse data from the initial portfolio-wide fetch.
+The StonksAI component implements a sophisticated **two-tier caching strategy** using TanStack Query for in-memory cache management and localStorage for persistence across sessions.
+
+#### Architecture Overview
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                    CACHING ARCHITECTURE                          │
+├──────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│   ┌─────────────────┐        ┌─────────────────┐                │
+│   │  TanStack Query │◄──────►│   localStorage  │                │
+│   │  (In-Memory)    │        │  (Persistent)   │                │
+│   └────────┬────────┘        └────────┬────────┘                │
+│            │                          │                          │
+│   ┌────────▼────────┐        ┌────────▼────────┐                │
+│   │  Batch Queries  │        │ Individual Cache│                │
+│   │  (Portfolio)    │        │   (Per Stock)   │                │
+│   │                 │        │                 │                │
+│   │ • newsMap       │──────► │ ai_news_AAPL    │                │
+│   │ • filingsMap    │──────► │ ai_filing_AAPL  │                │
+│   │ • sentimentMap  │──────► │ ai_sentiment_AAPL               │
+│   └─────────────────┘        └─────────────────┘                │
+│                                                                  │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+#### Key Design Decisions
+
+1. **Batch Metadata Only**: Batch cache stores only timestamps and ticker lists (not data)
+2. **Individual Stock Data**: Real data stored at per-stock level for reuse
+3. **TanStack Query Cache**: In-memory with staleTime matching TTLs
+4. **localStorage Backup**: Persists across page refreshes
+
+#### Cache TTLs
+
+| Data Type | TTL | Use Case |
+|-----------|-----|----------|
+| `news` | 1 hour | Market news changes frequently |
+| `sentiment` | 1 hour | Sentiment tied to news cycle |
+| `filing_list` | 1 day (24hr) | New SEC filings are less frequent |
+| `company_profile` | 7 days | Company info rarely changes |
+| `sec_filing` | 24 hours | Individual filings are static |
+| `news_detail` | 1 hour | Detailed analysis stays relevant |
 
 #### How It Works
 
-On component load, three batched API calls are made:
-1. **News** for all portfolio tickers
-2. **Filings** for all portfolio tickers  
-3. **Sentiment** for all portfolio tickers
-
-These responses are stored in component state and reused for individual stock queries:
-
+**Phase 1: Component Mount (Batch Fetch)**
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│ COMPONENT LOAD (3 API calls)                                 │
+│ COMPONENT LOAD - 3 TanStack Query Hooks                     │
 │                                                              │
 │  Portfolio: [AAPL, GOOGL, MSFT]                             │
 │                                                              │
-│  1. Fetch News    → Cache key: "news:AAPL,GOOGL,MSFT"       │
-│     Response: { articles: [{ticker: "AAPL"}, {ticker: "GOOGL"}, ...] }
-│     → Store in: news[] state                                │
+│  usePortfolioNews(tickers)                                  │
+│    → Fetches batch → Parses response                        │
+│    → Stores: ai_news_AAPL, ai_news_GOOGL, ai_news_MSFT     │
+│    → Returns: Map<ticker, Article[]>                        │
 │                                                              │
-│  2. Fetch Filings → Cache key: "filing_list:AAPL,GOOGL,MSFT"│
-│     Response: { filings: [{ticker: "AAPL"}, {ticker: "GOOGL"}, ...] }
-│     → Store in: filings[] state                             │
+│  usePortfolioFilings(tickers)                               │
+│    → Fetches batch → Parses response                        │
+│    → Stores: ai_filing_list_AAPL, ai_filing_list_GOOGL...  │
+│    → Returns: Map<ticker, Filing[]>                         │
 │                                                              │
-│  3. Fetch Sentiment → Cache key: "sentiment_batch:AAPL,GOOGL,MSFT"
-│     Response: { sentiments: [{ticker: "AAPL"}, {ticker: "GOOGL"}, ...] }
-│     → Store in: portfolioSentiment[] state                  │
+│  usePortfolioSentiment(tickers)                             │
+│    → Fetches batch → Parses response                        │
+│    → Stores: ai_sentiment_AAPL, ai_sentiment_GOOGL...      │
+│    → Returns: Map<ticker, SentimentData>                    │
 └─────────────────────────────────────────────────────────────┘
+```
 
+**Phase 2: User Queries (Cache-First)**
+```
 ┌─────────────────────────────────────────────────────────────┐
-│ USER INTERACTION: "Analyze sentiment for AAPL"              │
+│ USER: "Analyze sentiment for AAPL"                          │
 │                                                              │
-│  1. Check portfolioSentiment.find(s => s.ticker === 'AAPL') │
-│     ├─► FOUND: Return from state (NO API call, NO quota) ✅ │
-│     └─► NOT FOUND: Make individual API call (uses quota)   │
+│  1. Check TanStack Query cache (sentimentMap)               │
+│     ├─► HIT: Return from Map (NO API call, NO quota) ✅     │
+│     └─► MISS: Continue to step 2                            │
+│                                                              │
+│  2. Check localStorage (individual cache)                   │
+│     ├─► HIT: Return cached data (NO API call, NO quota) ✅  │
+│     └─► MISS: Continue to step 3                            │
+│                                                              │
+│  3. Fetch from API (uses quota)                             │
+│     → Update TanStack Query cache                           │
+│     → Update localStorage individual cache                  │
 └─────────────────────────────────────────────────────────────┘
+```
+
+**Phase 3: Remount Behavior**
+```
+┌─────────────────────────────────────────────────────────────┐
+│ REMOUNT AFTER NAVIGATION                                    │
+│                                                              │
+│  Check batch metadata in localStorage:                      │
+│  isBatchCacheValid('batch_sentiment', tickers)              │
+│                                                              │
+│  CASE A: Batch VALID (< 1hr for sentiment)                  │
+│    → Load individual caches from localStorage               │
+│    → NO API calls needed ✅                                 │
+│                                                              │
+│  CASE B: Batch EXPIRED                                      │
+│    → Fetch fresh batch (3 API calls)                        │
+│    → Update all individual caches                           │
+│    → Even if some stocks had valid individual cache,        │
+│      we refresh all for consistency                         │
+└─────────────────────────────────────────────────────────────┘
+```
+
+#### TanStack Query Hooks
+
+```typescript
+// src/lib/hooks/useAIQuery.ts
+
+// Batch hooks - fetch all portfolio stocks at once
+export function usePortfolioNews(tickers: string[]) {
+  return useQuery({
+    queryKey: ['ai', 'news', 'batch', tickersKey],
+    queryFn: async () => {
+      // 1. Check if batch cache still valid
+      if (isBatchCacheValid('batch_news', tickers)) {
+        const { cached } = loadCachedStocks('batch_news', tickers);
+        if (cached.size === tickers.length) return cached;
+      }
+      // 2. Fetch fresh and parse to individual caches
+      const response = await callAiApi({...});
+      return parseBatchAndCacheIndividual('batch_news', articles, tickers);
+    },
+    staleTime: getBatchCacheTTL('batch_news'), // 1 hour
+    gcTime: getBatchCacheTTL('batch_news') * 2,
+  });
+}
+
+// Individual hooks - for stocks NOT in portfolio
+export function useStockSentiment(ticker: string, portfolioSentiment?: Map) {
+  return useQuery({
+    queryKey: ['ai', 'sentiment', ticker],
+    queryFn: async () => {
+      // 1. Check portfolio cache first
+      if (portfolioSentiment?.has(ticker)) {
+        return portfolioSentiment.get(ticker);
+      }
+      // 2. Check individual localStorage cache
+      const cached = loadIndividualCache('batch_sentiment', ticker);
+      if (cached) return cached;
+      // 3. Fetch fresh (uses quota)
+      const response = await callAiApi({...});
+      saveAICache('sentiment', ticker, data);
+      return data;
+    },
+    staleTime: getCacheTTL('sentiment'), // 1 hour
+  });
+}
 ```
 
 #### Quota Savings Comparison
@@ -1388,69 +1504,26 @@ These responses are stored in component state and reused for individual stock qu
 | Ask sentiment for 5 stocks in portfolio | -5 quota | **FREE** |
 | Ask filing for stock IN portfolio | -1 quota | **FREE** |
 | Ask for stock NOT in portfolio | -1 quota | -1 quota |
+| **Re-open chat within 1 hour** | -3 quota | **FREE** |
 
 #### Example Session (5-Stock Portfolio)
 
-**Before Optimization:**
-```
-Load:           -2 (news + filings)
-5 sentiments:   -5
-3 filings:      -3
-─────────────────
-Total:          -10 quota (FREE TIER EXHAUSTED)
-```
-
-**After Optimization:**
+**Session 1:**
 ```
 Load:           -3 (news + filings + sentiment)
-5 sentiments:   FREE (from portfolioSentiment cache)
-3 filings:      FREE (from filings cache)
+5 sentiments:   FREE (from cache)
+3 filings:      FREE (from cache)
 ─────────────────
-Total:          -3 quota (7 remaining for other queries)
+Total:          -3 quota
 ```
 
-#### Cache Reuse Logic
-
-```typescript
-// Sentiment: Check portfolio cache first
-const fetchSentimentAnalysis = async (stockTicker: string) => {
-    // 1. Check portfolio-level cache
-    const cached = portfolioSentiment.find(
-        s => s.ticker?.toUpperCase() === stockTicker.toUpperCase()
-    );
-    if (cached) {
-        // Use cached data - NO API call, NO quota
-        setMessages(prev => [...prev, { 
-            sender: 'bot', 
-            type: 'sentiment', 
-            content: cached, 
-            stockTicker 
-        }]);
-        return;
-    }
-    
-    // 2. Stock not in portfolio - fetch individually (uses quota)
-    const response = await callAi({...});
-};
-
-// Filing: Check portfolio cache first
-const fetchLatestFiling = async (stockTicker: string) => {
-    // 1. Check portfolio-level cache
-    const cached = filings.find(
-        f => f.ticker?.toUpperCase() === stockTicker.toUpperCase()
-    );
-    if (cached) {
-        // Use cached data - NO API call, NO quota
-        setMessages(prev => [...prev, 
-            { sender: 'bot', type: 'filing', content: cached, stockTicker },
-            { sender: 'bot', type: 'action_options', stockTicker }
-        ]);
-        return;
-    }
-    
-    // 2. Stock not in portfolio - fetch individually (uses quota)
-    const response = await callAi({...});
-};
+**Session 2 (within 1 hour):**
+```
+Load:           FREE (localStorage cache valid)
+5 sentiments:   FREE (from cache)
+3 filings:      FREE (from cache)
+─────────────────
+Total:          0 quota!
 ```
 
 #### Browser Cache TTLs
@@ -1459,10 +1532,9 @@ const fetchLatestFiling = async (stockTicker: string) => {
 |-----------|-----|-----------|
 | `company_profile` | 7 days | Company info rarely changes |
 | `sec_filing` | 24 hours | Filings are historical |
-| `filing_list` | 6 hours | New filings may be added |
+| `filing_list` | 24 hours | New filings may be added daily |
 | `sentiment` | 1 hour | Sentiment changes with market |
-| `sentiment_batch` | 1 hour | Portfolio sentiment |
-| `news` | 30 minutes | News updates frequently |
+| `news` | 1 hour | News updates frequently |
 | `news_detail` | 1 hour | Detailed analysis |
 
 ---

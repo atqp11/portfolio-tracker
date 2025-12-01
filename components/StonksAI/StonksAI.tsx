@@ -1,40 +1,24 @@
 "use client";
 
 import './StonksAI.css';
-import React, { useState, useEffect, useRef } from 'react';
-import { loadAICache, saveAICache, AICacheEntry, AIDataType , clearExpiredCache} from '@lib/utils/aiCache';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { clearExpiredCache } from '@lib/utils/aiCache';
+import { 
+  usePortfolioNews, 
+  usePortfolioFilings, 
+  usePortfolioSentiment,
+  useCompanyProfile,
+  useStockFilingList,
+  useNewsDetail,
+  type SentimentData,
+  type Filing,
+  type Article,
+  type Profile,
+} from '@lib/hooks/useAIQuery';
+import { useQueryClient } from '@tanstack/react-query';
+
 // --- Types ---
 type Sender = 'bot' | 'user';
-
-interface SentimentData {
-    ticker?: string;
-    sentiment?: string;
-    summary?: string;
-    key_points?: string[];
-}
-
-interface Filing {
-    ticker?: string;
-    form_type?: string;
-    filing_date?: string;
-    summary?: string;
-    url?: string;
-}
-
-interface Article {
-    ticker?: string;
-    headline?: string;
-    summary?: string;
-    sentiment?: string;
-}
-
-interface Profile {
-    description?: string;
-    industry?: string;
-    ceo?: string;
-    headquarters?: string;
-    website?: string;
-}
 
 interface ModalContent {
     title: string;
@@ -51,32 +35,19 @@ type Message =
     | { sender: Sender; type: 'filing_list'; content: Filing[]; stockTicker: string }
     | { sender: Sender; type: 'profile'; content: Profile; stockTicker: string };
 
-// Updated callAi function to remove retry mechanism and break the circuit on rate-limiting errors
+// AI API caller with rate limit handling
 async function callAi(
-    payload: { model: string; contents: string; config?: Record<string, unknown> },
-    cacheOptions?: { dataType: AIDataType; ticker: string; bypassCache?: boolean }
+    payload: { model: string; contents: string; config?: Record<string, unknown> }
 ) {
-    // Check client-side cache first if caching is enabled
-    if (cacheOptions && !cacheOptions.bypassCache) {
-        const cached = loadAICache(cacheOptions.dataType, cacheOptions.ticker);
-        if (cached) {
-            return { text: JSON.stringify(cached), fromCache: true };
-        }
-    }
-
     const res = await fetch('/api/ai/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            ...payload,
-            bypassCache: cacheOptions?.bypassCache || false,
-        }),
+        body: JSON.stringify(payload),
     });
 
     if (!res.ok) {
         const errorData = await res.json().catch(() => ({}));
         if (res.status === 429 || errorData.rateLimitExceeded || errorData.quotaExceeded || errorData.error?.code === 'QUOTA_EXCEEDED') {
-            // Return error object instead of throwing to avoid Next.js error overlay
             const message = errorData.error?.message || 'Too many requests. Please try again later.';
             return { 
                 text: JSON.stringify({ error: message, rateLimited: true }), 
@@ -84,7 +55,6 @@ async function callAi(
                 errorMessage: message 
             };
         }
-        // Handle both string errors and object errors { error: { message: string } }
         let txt: string;
         if (typeof errorData.error === 'string') {
             txt = errorData.error;
@@ -96,32 +66,13 @@ async function callAi(
         throw new Error(txt);
     }
 
-    const result = await res.json(); // expected: { text: string, cached?: boolean }
-
-    // Save to client-side cache if this is a new response and caching is enabled
-    if (cacheOptions && !result.fromCache && !result.cached) {
-        try {
-            const data = JSON.parse(result.text);
-            saveAICache(cacheOptions.dataType, cacheOptions.ticker, data);
-        } catch (e) {
-            // If parsing fails, it might not be JSON - skip caching
-            console.warn('Could not cache non-JSON response');
-        }
-    }
-
-    return result;
+    return res.json();
 }
 
-/**
- * Check if AI response indicates rate limiting
- */
 function isRateLimited(response: any): boolean {
     return response?.rateLimited === true;
 }
 
-/**
- * Get rate limit error message from response
- */
 function getRateLimitMessage(response: any): string {
     return response?.errorMessage || 'Daily limit reached. Please try again tomorrow.';
 }
@@ -342,13 +293,7 @@ function getRateLimitMessage(response: any): string {
 
     const StonksAI = ({ tickers = [], onSidebarToggle }: { tickers?: string[]; onSidebarToggle?: (collapsed: boolean) => void }) => {
     const [messages, setMessages] = useState<Message[]>([]);
-    const [news, setNews] = useState<Article[]>([]);
-    const [filings, setFilings] = useState<Filing[]>([]);
-    const [portfolioSentiment, setPortfolioSentiment] = useState<SentimentData[]>([]);
-    const [isSentimentLoading, setIsSentimentLoading] = useState(false);
         const [isLoading, setIsLoading] = useState(false);
-        const [isNewsLoading, setIsNewsLoading] = useState(false);
-        const [isFilingsLoading, setIsFilingsLoading] = useState(false);
         const [inputValue, setInputValue] = useState('');
         const [newsSentimentFilter, setNewsSentimentFilter] = useState('All');
         const [newsTickerFilter, setNewsTickerFilter] = useState('All');
@@ -356,12 +301,40 @@ function getRateLimitMessage(response: any): string {
         const [isModalOpen, setIsModalOpen] = useState(false);
     const [modalContent, setModalContent] = useState<ModalContent>({ title: '', summary: '', takeaways: [] });
         const [isModalLoading, setIsModalLoading] = useState(false);
+        const [selectedArticle, setSelectedArticle] = useState<Article | null>(null);
 
         const chatEndRef = useRef<HTMLDivElement | null>(null);
+        const queryClient = useQueryClient();
+
+        // TanStack Query hooks for portfolio data - batch fetch + individual cache
+        const { data: newsMap, isLoading: isNewsLoading } = usePortfolioNews(tickers);
+        const { data: filingsMap, isLoading: isFilingsLoading } = usePortfolioFilings(tickers);
+        const { data: sentimentMap, isLoading: isSentimentLoading } = usePortfolioSentiment(tickers);
+        
+        // Convert Maps to arrays for sidebar display
+        const news = useMemo(() => {
+            if (!newsMap) return [];
+            const allNews: Article[] = [];
+            newsMap.forEach((articles) => {
+                if (Array.isArray(articles)) {
+                    allNews.push(...articles);
+                }
+            });
+            return allNews;
+        }, [newsMap]);
+        
+        const filings = useMemo(() => {
+            if (!filingsMap) return [];
+            const allFilings: Filing[] = [];
+            filingsMap.forEach((items) => {
+                if (Array.isArray(items)) {
+                    allFilings.push(...items);
+                }
+            });
+            return allFilings;
+        }, [filingsMap]);
 
         useEffect(() => {
-            // Don't show initial message, let user start fresh
-            setMessages([]);
             // Clean up expired cache on component mount
             clearExpiredCache();
             // Notify parent of initial sidebar state
@@ -375,163 +348,6 @@ function getRateLimitMessage(response: any): string {
         }, [tickers, newsTickerFilter]);
 
         useEffect(() => {
-            const fetchNewsForPortfolio = async (portfolioTickers: string[]) => {
-                if (portfolioTickers.length === 0) {
-                    setNews([]);
-                    return;
-                }
-                setIsNewsLoading(true);
-                try {
-                    const tickersKey = portfolioTickers.sort().join(',');
-                    const response = await callAi({
-                        model: 'gemini-2.5-flash',
-                        contents: `Provide the top 10 recent news headlines for the following stock tickers: ${portfolioTickers.join(', ')}. For each article, include the stock ticker, a brief one-sentence summary, and the overall sentiment ('POSITIVE', 'NEGATIVE', or 'NEUTRAL').`,
-                        config: {
-                            responseMimeType: 'application/json',
-                            responseSchema: {
-                                type: 'object',
-                                properties: {
-                                    articles: {
-                                        type: 'array',
-                                        description: 'A list of recent news articles.',
-                                        items: {
-                                            type: 'object',
-                                            properties: {
-                                                ticker: { type: 'string' },
-                                                headline: { type: 'string' },
-                                                summary: { type: 'string' },
-                                                sentiment: { type: 'string' }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }, { dataType: 'news', ticker: tickersKey });
-
-                    if (isRateLimited(response)) {
-                        setNews([]);
-                        return;
-                    }
-                    const newsData = JSON.parse(response.text || '{}');
-                    setNews(newsData.articles || []);
-                } catch (err) {
-                    console.error('Error fetching news:', err);
-                    setNews([]);
-                } finally {
-                    setIsNewsLoading(false);
-                }
-            };
-
-            fetchNewsForPortfolio(tickers || []);
-        }, [tickers]);
-
-        useEffect(() => {
-            const fetchFilingsForPortfolio = async (portfolioTickers: string[]) => {
-                if (portfolioTickers.length === 0) {
-                    setFilings([]);
-                    return;
-                }
-                setIsFilingsLoading(true);
-                try {
-                    const tickersKey = portfolioTickers.sort().join(',');
-                    const response = await callAi({
-                        model: 'gemini-2.5-flash',
-                        contents: `Provide the top 5 most recent and important SEC filings (like 8-K, 10-K, 10-Q) for the following stock tickers: ${portfolioTickers.join(', ')}. For each filing, include the stock ticker, the form type, the filing date, and a brief one-sentence summary.`,
-                        config: {
-                            responseMimeType: 'application/json',
-                            responseSchema: {
-                                type: 'object',
-                                properties: {
-                                    filings: {
-                                        type: 'array',
-                                        description: 'A list of recent SEC filings.',
-                                        items: {
-                                            type: 'object',
-                                            properties: {
-                                                ticker: { type: 'string' },
-                                                form_type: { type: 'string' },
-                                                filing_date: { type: 'string' },
-                                                summary: { type: 'string' }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }, { dataType: 'filing_list', ticker: tickersKey });
-
-                    if (isRateLimited(response)) {
-                        setFilings([]);
-                        return;
-                    }
-                    const filingsData = JSON.parse(response.text || '{}');
-                    setFilings(filingsData.filings || []);
-                } catch (err) {
-                    console.error('Error fetching SEC filings:', err);
-                    setFilings([]);
-                } finally {
-                    setIsFilingsLoading(false);
-                }
-            };
-
-            fetchFilingsForPortfolio(tickers || []);
-        }, [tickers]);
-
-        // Fetch portfolio-level sentiment on load (enables cache reuse for individual stock queries)
-        useEffect(() => {
-            const fetchSentimentForPortfolio = async (portfolioTickers: string[]) => {
-                if (portfolioTickers.length === 0) {
-                    setPortfolioSentiment([]);
-                    return;
-                }
-                setIsSentimentLoading(true);
-                try {
-                    const tickersKey = portfolioTickers.sort().join(',');
-                    const response = await callAi({
-                        model: 'gemini-2.5-flash',
-                        contents: `You are a specialized stock market analysis chatbot. For each of the following stock tickers: ${portfolioTickers.join(', ')}, provide a sentiment analysis. For each stock, include the ticker symbol, overall sentiment ('BULLISH', 'BEARISH', or 'NEUTRAL'), a concise summary, and 3-5 key bullet points supporting your analysis.`,
-                        config: {
-                            responseMimeType: 'application/json',
-                            responseSchema: {
-                                type: 'object',
-                                properties: {
-                                    sentiments: {
-                                        type: 'array',
-                                        description: 'Sentiment analysis for each stock.',
-                                        items: {
-                                            type: 'object',
-                                            properties: {
-                                                ticker: { type: 'string' },
-                                                sentiment: { type: 'string' },
-                                                summary: { type: 'string' },
-                                                key_points: { type: 'array', items: { type: 'string' } }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }, { dataType: 'sentiment_batch', ticker: tickersKey });
-
-                    if (isRateLimited(response)) {
-                        setPortfolioSentiment([]);
-                        return;
-                    }
-                    const sentimentData = JSON.parse(response.text || '{}');
-                    setPortfolioSentiment(sentimentData.sentiments || []);
-                } catch (err) {
-                    console.error('Error fetching portfolio sentiment:', err);
-                    setPortfolioSentiment([]);
-                } finally {
-                    setIsSentimentLoading(false);
-                }
-            };
-
-            fetchSentimentForPortfolio(tickers || []);
-        }, [tickers]);
-
-        useEffect(() => {
             chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
         }, [messages, isLoading]);
 
@@ -539,8 +355,10 @@ function getRateLimitMessage(response: any): string {
             setIsLoading(true);
             setMessages((prev) => [...prev, { sender: 'user', type: 'text', content: `Analyze sentiment for ${stockTicker}` }]);
             
-            // Check portfolio cache first - reuse data from initial load
-            const cachedSentiment = portfolioSentiment.find(s => s.ticker?.toUpperCase() === stockTicker.toUpperCase());
+            const tickerUpper = stockTicker.toUpperCase();
+            
+            // Check portfolio cache first (from TanStack Query batch)
+            const cachedSentiment = sentimentMap?.get(tickerUpper);
             if (cachedSentiment) {
                 setMessages((prev) => [...prev, { sender: 'bot', type: 'sentiment', content: cachedSentiment, stockTicker }]);
                 setIsLoading(false);
@@ -563,13 +381,17 @@ function getRateLimitMessage(response: any): string {
                             }
                         }
                     }
-                }, { dataType: 'sentiment', ticker: stockTicker });
+                });
 
                 if (isRateLimited(response)) {
                     setMessages((prev) => [...prev, { sender: 'bot', type: 'text', content: `⏱️ ${getRateLimitMessage(response)}` }]);
                     return;
                 }
                 const sentimentData = JSON.parse(response.text || '{}');
+                
+                // Update TanStack Query cache for this individual stock
+                queryClient.setQueryData(['ai', 'sentiment', tickerUpper], sentimentData);
+                
                 setMessages((prev) => [...prev, { sender: 'bot', type: 'sentiment', content: sentimentData, stockTicker }]);
             } catch (err: any) {
                 console.error('Error fetching sentiment analysis:', err);
@@ -584,9 +406,12 @@ function getRateLimitMessage(response: any): string {
             setIsLoading(true);
             setMessages((prev) => [...prev, { sender: 'user', type: 'text', content: `Get latest SEC filing for ${stockTicker}` }]);
             
-            // Check portfolio filings cache first - reuse data from initial load
-            const cachedFiling = filings.find(f => f.ticker?.toUpperCase() === stockTicker.toUpperCase());
-            if (cachedFiling) {
+            const tickerUpper = stockTicker.toUpperCase();
+            
+            // Check portfolio cache first (from TanStack Query batch)
+            const cachedFilings = filingsMap?.get(tickerUpper);
+            if (cachedFilings && cachedFilings.length > 0) {
+                const cachedFiling = cachedFilings[0];
                 setMessages((prev) => [...prev, 
                     { sender: 'bot', type: 'filing', content: cachedFiling, stockTicker }, 
                     { sender: 'bot', type: 'action_options', stockTicker }
@@ -601,13 +426,17 @@ function getRateLimitMessage(response: any): string {
                     model: 'gemini-2.5-flash',
                     contents: `Provide details for the single most recent important SEC filing (like 8-K, 10-K, 10-Q) for the stock ticker: ${stockTicker}. Include the form type, the filing date, a brief one-sentence summary, and the direct URL to the filing on the SEC EDGAR website.`,
                     config: { responseMimeType: 'application/json' }
-                }, { dataType: 'sec_filing', ticker: stockTicker });
+                });
 
                 if (isRateLimited(response)) {
                     setMessages((prev) => [...prev, { sender: 'bot', type: 'text', content: `⏱️ ${getRateLimitMessage(response)}` }]);
                     return;
                 }
                 const filingData = JSON.parse(response.text || '{}');
+                
+                // Update TanStack Query cache
+                queryClient.setQueryData(['ai', 'sec_filing', tickerUpper], filingData);
+                
                 setMessages((prev) => [...prev, { sender: 'bot', type: 'filing', content: filingData, stockTicker }, { sender: 'bot', type: 'action_options', stockTicker }]);
             } catch (err: any) {
                 console.error('Error fetching latest filing:', err);
@@ -621,6 +450,17 @@ function getRateLimitMessage(response: any): string {
         const fetchCompanyProfile = async (stockTicker: string) => {
             setIsLoading(true);
             setMessages((prev) => [...prev, { sender: 'user', type: 'text', content: `Get company profile for ${stockTicker}` }]);
+            
+            const tickerUpper = stockTicker.toUpperCase();
+            
+            // Check TanStack Query cache first
+            const cachedProfile = queryClient.getQueryData<Profile>(['ai', 'company_profile', tickerUpper]);
+            if (cachedProfile) {
+                setMessages((prev) => [...prev, { sender: 'bot', type: 'profile', content: cachedProfile, stockTicker }, { sender: 'bot', type: 'action_options', stockTicker }]);
+                setIsLoading(false);
+                return;
+            }
+            
             try {
                 const response = await callAi({
                     model: 'gemini-2.5-flash',
@@ -638,13 +478,17 @@ function getRateLimitMessage(response: any): string {
                             }
                         }
                     }
-                }, { dataType: 'company_profile', ticker: stockTicker });
+                });
 
                 if (isRateLimited(response)) {
                     setMessages((prev) => [...prev, { sender: 'bot', type: 'text', content: `⏱️ ${getRateLimitMessage(response)}` }]);
                     return;
                 }
                 const profileData = JSON.parse(response.text || '{}');
+                
+                // Update TanStack Query cache
+                queryClient.setQueryData(['ai', 'company_profile', tickerUpper], profileData);
+                
                 setMessages((prev) => [...prev, { sender: 'bot', type: 'profile', content: profileData, stockTicker }, { sender: 'bot', type: 'action_options', stockTicker }]);
             } catch (err: any) {
                 console.error('Error fetching company profile:', err);
@@ -670,18 +514,19 @@ function getRateLimitMessage(response: any): string {
             setMessages((prev) => [...prev.filter((m) => m.type !== 'action_options'), { sender: 'user', type: 'text', content: userMessageMap[option] }]);
             setIsLoading(true);
 
+            const tickerUpper = stockTicker.toUpperCase();
             const newBotMessages: Message[] = [];
+            
             try {
                 let prompt = '';
                 let responseSchema: Record<string, unknown> | undefined;
                 let responseType = 'filing';
-
-                let dataType: AIDataType = 'sec_filing';
+                let cacheKey = '';
                 
                 switch (option) {
                     case 'profile':
                         responseType = 'profile';
-                        dataType = 'company_profile';
+                        cacheKey = 'company_profile';
                         prompt = `Provide a company profile for the stock ticker: ${stockTicker}. Include its business description, industry, current CEO, headquarters location, and official website URL.`;
                         responseSchema = {
                             type: 'object',
@@ -696,7 +541,7 @@ function getRateLimitMessage(response: any): string {
                         break;
                     case 'last_10':
                         responseType = 'filing_list';
-                        dataType = 'filing_list';
+                        cacheKey = 'filing_list';
                         prompt = `Provide a list of the 10 most recent important SEC filings for ${stockTicker}. For each, include form type, filing date, a one-sentence summary, and the direct URL to the filing's index page on the SEC EDGAR website.`;
                         responseSchema = {
                             type: 'object',
@@ -718,12 +563,12 @@ function getRateLimitMessage(response: any): string {
                         };
                         break;
                     default:
+                        cacheKey = 'sec_filing';
                         prompt = option;
                 }
 
                 const response = await callAi(
-                    { model: 'gemini-2.5-flash', contents: prompt, config: { responseMimeType: 'application/json', responseSchema } },
-                    { dataType, ticker: stockTicker }
+                    { model: 'gemini-2.5-flash', contents: prompt, config: { responseMimeType: 'application/json', responseSchema } }
                 );
 
                 if (isRateLimited(response)) {
@@ -731,6 +576,11 @@ function getRateLimitMessage(response: any): string {
                     return;
                 }
                 const responseData = JSON.parse(response.text || '{}') as Record<string, unknown>;
+
+                // Update TanStack Query cache
+                if (cacheKey) {
+                    queryClient.setQueryData(['ai', cacheKey, tickerUpper], responseData);
+                }
 
                 if (responseType === 'filing_list') {
                     const filingsList = (responseData.filings as Filing[] | undefined) || [];
@@ -759,21 +609,43 @@ function getRateLimitMessage(response: any): string {
             setModalContent({ title: newsItem.headline || '', summary: '', takeaways: [] });
             setIsModalOpen(true);
             setIsModalLoading(true);
+            
+            const headlineHash = newsItem.headline?.substring(0, 30) || 'news';
+            const cacheKey = newsItem.ticker || headlineHash;
+            
+            // Check TanStack Query cache first
+            const cachedDetail = queryClient.getQueryData<{ detailed_summary: string; key_takeaways: string[] }>(['ai', 'news_detail', headlineHash]);
+            if (cachedDetail) {
+                setModalContent((p) => ({ 
+                    ...p, 
+                    summary: cachedDetail.detailed_summary || '', 
+                    takeaways: cachedDetail.key_takeaways || [] 
+                }));
+                setIsModalLoading(false);
+                return;
+            }
+            
             try {
-                // Create a unique cache key based on headline hash
-                const headlineHash = newsItem.headline?.substring(0, 30) || 'news';
                 const response = await callAi({
                     model: 'gemini-2.5-flash',
                     contents: `Based on the headline: "${newsItem.headline}" and the initial summary: "${newsItem.summary}", please provide a more detailed, expanded summary of the news article AND a list of 3-5 key takeaways as bullet points. Elaborate on the key points and the potential impact on the stock.`,
                     config: { responseMimeType: 'application/json' }
-                }, { dataType: 'news_detail', ticker: newsItem.ticker || headlineHash });
+                });
 
                 if (isRateLimited(response)) {
                     setModalContent((p) => ({ ...p, summary: `⏱️ ${getRateLimitMessage(response)}`, takeaways: [] }));
                     return;
                 }
                 const summaryData = JSON.parse(response.text || '{}') as Record<string, unknown>;
-                setModalContent((p) => ({ ...p, summary: (summaryData.detailed_summary as string) || (summaryData.detailedSummary as string) || '', takeaways: (summaryData.key_takeaways as string[]) || (summaryData.keyTakeaways as string[]) || [] }));
+                const result = {
+                    detailed_summary: (summaryData.detailed_summary as string) || (summaryData.detailedSummary as string) || '',
+                    key_takeaways: (summaryData.key_takeaways as string[]) || (summaryData.keyTakeaways as string[]) || []
+                };
+                
+                // Update TanStack Query cache
+                queryClient.setQueryData(['ai', 'news_detail', headlineHash], result);
+                
+                setModalContent((p) => ({ ...p, summary: result.detailed_summary, takeaways: result.key_takeaways }));
             } catch (err) {
                 console.error('Error fetching detailed summary:', err);
                 setModalContent((p) => ({ ...p, summary: "Sorry, I couldn't generate a detailed summary at this time.", takeaways: [] }));
@@ -787,12 +659,24 @@ function getRateLimitMessage(response: any): string {
             setModalContent({ title, summary: '', takeaways: [] });
             setIsModalOpen(true);
             setIsModalLoading(true);
+            
+            const filingKey = `${filing.ticker}_${filing.form_type}_${filing.filing_date}`;
+            
+            // Check TanStack Query cache first
+            const cachedDetail = queryClient.getQueryData<{ detailed_summary: string; key_takeaways: string[] }>(['ai', 'sec_filing_detail', filingKey]);
+            if (cachedDetail) {
+                setModalContent((p) => ({ 
+                    ...p, 
+                    summary: cachedDetail.detailed_summary || '', 
+                    takeaways: cachedDetail.key_takeaways || [] 
+                }));
+                setIsModalLoading(false);
+                return;
+            }
+            
             try {
-                // Cache key based on ticker, form type, and date for specific filing details
-                const filingKey = `${filing.ticker}_${filing.form_type}_${filing.filing_date}`;
                 const response = await callAi(
-                    { model: 'gemini-2.5-flash', contents: `Please provide a detailed summary AND a list of 3-5 key takeaways for the SEC filing with the following details: Ticker: ${filing.ticker}, Form Type: ${filing.form_type}, Filing Date: ${filing.filing_date}, Initial Summary: "${filing.summary}". Explain the key points and potential impact on the stock.`, config: { responseMimeType: 'application/json' } },
-                    { dataType: 'sec_filing', ticker: filingKey }
+                    { model: 'gemini-2.5-flash', contents: `Please provide a detailed summary AND a list of 3-5 key takeaways for the SEC filing with the following details: Ticker: ${filing.ticker}, Form Type: ${filing.form_type}, Filing Date: ${filing.filing_date}, Initial Summary: "${filing.summary}". Explain the key points and potential impact on the stock.`, config: { responseMimeType: 'application/json' } }
                 );
 
                 if (isRateLimited(response)) {
@@ -800,7 +684,15 @@ function getRateLimitMessage(response: any): string {
                     return;
                 }
                 const summaryData = JSON.parse(response.text || '{}') as Record<string, unknown>;
-                setModalContent((p) => ({ ...p, summary: (summaryData.detailed_summary as string) || '', takeaways: (summaryData.key_takeaways as string[]) || [] }));
+                const result = {
+                    detailed_summary: (summaryData.detailed_summary as string) || '',
+                    key_takeaways: (summaryData.key_takeaways as string[]) || []
+                };
+                
+                // Update TanStack Query cache
+                queryClient.setQueryData(['ai', 'sec_filing_detail', filingKey], result);
+                
+                setModalContent((p) => ({ ...p, summary: result.detailed_summary, takeaways: result.key_takeaways }));
             } catch (err) {
                 console.error('Error fetching detailed filing summary:', err);
                 setModalContent((p) => ({ ...p, summary: "Sorry, I couldn't generate a detailed summary for this filing.", takeaways: [] }));
