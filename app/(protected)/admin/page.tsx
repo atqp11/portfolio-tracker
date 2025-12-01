@@ -58,8 +58,10 @@ export default function AdminPage() {
         throw new Error('Failed to fetch users');
       }
 
-      const data: UsersResponse = await response.json();
-      setUsers(data.users);
+      const result = await response.json();
+      // API returns { success: true, data: { users, total } }
+      const data = result.data || result;
+      setUsers(data.users || []);
     } catch (err) {
       console.error('Error fetching users:', err);
       setError(err instanceof Error ? err.message : 'Failed to load users');
@@ -236,7 +238,7 @@ export default function AdminPage() {
                   Admin
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Daily Usage
+                  Usage
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Actions
@@ -296,20 +298,29 @@ export default function AdminPage() {
                       </button>
                     </td>
 
-                    {/* Daily Usage */}
+                    {/* Usage */}
                     <td className="px-6 py-4">
-                      <div className="text-sm text-gray-900 dark:text-gray-100">
+                      <div className="text-sm text-gray-900 dark:text-gray-100 space-y-1">
                         <div>
                           Chat: {dailyUsage?.chatQueries || 0} /{' '}
                           {tierLimits.chatQueriesPerDay === Infinity
                             ? '∞'
                             : tierLimits.chatQueriesPerDay}
+                          <span className="text-xs text-gray-500 ml-1">(daily)</span>
                         </div>
                         <div>
                           Analysis: {dailyUsage?.portfolioAnalysis || 0} /{' '}
                           {tierLimits.portfolioAnalysisPerDay === Infinity
                             ? '∞'
                             : tierLimits.portfolioAnalysisPerDay}
+                          <span className="text-xs text-gray-500 ml-1">(daily)</span>
+                        </div>
+                        <div>
+                          SEC: {user.usage.monthly?.secFilings || 0} /{' '}
+                          {tierLimits.secFilingsPerMonth === Infinity
+                            ? '∞'
+                            : tierLimits.secFilingsPerMonth}
+                          <span className="text-xs text-gray-500 ml-1">(monthly)</span>
                         </div>
                       </div>
                     </td>

@@ -74,9 +74,14 @@ async function callAi(
 
     if (!res.ok) {
         const errorData = await res.json().catch(() => ({}));
-        if (res.status === 429 || errorData.rateLimitExceeded) {
-            console.error('Rate limit reached. Circuit broken to prevent further retries.');
-            throw new Error('RATE_LIMIT: Too many requests. Please try again later.');
+        if (res.status === 429 || errorData.rateLimitExceeded || errorData.quotaExceeded || errorData.error?.code === 'QUOTA_EXCEEDED') {
+            // Return error object instead of throwing to avoid Next.js error overlay
+            const message = errorData.error?.message || 'Too many requests. Please try again later.';
+            return { 
+                text: JSON.stringify({ error: message, rateLimited: true }), 
+                rateLimited: true,
+                errorMessage: message 
+            };
         }
         // Handle both string errors and object errors { error: { message: string } }
         let txt: string;
@@ -104,6 +109,20 @@ async function callAi(
     }
 
     return result;
+}
+
+/**
+ * Check if AI response indicates rate limiting
+ */
+function isRateLimited(response: any): boolean {
+    return response?.rateLimited === true;
+}
+
+/**
+ * Get rate limit error message from response
+ */
+function getRateLimitMessage(response: any): string {
+    return response?.errorMessage || 'Daily limit reached. Please try again tomorrow.';
 }
 
     // --- Helper Functions ---
@@ -387,6 +406,10 @@ async function callAi(
                         }
                     }, { dataType: 'news', ticker: tickersKey });
 
+                    if (isRateLimited(response)) {
+                        setNews([]);
+                        return;
+                    }
                     const newsData = JSON.parse(response.text || '{}');
                     setNews(newsData.articles || []);
                 } catch (err) {
@@ -435,6 +458,10 @@ async function callAi(
                         }
                     }, { dataType: 'filing_list', ticker: tickersKey });
 
+                    if (isRateLimited(response)) {
+                        setFilings([]);
+                        return;
+                    }
                     const filingsData = JSON.parse(response.text || '{}');
                     setFilings(filingsData.filings || []);
                 } catch (err) {
@@ -472,13 +499,15 @@ async function callAi(
                     }
                 }, { dataType: 'sentiment', ticker: stockTicker });
 
+                if (isRateLimited(response)) {
+                    setMessages((prev) => [...prev, { sender: 'bot', type: 'text', content: `⏱️ ${getRateLimitMessage(response)}` }]);
+                    return;
+                }
                 const sentimentData = JSON.parse(response.text || '{}');
                 setMessages((prev) => [...prev, { sender: 'bot', type: 'sentiment', content: sentimentData, stockTicker }]);
             } catch (err: any) {
                 console.error('Error fetching sentiment analysis:', err);
-                const errorMessage = err?.message?.includes('RATE_LIMIT') 
-                    ? `⏱️ Rate limit reached. Please wait about 30 seconds before trying again.`
-                    : `Sorry, I couldn't retrieve the analysis for ${stockTicker}.`;
+                const errorMessage = `Sorry, I couldn't retrieve the analysis for ${stockTicker}.`;
                 setMessages((prev) => [...prev, { sender: 'bot', type: 'text', content: errorMessage }]);
             } finally {
                 setIsLoading(false);
@@ -494,13 +523,16 @@ async function callAi(
                     contents: `Provide details for the single most recent important SEC filing (like 8-K, 10-K, 10-Q) for the stock ticker: ${stockTicker}. Include the form type, the filing date, a brief one-sentence summary, and the direct URL to the filing on the SEC EDGAR website.`,
                     config: { responseMimeType: 'application/json' }
                 }, { dataType: 'sec_filing', ticker: stockTicker });
+
+                if (isRateLimited(response)) {
+                    setMessages((prev) => [...prev, { sender: 'bot', type: 'text', content: `⏱️ ${getRateLimitMessage(response)}` }]);
+                    return;
+                }
                 const filingData = JSON.parse(response.text || '{}');
                 setMessages((prev) => [...prev, { sender: 'bot', type: 'filing', content: filingData, stockTicker }, { sender: 'bot', type: 'action_options', stockTicker }]);
             } catch (err: any) {
                 console.error('Error fetching latest filing:', err);
-                const errorMessage = err?.message?.includes('RATE_LIMIT') 
-                    ? `⏱️ Rate limit reached. Please wait about 30 seconds before trying again.`
-                    : `Sorry, I couldn't retrieve the latest filing for ${stockTicker}.`;
+                const errorMessage = `Sorry, I couldn't retrieve the latest filing for ${stockTicker}.`;
                 setMessages((prev) => [...prev, { sender: 'bot', type: 'text', content: errorMessage }]);
             } finally {
                 setIsLoading(false);
@@ -528,13 +560,16 @@ async function callAi(
                         }
                     }
                 }, { dataType: 'company_profile', ticker: stockTicker });
+
+                if (isRateLimited(response)) {
+                    setMessages((prev) => [...prev, { sender: 'bot', type: 'text', content: `⏱️ ${getRateLimitMessage(response)}` }]);
+                    return;
+                }
                 const profileData = JSON.parse(response.text || '{}');
                 setMessages((prev) => [...prev, { sender: 'bot', type: 'profile', content: profileData, stockTicker }, { sender: 'bot', type: 'action_options', stockTicker }]);
             } catch (err: any) {
                 console.error('Error fetching company profile:', err);
-                const errorMessage = err?.message?.includes('RATE_LIMIT') 
-                    ? `⏱️ Rate limit reached. Please wait about 30 seconds before trying again.`
-                    : `Sorry, I couldn't retrieve the company profile for ${stockTicker}.`;
+                const errorMessage = `Sorry, I couldn't retrieve the company profile for ${stockTicker}.`;
                 setMessages((prev) => [...prev, { sender: 'bot', type: 'text', content: errorMessage }]);
             } finally {
                 setIsLoading(false);
@@ -611,6 +646,11 @@ async function callAi(
                     { model: 'gemini-2.5-flash', contents: prompt, config: { responseMimeType: 'application/json', responseSchema } },
                     { dataType, ticker: stockTicker }
                 );
+
+                if (isRateLimited(response)) {
+                    newBotMessages.push({ sender: 'bot', type: 'text', content: `⏱️ ${getRateLimitMessage(response)}` });
+                    return;
+                }
                 const responseData = JSON.parse(response.text || '{}') as Record<string, unknown>;
 
                 if (responseType === 'filing_list') {
@@ -648,6 +688,11 @@ async function callAi(
                     contents: `Based on the headline: "${newsItem.headline}" and the initial summary: "${newsItem.summary}", please provide a more detailed, expanded summary of the news article AND a list of 3-5 key takeaways as bullet points. Elaborate on the key points and the potential impact on the stock.`,
                     config: { responseMimeType: 'application/json' }
                 }, { dataType: 'news_detail', ticker: newsItem.ticker || headlineHash });
+
+                if (isRateLimited(response)) {
+                    setModalContent((p) => ({ ...p, summary: `⏱️ ${getRateLimitMessage(response)}`, takeaways: [] }));
+                    return;
+                }
                 const summaryData = JSON.parse(response.text || '{}') as Record<string, unknown>;
                 setModalContent((p) => ({ ...p, summary: (summaryData.detailed_summary as string) || (summaryData.detailedSummary as string) || '', takeaways: (summaryData.key_takeaways as string[]) || (summaryData.keyTakeaways as string[]) || [] }));
             } catch (err) {
@@ -670,6 +715,11 @@ async function callAi(
                     { model: 'gemini-2.5-flash', contents: `Please provide a detailed summary AND a list of 3-5 key takeaways for the SEC filing with the following details: Ticker: ${filing.ticker}, Form Type: ${filing.form_type}, Filing Date: ${filing.filing_date}, Initial Summary: "${filing.summary}". Explain the key points and potential impact on the stock.`, config: { responseMimeType: 'application/json' } },
                     { dataType: 'sec_filing', ticker: filingKey }
                 );
+
+                if (isRateLimited(response)) {
+                    setModalContent((p) => ({ ...p, summary: `⏱️ ${getRateLimitMessage(response)}`, takeaways: [] }));
+                    return;
+                }
                 const summaryData = JSON.parse(response.text || '{}') as Record<string, unknown>;
                 setModalContent((p) => ({ ...p, summary: (summaryData.detailed_summary as string) || '', takeaways: (summaryData.key_takeaways as string[]) || [] }));
             } catch (err) {

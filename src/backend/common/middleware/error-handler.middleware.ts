@@ -80,7 +80,19 @@ export class ErrorHandlerMiddleware {
    * Handle error and return appropriate NextResponse
    */
   static handle(error: Error): NextResponse {
-    console.error('Error in API route:', error);
+    // Only log unexpected errors, not expected ones like quota/rate limit
+    const isExpectedError = 
+      error instanceof ValidationError ||
+      error instanceof NotFoundError ||
+      error instanceof UnauthorizedError ||
+      error instanceof ForbiddenError ||
+      error instanceof QuotaExceededError ||
+      error instanceof RateLimitError ||
+      error instanceof ConflictError;
+    
+    if (!isExpectedError) {
+      console.error('Error in API route:', error);
+    }
 
     // Validation errors
     if (error instanceof ValidationError) {

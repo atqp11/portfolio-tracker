@@ -56,7 +56,9 @@ export default function Sidebar() {
         if (authUser) {
           const response = await fetch(`/api/auth/user?id=${authUser.id}`);
           if (response.ok) {
-            const userData = await response.json();
+            const result = await response.json();
+            // API returns { success: true, data: { ... } }
+            const userData = result.data || result;
             setUser({
               email: userData.email,
               name: userData.name,

@@ -81,7 +81,9 @@ export default function TopNav({ title }: TopNavProps) {
           // Fetch user profile from database
           const response = await fetch(`/api/auth/user?id=${authUser.id}`);
           if (response.ok) {
-            const userData = await response.json();
+            const result = await response.json();
+            // API returns { success: true, data: { ... } }
+            const userData = result.data || result;
             setUser(userData);
           } else {
             // Fallback to auth user data
