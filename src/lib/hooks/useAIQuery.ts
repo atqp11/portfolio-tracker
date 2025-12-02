@@ -175,6 +175,158 @@ export function safeParseResponse<T>(text: string | null | undefined, fallback: 
 }
 
 // ============================================================================
+// PORTFOLIO CHANGE QUOTA TRACKING
+// Client detects changes (localStorage), server counts them
+// 
+// SCENARIOS:
+// 1. First batch (no previous portfolio in localStorage) → FREE, no quota check
+// 2. Same portfolio, cache expired → FREE, no quota check
+// 3. Portfolio changed → CHECK quota for free tier, COUNT if allowed
+// 4. Paid user (unlimited) → Always allowed, never counted
+// ============================================================================
+
+interface PortfolioChangeQuotaResult {
+  allowed: boolean;
+  remaining: number;
+  limit: number;
+  unlimited: boolean;
+  reason?: string;
+}
+
+// Track if a portfolio change was detected in this session
+// Set by usePortfolioChangeDetection, consumed by batch hooks
+let portfolioChangeDetectedInSession = false;
+let isFirstBatchEver = false;
+
+/**
+ * Mark that a portfolio change was detected (called by usePortfolioChangeDetection)
+ */
+export function markPortfolioChangeDetected(): void {
+  portfolioChangeDetectedInSession = true;
+}
+
+/**
+ * Mark that this is the first batch ever (no previous portfolio)
+ */
+export function markFirstBatchEver(): void {
+  isFirstBatchEver = true;
+}
+
+/**
+ * Check if we should count this batch against quota
+ * Only counts if: portfolio changed AND not first batch AND not unlimited tier
+ */
+function shouldCountAgainstQuota(): boolean {
+  return portfolioChangeDetectedInSession && !isFirstBatchEver;
+}
+
+/**
+ * Check portfolio change quota with the server
+ * Returns quota status and whether batch refresh is allowed
+ */
+async function checkPortfolioChangeQuota(): Promise<PortfolioChangeQuotaResult> {
+  try {
+    const response = await fetch('/api/ai/portfolio-change');
+    
+    if (!response.ok) {
+      // If quota check fails, allow the batch (fail open)
+      console.warn('[Portfolio Change] Quota check failed, allowing batch');
+      return {
+        allowed: true,
+        remaining: Infinity,
+        limit: Infinity,
+        unlimited: true,
+      };
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error('[Portfolio Change] Error checking quota:', error);
+    // Fail open - allow the batch if we can't check quota
+    return {
+      allowed: true,
+      remaining: Infinity,
+      limit: Infinity,
+      unlimited: true,
+    };
+  }
+}
+
+/**
+ * Record a successful portfolio change (only for free tier)
+ */
+async function recordPortfolioChange(): Promise<void> {
+  try {
+    await fetch('/api/ai/portfolio-change', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ success: true }),
+    });
+  } catch (error) {
+    console.error('[Portfolio Change] Error recording change:', error);
+    // Don't fail the batch if recording fails
+  }
+}
+
+// Store last quota check result for sharing between batch hooks
+let lastQuotaCheck: {
+  result: PortfolioChangeQuotaResult;
+  timestamp: number;
+} | null = null;
+
+const QUOTA_CHECK_CACHE_TTL = 10000; // 10 seconds - enough for all 3 batch hooks to share
+
+/**
+ * Get or fetch portfolio change quota (cached for short period to avoid duplicate calls)
+ * Only called when shouldCountAgainstQuota() is true
+ */
+async function getPortfolioChangeQuota(): Promise<PortfolioChangeQuotaResult> {
+  const now = Date.now();
+  
+  // Use cached result if recent
+  if (lastQuotaCheck && now - lastQuotaCheck.timestamp < QUOTA_CHECK_CACHE_TTL) {
+    return lastQuotaCheck.result;
+  }
+  
+  // Fetch fresh quota check
+  const result = await checkPortfolioChangeQuota();
+  lastQuotaCheck = { result, timestamp: now };
+  
+  return result;
+}
+
+// Track if we've already recorded the portfolio change for this session
+let recordedChangeInSession = false;
+
+/**
+ * Record change once per session (reset on page reload or portfolio change)
+ */
+async function recordChangeOnce(): Promise<void> {
+  // Only record once per session
+  if (recordedChangeInSession) {
+    return;
+  }
+  
+  await recordPortfolioChange();
+  recordedChangeInSession = true;
+  // Reset the change detection flag after recording
+  portfolioChangeDetectedInSession = false;
+  isFirstBatchEver = false;
+}
+
+// Quota exceeded error for UI handling
+export class PortfolioChangeQuotaExceededError extends Error {
+  constructor(
+    message: string,
+    public readonly remaining: number,
+    public readonly limit: number
+  ) {
+    super(message);
+    this.name = 'PortfolioChangeQuotaExceededError';
+  }
+}
+
+// ============================================================================
 // PORTFOLIO CHANGE HOOK
 // Detects portfolio changes and triggers cache invalidation
 // ============================================================================
@@ -190,7 +342,10 @@ export function usePortfolioChangeDetection(tickers: string[]) {
   useEffect(() => {
     if (tickers.length === 0) return;
     
-    const { changed, added, removed } = detectPortfolioChange(tickers);
+    const { changed, added, removed, previousTickers } = detectPortfolioChange(tickers);
+    
+    // Check if this is the first batch ever (no previous portfolio)
+    const isFirstEver = previousTickers.length === 0;
     
     if (changed) {
       console.log('🔄 Portfolio changed, invalidating caches...');
@@ -210,8 +365,21 @@ export function usePortfolioChangeDetection(tickers: string[]) {
       
       // Save new portfolio for future detection
       savePortfolioTickers(tickers);
+      
+      // Mark portfolio change detected (for quota tracking)
+      // Only mark as "change" if there was a previous portfolio to compare against
+      if (isFirstEver) {
+        markFirstBatchEver();
+        console.log('📦 First batch ever - no quota consumed');
+      } else {
+        markPortfolioChangeDetected();
+        console.log('📊 Portfolio change detected - will check quota');
+      }
+      
+      // Reset the recorded change tracker so next batch records the change
+      recordedChangeInSession = false;
     } else if (previousTickersRef.current.length === 0) {
-      // First mount - save tickers
+      // First mount with same portfolio - just save tickers
       savePortfolioTickers(tickers);
     }
     
@@ -248,10 +416,10 @@ export function useCacheHealth() {
  * Batch fetch portfolio news - caches at individual stock level
  * 
  * Scenarios:
- * - First visit: Fetches all, caches individually
- * - Remount (cache valid): Returns from localStorage, no API call
- * - Remount (cache expired): Fresh batch fetch
- * - Portfolio change: Invalidated by usePortfolioChangeDetection
+ * - First visit: Fetches all, caches individually (FREE - first batch)
+ * - Remount (cache valid): Returns from localStorage, no API call (FREE)
+ * - Remount (cache expired): Fresh batch fetch (FREE - just expired)
+ * - Portfolio change: Check quota first, then fetch (COUNTS for free tier)
  */
 export function usePortfolioNews(tickers: string[], enabled = true) {
   const queryClient = useQueryClient();
@@ -272,8 +440,23 @@ export function usePortfolioNews(tickers: string[], enabled = true) {
           return cached;
         }
         
-        // Partial cache - fetch missing only? No, for consistency we refresh all
+        // Partial cache - refresh all for consistency
         console.log(`⚠️ [NEWS] Partial cache (${missing.length} missing), refreshing all`);
+      }
+      
+      // Only check quota if this is a portfolio change (not first batch or cache refresh)
+      if (shouldCountAgainstQuota()) {
+        const quotaResult = await getPortfolioChangeQuota();
+        
+        // If quota not allowed (portfolio changed and free tier exhausted limit)
+        if (!quotaResult.allowed) {
+          console.log(`⛔ [NEWS] Portfolio change quota exceeded: ${quotaResult.reason}`);
+          throw new PortfolioChangeQuotaExceededError(
+            quotaResult.reason || 'Daily portfolio change limit reached',
+            quotaResult.remaining,
+            quotaResult.limit
+          );
+        }
       }
       
       console.log(`🔄 [NEWS] Fetching batch for ${tickers.length} tickers`);
@@ -314,6 +497,12 @@ export function usePortfolioNews(tickers: string[], enabled = true) {
       // Parse and cache at individual level
       const stockDataMap = parseBatchAndCacheIndividual<Article>('batch_news', articles, tickers);
       
+      // Record the portfolio change (only if this was a portfolio change, not first batch)
+      // This is the "leader" hook - news runs first, so it records the change
+      if (shouldCountAgainstQuota()) {
+        await recordChangeOnce();
+      }
+      
       console.log(`✅ [NEWS] Cached ${stockDataMap.size} stocks`);
       
       return stockDataMap as Map<string, Article[]>;
@@ -322,6 +511,10 @@ export function usePortfolioNews(tickers: string[], enabled = true) {
     gcTime: getBatchCacheTTL('batch_news') * 2,
     enabled: enabled && tickers.length > 0,
     retry: (failureCount, error) => {
+      // Don't retry quota exceeded errors
+      if (error instanceof PortfolioChangeQuotaExceededError) {
+        return false;
+      }
       // Only retry network/server errors, max 2 retries
       if (error instanceof AIQueryError && error.retryable) {
         return failureCount < 2;
@@ -334,6 +527,7 @@ export function usePortfolioNews(tickers: string[], enabled = true) {
 
 /**
  * Batch fetch portfolio filings - caches at individual stock level
+ * Relies on news hook to record the change (leader pattern)
  */
 export function usePortfolioFilings(tickers: string[], enabled = true) {
   const tickersKey = [...tickers].sort().join(',');
@@ -351,6 +545,20 @@ export function usePortfolioFilings(tickers: string[], enabled = true) {
           return cached;
         }
         console.log(`⚠️ [FILINGS] Partial cache, refreshing all`);
+      }
+      
+      // Only check quota if this is a portfolio change (not first batch or cache refresh)
+      if (shouldCountAgainstQuota()) {
+        const quotaResult = await getPortfolioChangeQuota();
+        
+        if (!quotaResult.allowed) {
+          console.log(`⛔ [FILINGS] Portfolio change quota exceeded`);
+          throw new PortfolioChangeQuotaExceededError(
+            quotaResult.reason || 'Daily portfolio change limit reached',
+            quotaResult.remaining,
+            quotaResult.limit
+          );
+        }
       }
       
       console.log(`🔄 [FILINGS] Fetching batch for ${tickers.length} tickers`);
@@ -396,6 +604,9 @@ export function usePortfolioFilings(tickers: string[], enabled = true) {
     gcTime: getBatchCacheTTL('batch_filings') * 2,
     enabled: enabled && tickers.length > 0,
     retry: (failureCount, error) => {
+      if (error instanceof PortfolioChangeQuotaExceededError) {
+        return false;
+      }
       if (error instanceof AIQueryError && error.retryable) {
         return failureCount < 2;
       }
@@ -407,6 +618,7 @@ export function usePortfolioFilings(tickers: string[], enabled = true) {
 
 /**
  * Batch fetch portfolio sentiment - caches at individual stock level
+ * Relies on news hook to record the change (leader pattern)
  */
 export function usePortfolioSentiment(tickers: string[], enabled = true) {
   const tickersKey = [...tickers].sort().join(',');
@@ -424,6 +636,20 @@ export function usePortfolioSentiment(tickers: string[], enabled = true) {
           return cached;
         }
         console.log(`⚠️ [SENTIMENT] Partial cache, refreshing all`);
+      }
+      
+      // Only check quota if this is a portfolio change (not first batch or cache refresh)
+      if (shouldCountAgainstQuota()) {
+        const quotaResult = await getPortfolioChangeQuota();
+        
+        if (!quotaResult.allowed) {
+          console.log(`⛔ [SENTIMENT] Portfolio change quota exceeded`);
+          throw new PortfolioChangeQuotaExceededError(
+            quotaResult.reason || 'Daily portfolio change limit reached',
+            quotaResult.remaining,
+            quotaResult.limit
+          );
+        }
       }
       
       console.log(`🔄 [SENTIMENT] Fetching batch for ${tickers.length} tickers`);
@@ -469,6 +695,9 @@ export function usePortfolioSentiment(tickers: string[], enabled = true) {
     gcTime: getBatchCacheTTL('batch_sentiment') * 2,
     enabled: enabled && tickers.length > 0,
     retry: (failureCount, error) => {
+      if (error instanceof PortfolioChangeQuotaExceededError) {
+        return false;
+      }
       if (error instanceof AIQueryError && error.retryable) {
         return failureCount < 2;
       }

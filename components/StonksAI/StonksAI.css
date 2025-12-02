@@ -1121,3 +1121,110 @@
 @keyframes spin {
     to { transform: rotate(360deg); }
 }
+
+/* ==========================================================================
+   Quota Banner Styles
+   ========================================================================== */
+
+.quota-banner {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 8px 16px;
+    font-size: 13px;
+    font-weight: 500;
+    border-radius: 0;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+}
+
+.quota-banner--low {
+    background: linear-gradient(90deg, rgba(59, 130, 246, 0.1) 0%, rgba(99, 102, 241, 0.1) 100%);
+    color: #93c5fd;
+    border-bottom: 1px solid rgba(99, 102, 241, 0.2);
+}
+
+.quota-banner--critical {
+    background: linear-gradient(90deg, rgba(251, 191, 36, 0.15) 0%, rgba(245, 158, 11, 0.15) 100%);
+    color: #fcd34d;
+    border-bottom: 1px solid rgba(251, 191, 36, 0.3);
+}
+
+.quota-banner--exhausted {
+    background: linear-gradient(90deg, rgba(239, 68, 68, 0.1) 0%, rgba(220, 38, 38, 0.1) 100%);
+    color: #fca5a5;
+    border-bottom: 1px solid rgba(239, 68, 68, 0.2);
+    padding: 12px 16px;
+}
+
+.quota-banner a,
+.quota-banner-upgrade-link {
+    color: inherit;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.1);
+    font-weight: 600;
+    transition: all 0.15s ease;
+    margin-left: 8px;
+}
+
+.quota-banner a:hover,
+.quota-banner-upgrade-link:hover {
+    background: rgba(255, 255, 255, 0.2);
+    transform: translateX(2px);
+}
+
+/* Portfolio Change Chip - shown above chat input */
+.portfolio-change-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    font-size: 11px;
+    font-weight: 500;
+    border-radius: 6px;
+    margin-bottom: 8px;
+    width: fit-content;
+}
+
+.portfolio-change-chip--low {
+    background: rgba(113, 113, 122, 0.2);
+    color: #a1a1aa;
+}
+
+.portfolio-change-chip--critical {
+    background: rgba(251, 191, 36, 0.15);
+    color: #fbbf24;
+}
+
+.portfolio-change-chip--exhausted {
+    background: rgba(239, 68, 68, 0.15);
+    color: #f87171;
+}
+
+/* Quota animations */
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateX(-50%) translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+    }
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.quota-banner {
+    animation: fadeIn 0.3s ease-out;
+}
+

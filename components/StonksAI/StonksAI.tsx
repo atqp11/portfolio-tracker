@@ -16,6 +16,8 @@ import {
   type Profile,
 } from '@lib/hooks/useAIQuery';
 import { useQueryClient } from '@tanstack/react-query';
+import { ChatQuotaBanner, PortfolioChangeChip } from './QuotaBanner';
+import { useQuotaStatus } from '@lib/hooks/useQuotaStatus';
 
 // --- Types ---
 type Sender = 'bot' | 'user';
@@ -805,6 +807,7 @@ function getRateLimitMessage(response: any): string {
                         </button>
                         <h1>StonksAI</h1>
                     </header>
+                    <ChatQuotaBanner />
                     <div className="chat-messages">
                         {messages.length === 0 && (
                             <div className="welcome-card">
@@ -849,6 +852,7 @@ function getRateLimitMessage(response: any): string {
                         <div ref={chatEndRef} />
                     </div>
                     <div className="chat-input">
+                        <PortfolioChangeChip />
                         <form onSubmit={handleSendMessage}>
                             <input type="text" value={inputValue} onChange={(e) => setInputValue(e.target.value)} placeholder="Ask about a stock..." aria-label="Chat input" disabled={isLoading} />
                             <button type="submit" disabled={isLoading}>Send</button>

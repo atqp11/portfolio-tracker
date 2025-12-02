@@ -97,6 +97,7 @@ CREATE TABLE public.usage_tracking (
   chat_queries INT NOT NULL DEFAULT 0,
   portfolio_analysis INT NOT NULL DEFAULT 0,
   sec_filings INT NOT NULL DEFAULT 0,
+  portfolio_changes INT NOT NULL DEFAULT 0,
 
   period_start TIMESTAMPTZ NOT NULL,
   period_end TIMESTAMPTZ NOT NULL,

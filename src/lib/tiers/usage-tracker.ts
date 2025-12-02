@@ -13,7 +13,7 @@ import { createAdminClient } from '@lib/supabase/admin';
 import { getTierConfig, TierName } from './config';
 import { UsageTracking } from '@lib/supabase/db';
 
-export type UsageAction = 'chatQuery' | 'portfolioAnalysis' | 'secFiling';
+export type UsageAction = 'chatQuery' | 'portfolioAnalysis' | 'secFiling' | 'portfolioChange';
 
 /**
  * Normalize timestamp to consistent string format for DB storage/queries
@@ -179,6 +179,14 @@ export async function getUserUsage(userId: string, tier: TierName) {
             ? Infinity
             : Math.max(0, tierConfig.portfolioAnalysisPerDay - (dailyUsage?.portfolio_analysis || 0)),
       },
+      portfolioChanges: {
+        used: dailyUsage?.portfolio_changes || 0,
+        limit: tierConfig.portfolioChangesPerDay,
+        remaining:
+          tierConfig.portfolioChangesPerDay === Infinity
+            ? Infinity
+            : Math.max(0, tierConfig.portfolioChangesPerDay - (dailyUsage?.portfolio_changes || 0)),
+      },
     },
     monthly: {
       secFilings: {
@@ -249,6 +257,18 @@ export async function checkQuota(
             : undefined,
       };
 
+    case 'portfolioChange':
+      const changeRemaining = usage.daily.portfolioChanges.remaining;
+      return {
+        allowed: changeRemaining > 0 || changeRemaining === Infinity,
+        remaining: changeRemaining === Infinity ? Infinity : changeRemaining,
+        limit: tierConfig.portfolioChangesPerDay,
+        reason:
+          changeRemaining === 0
+            ? `Daily portfolio change limit reached (${tierConfig.portfolioChangesPerDay}/day). Try again tomorrow or upgrade for unlimited changes.`
+            : undefined,
+      };
+
     default:
       return {
         allowed: false,
@@ -276,7 +296,7 @@ export async function trackUsage(
   const record = await getOrCreateUsageRecord(userId, tier, periodType);
 
   // Increment appropriate counter
-  const updates: { chat_queries?: number; portfolio_analysis?: number; sec_filings?: number } = {};
+  const updates: { chat_queries?: number; portfolio_analysis?: number; sec_filings?: number; portfolio_changes?: number } = {};
 
   switch (action) {
     case 'chatQuery':
@@ -287,6 +307,9 @@ export async function trackUsage(
       break;
     case 'secFiling':
       updates.sec_filings = (record.sec_filings || 0) + 1;
+      break;
+    case 'portfolioChange':
+      updates.portfolio_changes = (record.portfolio_changes || 0) + 1;
       break;
   }
 
@@ -342,6 +365,11 @@ export async function getUsageStats(userId: string, tier: TierName) {
       ? 0
       : (usage.daily.portfolioAnalysis.used / tierConfig.portfolioAnalysisPerDay) * 100;
 
+  const changePercent =
+    tierConfig.portfolioChangesPerDay === Infinity
+      ? 0
+      : (usage.daily.portfolioChanges.used / tierConfig.portfolioChangesPerDay) * 100;
+
   const filingPercent =
     tierConfig.secFilingsPerMonth === Infinity
       ? 0
@@ -353,11 +381,13 @@ export async function getUsageStats(userId: string, tier: TierName) {
     percentages: {
       chatQueries: Math.min(100, chatPercent),
       portfolioAnalysis: Math.min(100, analysisPercent),
+      portfolioChanges: Math.min(100, changePercent),
       secFilings: Math.min(100, filingPercent),
     },
     warnings: {
       chatQueries: chatPercent >= 80,
       portfolioAnalysis: analysisPercent >= 80,
+      portfolioChanges: changePercent >= 80,
       secFilings: filingPercent >= 80,
     },
   };

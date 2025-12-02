@@ -29,6 +29,5 @@ export {
   trackUsage,
   checkAndTrackUsage,
   getUsageStats,
-  resetUsage,
   type UsageAction,
 } from './usage-tracker';

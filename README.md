@@ -20,6 +20,16 @@
 - The app is currently forced to use Alpha Vantage for stock quotes (see `app/api/quote/route.ts`).
 - The FMP client remains in the codebase (`lib/api/fmp.ts`) as a reference; it uses the `/stable` endpoints and per-symbol `/quote?symbol=` requests to support free-tier accounts.
 
+## Portfolio Change Quota (AI batch refresh)
+
+- Purpose: Track client-initiated portfolio batch refreshes when the user's portfolio changes.
+- Tier behavior: Free tier has a daily limit (default 3/day); Basic/Premium tiers are unlimited.
+- Detection: The client detects portfolio changes using `localStorage` and only calls the server to check/record a change when an actual change is detected (first batch ever and cache-only refreshes do not count).
+- Server: The server exposes `/api/ai/portfolio-change` to GET quota status and POST to record a counted change.
+- Migration: A safe SQL migration is provided at `src/backend/database/supabase/migrations/001_add_portfolio_changes.sql` to add the `portfolio_changes` tracking column, including backup/copy steps and RLS recreation.
+
+See `docs/4_Feature_Deep_Dives/AI_SYSTEM_DESIGN_MVP.md` for implementation details and the client/server flow.
+
 ### Re-enable configurable provider (env-driven)
 
 If you want the app to choose the provider at runtime using an environment variable, revert the forced provider in `app/api/quote/route.ts` and use `STOCK_API_PROVIDER` from your `.env.local`.

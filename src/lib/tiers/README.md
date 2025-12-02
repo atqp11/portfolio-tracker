@@ -52,6 +52,16 @@ These track **usage of AI-powered features** that consume API resources:
 | **Chat Queries** | 20/day | 100/day | 700/day | StonksAI chat messages |
 | **Portfolio Analysis** | 1/day | 10/day | Unlimited | Deep portfolio analysis |
 | **SEC Filings** | 3/month | Unlimited | Unlimited | SEC filing lookups |
+| **Portfolio Changes** | 3/day | Unlimited | Unlimited | Batch refresh when portfolio changes |
+
+**Portfolio Change Quota Details:**
+A portfolio change is counted when:
+1. User opens AI chat (StonksAI component mounts)
+2. Current portfolio differs from last successful batch
+3. This is NOT the first-time batch (first batch is always free)
+4. This is NOT just a cache expiration (expired refresh is free)
+
+Free tier users get 3 portfolio change batch refreshes per day.
 
 **Middleware:**
 - `withCacheAndQuota` - For AI chat queries

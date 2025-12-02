@@ -23,6 +23,7 @@ export interface TierLimits {
   // AI Usage Limits (Daily)
   chatQueriesPerDay: number;
   portfolioAnalysisPerDay: number;
+  portfolioChangesPerDay: number; // Batch refresh when portfolio changes (free tier only)
   concurrentRequests: number;
 
   // Data Access Limits (Monthly)
@@ -83,6 +84,7 @@ export const TIER_CONFIG: Record<TierName, TierLimits> = {
     // AI Usage Limits (Daily)
     chatQueriesPerDay: 20,
     portfolioAnalysisPerDay: 1, // Not specified, but reasonable default
+    portfolioChangesPerDay: 3, // Free tier: 3 portfolio change batch refreshes per day
     concurrentRequests: 2,
 
     // Data Access Limits (Monthly)
@@ -142,6 +144,7 @@ export const TIER_CONFIG: Record<TierName, TierLimits> = {
     // AI Usage Limits (Daily)
     chatQueriesPerDay: 100,
     portfolioAnalysisPerDay: 10, // Not specified, but reasonable default
+    portfolioChangesPerDay: Infinity, // Basic tier: unlimited portfolio changes
     concurrentRequests: 5,
 
     // Data Access Limits (Monthly)
@@ -201,6 +204,7 @@ export const TIER_CONFIG: Record<TierName, TierLimits> = {
     // AI Usage Limits (Daily)
     chatQueriesPerDay: 700,
     portfolioAnalysisPerDay: Infinity,
+    portfolioChangesPerDay: Infinity, // Premium tier: unlimited portfolio changes
     concurrentRequests: 10,
 
     // Data Access Limits (Monthly)

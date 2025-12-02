@@ -807,6 +807,56 @@ export const dynamic = 'force-static';
 
 ---
 
+## Portfolio Change Quota (Batch Refresh)
+
+### Purpose
+
+Track and limit client-initiated batch AI refreshes that happen when a user's portfolio changes. This prevents free-tier abuse when the client refreshes AI data for a new portfolio.
+
+### High-level Flow
+
+- Client detects portfolio changes using `localStorage` (see `src/lib/utils/aiCache.ts::detectPortfolioChange`).
+- On detection, the client invalidates local batch caches and triggers batch fetches for news, filings, and sentiment.
+- Before making the batch fetch for a portfolio change, the client checks `/api/ai/portfolio-change` (GET) to see if the change is allowed for the current tier.
+- If allowed and the batch fetch succeeds, the client POSTs to `/api/ai/portfolio-change` to record the counted change (server increments `portfolio_changes`).
+
+### Edge Cases & Rules
+
+- First-ever batch for a user (no previous portfolio saved) is free and does NOT count toward quota.
+- Cache-expiration-only refreshes (same portfolio, cache expired) do NOT count.
+- Only true portfolio changes (tickers added/removed) count.
+- Paid tiers (Basic/Premium) are unlimited and never consume quota.
+
+### Client flags / hooks
+
+- `portfolioChangeDetectedInSession` — set when a change is detected (via `usePortfolioChangeDetection`).
+- `isFirstBatchEver` — set when no previous portfolio exists (first batch should be free).
+- `shouldCountAgainstQuota()` — central helper used by batch hooks to decide whether to check/record quota.
+
+### Server API
+
+- `GET /api/ai/portfolio-change` — returns `{ allowed, remaining, limit, unlimited }`.
+- `POST /api/ai/portfolio-change` — body `{ success: true }` to record a counted change (called after successful batch fetch).
+
+### Database / Migration
+
+- Tracking column: `public.usage_tracking.portfolio_changes INT NOT NULL DEFAULT 0`.
+- A safe migration is provided at `src/backend/database/supabase/migrations/001_add_portfolio_changes.sql`. It performs:
+  1. Backup of the existing table (rename to `usage_tracking_backup`) if present
+  2. Creation of a new `usage_tracking` table matching the Prisma column order
+  3. Copying data from the backup, coalescing missing `portfolio_changes` to 0
+  4. Recreating indexes and RLS policies for `usage_tracking`
+  5. Dropping the backup table
+
+Run the migration in Supabase SQL editor or via your DBA process. Test in staging before production.
+
+### Notes for QA
+
+- Validate that: first batch after account creation does not increment `portfolio_changes`.
+- Validate that portfolio changes increment `portfolio_changes` only once per session.
+- Validate that paid-tier users never see quota errors.
+
+
 ## Cost Analysis
 
 ### Current State (Gemini)
