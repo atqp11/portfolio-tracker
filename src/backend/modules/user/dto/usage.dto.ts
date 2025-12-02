@@ -26,6 +26,11 @@ export const usageStatsResponseSchema = z.object({
           limit: z.union([z.number(), z.literal(Infinity)]),
           remaining: z.union([z.number(), z.literal(Infinity)]),
         }),
+        portfolioChanges: z.object({
+          used: z.number(),
+          limit: z.union([z.number(), z.literal(Infinity)]),
+          remaining: z.union([z.number(), z.literal(Infinity)]),
+        }),
       }),
       monthly: z.object({
         secFilings: z.object({
@@ -46,11 +51,13 @@ export const usageStatsResponseSchema = z.object({
     percentages: z.object({
       chatQueries: z.number().min(0).max(100),
       portfolioAnalysis: z.number().min(0).max(100),
+      portfolioChanges: z.number().min(0).max(100),
       secFilings: z.number().min(0).max(100),
     }),
     warnings: z.object({
       chatQueries: z.boolean(),
       portfolioAnalysis: z.boolean(),
+      portfolioChanges: z.boolean(),
       secFilings: z.boolean(),
     }),
   }),
@@ -65,6 +72,7 @@ export interface RawUsageData {
   daily?: {
     chat_queries?: number;
     portfolio_analysis?: number;
+    portfolio_changes?: number;
   };
   monthly?: {
     sec_filings?: number;
@@ -89,6 +97,7 @@ export interface UsageStats {
     daily: {
       chatQueries: UsageMetric;
       portfolioAnalysis: UsageMetric;
+      portfolioChanges: UsageMetric;
     };
     monthly: {
       secFilings: UsageMetric;
@@ -105,11 +114,13 @@ export interface UsageStats {
   percentages: {
     chatQueries: number;
     portfolioAnalysis: number;
+    portfolioChanges: number;
     secFilings: number;
   };
   warnings: {
     chatQueries: boolean;
     portfolioAnalysis: boolean;
+    portfolioChanges: boolean;
     secFilings: boolean;
   };
 }

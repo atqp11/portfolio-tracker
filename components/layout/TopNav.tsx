@@ -26,6 +26,7 @@ interface AlertState {
 interface UsageWarnings {
   chatQueries: boolean;
   portfolioAnalysis: boolean;
+  portfolioChanges: boolean;
   secFilings: boolean;
 }
 
@@ -33,6 +34,7 @@ interface UsageStats {
   percentages: {
     chatQueries: number;
     portfolioAnalysis: number;
+    portfolioChanges: number;
     secFilings: number;
   };
   warnings: UsageWarnings;
@@ -153,17 +155,18 @@ export default function TopNav({ title }: TopNavProps) {
   // Calculate total notification count
   useEffect(() => {
     let count = 0;
-    
+
     // Count portfolio alerts
     if (alerts?.stopLoss?.triggered) count++;
     if (alerts?.takeProfit?.triggered) count++;
     if (alerts?.marginCall?.triggered) count++;
-    
+
     // Count usage warnings
     if (usageStats?.warnings?.chatQueries) count++;
     if (usageStats?.warnings?.portfolioAnalysis) count++;
+    if (usageStats?.warnings?.portfolioChanges) count++;
     if (usageStats?.warnings?.secFilings) count++;
-    
+
     setNotificationCount(count);
   }, [alerts, usageStats]);
 
@@ -310,6 +313,15 @@ export default function TopNav({ title }: TopNavProps) {
                       <p className="text-sm font-semibold text-orange-700 dark:text-orange-300">📈 Portfolio Analysis Quota Warning</p>
                       <p className="text-xs text-orange-600 dark:text-orange-400 mt-1">
                         {usageStats.percentages.portfolioAnalysis.toFixed(0)}% of daily limit used
+                      </p>
+                    </div>
+                  )}
+
+                  {usageStats?.warnings?.portfolioChanges && (
+                    <div className="p-3 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-md">
+                      <p className="text-sm font-semibold text-orange-700 dark:text-orange-300">🔄 Portfolio Changes Quota Warning</p>
+                      <p className="text-xs text-orange-600 dark:text-orange-400 mt-1">
+                        {usageStats.percentages.portfolioChanges.toFixed(0)}% of daily limit used
                       </p>
                     </div>
                   )}

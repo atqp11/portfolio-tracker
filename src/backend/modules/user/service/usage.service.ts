@@ -38,39 +38,50 @@ export class UsageService {
       rawUsage.daily?.chat_queries || 0,
       tierConfig.chatQueriesPerDay
     );
-    
+
     const dailyAnalysisMetric = this.buildUsageMetric(
       rawUsage.daily?.portfolio_analysis || 0,
       tierConfig.portfolioAnalysisPerDay
     );
-    
+
+    const dailyPortfolioChangesMetric = this.buildUsageMetric(
+      rawUsage.daily?.portfolio_changes || 0,
+      tierConfig.portfolioChangesPerDay
+    );
+
     const monthlyFilingsMetric = this.buildUsageMetric(
       rawUsage.monthly?.sec_filings || 0,
       tierConfig.secFilingsPerMonth
     );
-    
+
     // Calculate percentages
     const chatPercent = this.calculatePercentage(
       dailyChatMetric.used,
       dailyChatMetric.limit
     );
-    
+
     const analysisPercent = this.calculatePercentage(
       dailyAnalysisMetric.used,
       dailyAnalysisMetric.limit
     );
-    
+
+    const portfolioChangesPercent = this.calculatePercentage(
+      dailyPortfolioChangesMetric.used,
+      dailyPortfolioChangesMetric.limit
+    );
+
     const filingsPercent = this.calculatePercentage(
       monthlyFilingsMetric.used,
       monthlyFilingsMetric.limit
     );
-    
+
     return {
       tier,
       usage: {
         daily: {
           chatQueries: dailyChatMetric,
           portfolioAnalysis: dailyAnalysisMetric,
+          portfolioChanges: dailyPortfolioChangesMetric,
         },
         monthly: {
           secFilings: monthlyFilingsMetric,
@@ -81,11 +92,13 @@ export class UsageService {
       percentages: {
         chatQueries: chatPercent,
         portfolioAnalysis: analysisPercent,
+        portfolioChanges: portfolioChangesPercent,
         secFilings: filingsPercent,
       },
       warnings: {
         chatQueries: chatPercent >= 80,
         portfolioAnalysis: analysisPercent >= 80,
+        portfolioChanges: portfolioChangesPercent >= 80,
         secFilings: filingsPercent >= 80,
       },
     };

@@ -109,10 +109,15 @@ export class AIQueryError extends Error {
 // ============================================================================
 
 async function callAiApi(
-  payload: { model: string; contents: string; config?: Record<string, unknown> }
+  payload: { model: string; contents: string; config?: Record<string, unknown> },
+  isBatch = false
 ): Promise<AIResponse> {
   try {
-    const res = await fetch('/api/ai/generate', {
+    // Use batch endpoint for portfolio queries (doesn't count against chat quota)
+    // Use generate endpoint for user chat messages (counts against chat quota)
+    const endpoint = isBatch ? '/api/ai/batch' : '/api/ai/generate';
+
+    const res = await fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -460,8 +465,8 @@ export function usePortfolioNews(tickers: string[], enabled = true) {
       }
       
       console.log(`🔄 [NEWS] Fetching batch for ${tickers.length} tickers`);
-      
-      // Fetch fresh data
+
+      // Fetch fresh data using batch endpoint (doesn't count against chat quota)
       const response = await callAiApi({
         model: 'gemini-2.5-flash',
         contents: `Provide the top 10 recent news headlines for the following stock tickers: ${tickers.join(', ')}. For each article, include the stock ticker, a brief one-sentence summary, and the overall sentiment ('POSITIVE', 'NEGATIVE', or 'NEUTRAL').`,
@@ -485,7 +490,7 @@ export function usePortfolioNews(tickers: string[], enabled = true) {
             }
           }
         }
-      });
+      }, true); // isBatch = true
 
       if (response.rateLimited) {
         throw new AIQueryError(response.errorMessage || 'Rate limited', 'RATE_LIMITED', false);
@@ -562,7 +567,8 @@ export function usePortfolioFilings(tickers: string[], enabled = true) {
       }
       
       console.log(`🔄 [FILINGS] Fetching batch for ${tickers.length} tickers`);
-      
+
+      // Fetch fresh data using batch endpoint (doesn't count against chat quota)
       const response = await callAiApi({
         model: 'gemini-2.5-flash',
         contents: `Provide the top 5 most recent and important SEC filings (like 8-K, 10-K, 10-Q) for the following stock tickers: ${tickers.join(', ')}. For each filing, include the stock ticker, the form type, the filing date, and a brief one-sentence summary.`,
@@ -586,7 +592,7 @@ export function usePortfolioFilings(tickers: string[], enabled = true) {
             }
           }
         }
-      });
+      }, true); // isBatch = true
 
       if (response.rateLimited) {
         throw new AIQueryError(response.errorMessage || 'Rate limited', 'RATE_LIMITED', false);
@@ -653,7 +659,8 @@ export function usePortfolioSentiment(tickers: string[], enabled = true) {
       }
       
       console.log(`🔄 [SENTIMENT] Fetching batch for ${tickers.length} tickers`);
-      
+
+      // Fetch fresh data using batch endpoint (doesn't count against chat quota)
       const response = await callAiApi({
         model: 'gemini-2.5-flash',
         contents: `You are a specialized stock market analysis chatbot. For each of the following stock tickers: ${tickers.join(', ')}, provide a sentiment analysis. For each stock, include the ticker symbol, overall sentiment ('BULLISH', 'BEARISH', or 'NEUTRAL'), a concise summary, and 3-5 key bullet points supporting your analysis.`,
@@ -677,7 +684,7 @@ export function usePortfolioSentiment(tickers: string[], enabled = true) {
             }
           }
         }
-      });
+      }, true); // isBatch = true
 
       if (response.rateLimited) {
         throw new AIQueryError(response.errorMessage || 'Rate limited', 'RATE_LIMITED', false);

@@ -466,6 +466,7 @@ export type TierName = 'free' | 'basic' | 'premium';
 | **Price** | $0/mo | $9.99/mo | $19.99/mo |
 | **Chat Queries** | 10/day | 100/day | Unlimited |
 | **Portfolio Analysis** | 1/day | 10/day | Unlimited |
+| **Portfolio Changes** | 3/day | Unlimited | Unlimited |
 | **SEC Filings** | 3/month | Unlimited | Unlimited |
 | **Portfolios** | 1 | 3 | Unlimited |
 | **Stocks per Portfolio** | 10 | 50 | Unlimited |
@@ -612,9 +613,10 @@ User makes first request of new day:
 
 ```typescript
 export type UsageAction =
-  | 'chatQuery'          // Daily quota
-  | 'portfolioAnalysis'  // Daily quota
-  | 'secFiling';         // Monthly quota
+  | 'chatQuery'          // Daily quota - User chat messages
+  | 'portfolioAnalysis'  // Daily quota - Portfolio analysis requests
+  | 'portfolioChange'    // Daily quota - Portfolio composition changes
+  | 'secFiling';         // Monthly quota - SEC filing requests
 ```
 
 ### Core Functions
@@ -765,9 +767,14 @@ export async function POST(req: NextRequest) {
 
 | Endpoint | Action | Quota | Cache | Status |
 |----------|--------|-------|-------|--------|
-| `/api/ai/chat` | `chatQuery` | Daily | 12hr | ✅ Production |
+| `/api/ai/generate` | `chatQuery` | Daily | 5min (server) | ✅ Production |
+| `/api/ai/batch` | None* | None* | 5min (server) | ✅ Production |
+| `/api/ai/portfolio-change` GET | Check only | - | None | ✅ Production |
+| `/api/ai/portfolio-change` POST | `portfolioChange` | Daily | None | ✅ Production |
 | `/api/risk-metrics` | `portfolioAnalysis` | Daily | 6hr | ✅ Production |
 | `/api/sec-edgar` | `secFiling` | Monthly | None | ✅ Production |
+
+**\*Note**: `/api/ai/batch` uses the `portfolioChange` quota system, checked/tracked separately via `/api/ai/portfolio-change` endpoints.
 
 **All endpoints follow cache-before-quota pattern**: Cached responses do NOT count against quota.
 
@@ -957,6 +964,7 @@ CREATE TABLE usage_tracking (
   -- Counters
   chat_queries INT DEFAULT 0,
   portfolio_analysis INT DEFAULT 0,
+  portfolio_changes INT DEFAULT 0,
   sec_filings INT DEFAULT 0,
 
   -- Period boundaries
@@ -1156,7 +1164,7 @@ User Action (e.g., "Analyze AAPL sentiment")
 │ 4. MIDDLEWARE: withCacheAndQuota                             │
 │    a. Authenticate user (get profile.tier)                   │
 │    b. SERVER CACHE CHECK (In-Memory Map)                     │
-│       Key: SHA256(model + contents + config)                 │
+│       Key: SHA256(model 11tents + config)                 │
 │       TTL: 5 minutes                                         │
 │       ├─► HIT:  Return cached ✅ (NO quota used)            │
 │       └─► MISS: Continue to quota check...                   │
@@ -1185,47 +1193,73 @@ User Action (e.g., "Analyze AAPL sentiment")
 
 When the StonksAI chat window first loads, it triggers **automatic background fetches** for the user's portfolio:
 
-| # | Action | Triggered By | Quota Used |
-|---|--------|--------------|------------|
-| 1 | Clear expired browser cache | `useEffect` on mount | ❌ No |
-| 2 | **Fetch Portfolio News** | `useEffect` when `tickers` changes | ✅ Yes (if cache miss) |
-| 3 | **Fetch Portfolio Filings** | `useEffect` when `tickers` changes | ✅ Yes (if cache miss) |
-| 4 | **Fetch Portfolio Sentiment** | `useEffect` when `tickers` changes | ✅ Yes (if cache miss) |
+| # | Action | Triggered By | Endpoint | Quota Used |
+|---|--------|--------------|----------|------------|
+| 1 | Clear expired browser cache | `useEffect` on mount | None | ❌ No |
+| 2 | **Fetch Portfolio News** | `useEffect` when `tickers` changes | `/api/ai/batch` | ⚠️ Conditional* |
+| 3 | **Fetch Portfolio Filings** | `useEffect` when `tickers` changes | `/api/ai/batch` | ⚠️ Conditional* |
+| 4 | **Fetch Portfolio Sentiment** | `useEffect` when `tickers` changes | `/api/ai/batch` | ⚠️ Conditional* |
 
-**Key Point**: These requests are **batched by portfolio**, not per-stock:
+**\*Quota Logic - Portfolio Changes Only:**
+
+The batch fetches use the **dedicated `/api/ai/batch` endpoint** which does NOT count against chat query quota. Instead, they use the portfolio change quota system:
+
+| Scenario | Portfolio Change Quota Used | Chat Query Quota Used |
+|----------|----------------------------|----------------------|
+| **First Load Ever** (no previous portfolio) | ❌ **FREE** | ❌ No |
+| **Remount** (same portfolio, cache valid) | ❌ **FREE** (uses cache) | ❌ No |
+| **Remount** (same portfolio, cache expired) | ❌ **FREE** (refresh, not a change) | ❌ No |
+| **Portfolio Changed** (added/removed stocks) | ✅ **-1 portfolioChange** (free tier only) | ❌ No |
+
+**Key Points**:
+- Batch fetches **never** count against `chatQuery` quota
+- Portfolio change detection happens client-side (localStorage)
+- Only **actual portfolio composition changes** consume `portfolioChange` quota
+- Paid tiers (basic/premium) have **unlimited** portfolio changes
+- All requests are **batched by portfolio**, not per-stock:
 
 ```typescript
 // All tickers in ONE request - efficient!
-const response = await callAi({
+const response = await callAiApi({
     contents: `Provide news for: ${portfolioTickers.join(', ')}`,
     // e.g., "Provide news for: AAPL, MSFT, GOOGL"
-}, { dataType: 'news', ticker: tickersKey });
+}, true); // isBatch=true → routes to /api/ai/batch
 ```
 
-| Portfolio Size | Calls on Load | Quota Impact (if no cache) |
-|----------------|---------------|---------------------------|
-| 1 stock        | 3             | -3 chatQuery              |
-| 10 stocks      | 3             | -3 chatQuery              |
-| 50 stocks      | 3             | -3 chatQuery              |
+| Portfolio Size | API Calls | portfolioChange Quota (if changed) | chatQuery Quota |
+|----------------|-----------|-----------------------------------|-----------------|
+| 1 stock        | 3         | -1 (free tier only)               | 0               |
+| 10 stocks      | 3         | -1 (free tier only)               | 0               |
+| 50 stocks      | 3         | -1 (free tier only)               | 0               |
 
-**Trade-off**: The extra call on load (+1 for sentiment) enables **significant quota savings** during user interactions by reusing portfolio-level data for individual stock queries. See [Section 12.10](#1210-portfolio-level-cache-optimization) for details.
+**Trade-off**: This design enables **significant quota savings** by keeping portfolio data refreshes free and only charging when users actually change their portfolio composition.
 
 ### 12.4 User Actions & Quota Tracking
 
-**All AI calls from StonksAI use `chatQuery` quota:**
+**Quota tracking varies by action type:**
 
-| Action | User Trigger | Quota Type | Period |
-|--------|--------------|------------|--------|
-| Sentiment Analysis | "Analyze AAPL" | `chatQuery` | Daily |
-| Latest SEC Filing | "Get filing for MSFT" | `chatQuery` | Daily |
-| Company Profile | Click "Profile" button | `chatQuery` | Daily |
-| Last 10 Filings | Click "Last 10" button | `chatQuery` | Daily |
-| News Detail Modal | Click on news item | `chatQuery` | Daily |
-| Filing Detail Modal | Click on filing item | `chatQuery` | Daily |
-| Background News Fetch | Component load | `chatQuery` | Daily |
-| Background Filings Fetch | Component load | `chatQuery` | Daily |
+| Action | User Trigger | Endpoint | Quota Type | Period | Counted When |
+|--------|--------------|----------|------------|--------|--------------|
+| **User Chat Messages** | Type message & send | `/api/ai/generate` | `chatQuery` | Daily | Always (unless cached) |
+| Sentiment Analysis (in portfolio) | "Analyze AAPL" | Cache | None | - | ❌ FREE (cached from batch) |
+| Sentiment Analysis (not in portfolio) | "Analyze XYZ" | `/api/ai/generate` | `chatQuery` | Daily | ✅ Yes (cache miss) |
+| Latest SEC Filing | "Get filing for MSFT" | `/api/ai/generate` | `chatQuery` | Daily | ✅ Yes (cache miss) |
+| Company Profile | Click "Profile" button | `/api/ai/generate` | `chatQuery` | Daily | ✅ Yes (cache miss) |
+| Last 10 Filings | Click "Last 10" button | `/api/ai/generate` | `chatQuery` | Daily | ✅ Yes (cache miss) |
+| News Detail Modal | Click on news item | Cache/`/api/ai/generate` | `chatQuery` | Daily | Only if cache miss |
+| Filing Detail Modal | Click on filing item | Cache/`/api/ai/generate` | `chatQuery` | Daily | Only if cache miss |
+| **Background News Fetch** | Component load | `/api/ai/batch` | `portfolioChange` | Daily | Only if portfolio changed |
+| **Background Filings Fetch** | Component load | `/api/ai/batch` | `portfolioChange` | Daily | Only if portfolio changed |
+| **Background Sentiment Fetch** | Component load | `/api/ai/batch` | `portfolioChange` | Daily | Only if portfolio changed |
+| **Portfolio Composition Change** | Add/remove stocks | `/api/ai/portfolio-change` | `portfolioChange` | Daily | ✅ Yes (free tier only) |
 
-**Note**: The `secFiling` quota type is reserved for the dedicated SEC EDGAR API (`/api/sec-edgar/*`), not AI-generated filing summaries.
+**Key Distinctions:**
+- **User chat messages** → `/api/ai/generate` → `chatQuery` quota
+- **Portfolio batch data** → `/api/ai/batch` → `portfolioChange` quota (free tier only, when changed)
+- **Individual stock queries** → `/api/ai/generate` → `chatQuery` quota (unless cached from batch)
+- **SEC EDGAR API** → `/api/sec-edgar/*` → `secFiling` quota (monthly)
+
+**Note**: The `secFiling` quota type is reserved for the dedicated SEC EDGAR API (`/api/sec-edgar/*`), not AI-generated filing summaries from `/api/ai/generate`.
 
 ### 12.5 Cache Strategy Summary
 
@@ -1539,6 +1573,150 @@ Total:          0 quota!
 
 ---
 
+## 12.11 Quota Tracking Summary
+
+### Complete Quota Flow Reference
+
+This table provides a comprehensive reference for all quota-tracked actions in the system:
+
+| Action | Endpoint | Quota Type | When Counted | Free Tier Limit | Basic Tier | Premium Tier |
+|--------|----------|------------|--------------|-----------------|------------|--------------|
+| **User sends chat message** | `/api/ai/generate` | `chatQuery` | Always (unless cached) | 10/day | 100/day | Unlimited |
+| **First portfolio load** | `/api/ai/batch` | None | Never - completely free | ✅ FREE | ✅ FREE | ✅ FREE |
+| **Remount (cache valid)** | None (cached) | None | Never - uses cache | ✅ FREE | ✅ FREE | ✅ FREE |
+| **Remount (cache expired, same portfolio)** | `/api/ai/batch` | None | Never - refresh is free | ✅ FREE | ✅ FREE | ✅ FREE |
+| **Portfolio change** (add/remove stocks) | `/api/ai/batch` + `/api/ai/portfolio-change` | `portfolioChange` | Only when portfolio changes | 3/day | Unlimited | Unlimited |
+| **Portfolio analysis** | `/api/risk-metrics` | `portfolioAnalysis` | Always (unless cached) | 1/day | 10/day | Unlimited |
+| **SEC filing access** | `/api/sec-edgar` | `secFiling` | Always (no cache) | 3/month | Unlimited | Unlimited |
+
+### Endpoint Quota Behavior
+
+| Endpoint | Purpose | Quota Check | Cache Check | When Quota Consumed |
+|----------|---------|-------------|-------------|---------------------|
+| `/api/ai/generate` | User chat messages | ✅ Yes (`chatQuery`) | ✅ Yes (5min server) | On cache miss |
+| `/api/ai/batch` | Portfolio batch data | ❌ No (uses separate system) | ✅ Yes (5min server) | Never (handled via portfolioChange) |
+| `/api/ai/portfolio-change` GET | Check portfolio change quota | ✅ Yes (check only) | ❌ No | Never (read-only) |
+| `/api/ai/portfolio-change` POST | Track portfolio change | ✅ Yes (track) | ❌ No | On successful batch refresh |
+| `/api/risk-metrics` | Portfolio analysis | ✅ Yes (`portfolioAnalysis`) | ✅ Yes (6hr server) | On cache miss |
+| `/api/sec-edgar` | SEC filings | ✅ Yes (`secFiling`) | ❌ No | Always |
+
+### Portfolio Change Quota Flow
+
+```
+User changes portfolio (adds/removes stocks)
+    │
+    ├─► Client detects change (localStorage comparison)
+    │
+    ├─► Check quota: GET /api/ai/portfolio-change
+    │   ├─► Free tier: Check remaining (limit: 3/day)
+    │   └─► Paid tier: Always allowed (unlimited)
+    │
+    ├─► If allowed: Fetch batch data via /api/ai/batch (3 API calls)
+    │   │   - News batch
+    │   │   - Filings batch
+    │   │   - Sentiment batch
+    │
+    └─► After successful fetch: POST /api/ai/portfolio-change
+        └─► Track usage (free tier only)
+```
+
+### Cache Hierarchy
+
+**Request Flow:**
+1. **Browser Cache** (IndexedDB) - Check first, longest TTL
+2. **TanStack Query** (In-Memory) - Second check, fast access
+3. **Server Cache** (In-Memory) - Third check, before quota
+4. **Quota Check** - Only if all caches miss
+5. **API Call** - Generate fresh data
+
+**Cache TTLs:**
+- Browser: 1 hour (news/sentiment), 24 hours (filings)
+- TanStack Query: Matches browser TTL
+- Server: 5 minutes
+
+### Quota vs Cache Decision Tree
+
+```
+┌─────────────────────────────────────┐
+│       Request Arrives               │
+└─────────────┬───────────────────────┘
+              │
+              ▼
+      ┌───────────────┐
+      │ Browser Cache │
+      │    Valid?     │
+      └───┬───────┬───┘
+        YES│     │NO
+           │     │
+           ▼     ▼
+        Return  ┌──────────────┐
+         FREE   │ Server Cache │
+                │    Valid?    │
+                └───┬──────┬───┘
+                  YES│    │NO
+                     │    │
+                     ▼    ▼
+                  Return ┌────────────┐
+                   FREE  │Check Quota │
+                         └───┬────┬───┘
+                           OK│  EXCEEDED
+                             │    │
+                             ▼    ▼
+                        Generate Return 429
+                         & Cache  Error
+```
+
+### Real-World Example (Free Tier User)
+
+**Session 1: First Time Opening AI Chat**
+```
+Action                          Quota Used      Remaining
+─────────────────────────────────────────────────────────
+Open AI chat (first time)       0 portfolioChange    3
+  → Batch fetch (news)          FREE
+  → Batch fetch (filings)       FREE
+  → Batch fetch (sentiment)     FREE
+
+Ask "Analyze AAPL sentiment"   0 chatQuery         10
+  → Returns cached (from batch) FREE
+
+Send chat message               -1 chatQuery         9
+  → "Explain AAPL news"
+
+Ask sentiment for XYZ           -1 chatQuery         8
+  → Not in portfolio, cache miss
+
+Close chat window
+```
+
+**Session 2: Reopen Within 1 Hour (Same Portfolio)**
+```
+Action                          Quota Used      Remaining
+─────────────────────────────────────────────────────────
+Reopen AI chat                  0 portfolioChange    3
+  → All data cached, instant    FREE
+
+Ask "Analyze AAPL sentiment"   0 chatQuery          8
+  → Returns cached              FREE
+
+Send chat message               -1 chatQuery         7
+  → "What's the risk?"
+```
+
+**Session 3: Add New Stock (TSLA)**
+```
+Action                          Quota Used      Remaining
+─────────────────────────────────────────────────────────
+Add TSLA to portfolio           -1 portfolioChange   2
+  → Batch refetch all data
+  → Now includes TSLA
+
+Ask "Analyze TSLA sentiment"   0 chatQuery          7
+  → Returns cached (from batch) FREE
+```
+
+---
+
 ## 13. API Reference
 
 ### User-Facing APIs (RLS Protected)
@@ -1566,6 +1744,11 @@ Returns current usage statistics for authenticated user.
           "used": 0,
           "limit": 1,
           "remaining": 1
+        },
+        "portfolioChanges": {
+          "used": 1,
+          "limit": 3,
+          "remaining": 2
         }
       },
       "monthly": {
@@ -1587,11 +1770,13 @@ Returns current usage statistics for authenticated user.
     "percentages": {
       "chatQueries": 30,
       "portfolioAnalysis": 0,
+      "portfolioChanges": 33,
       "secFilings": 67
     },
     "warnings": {
       "chatQueries": false,
       "portfolioAnalysis": false,
+      "portfolioChanges": false,
       "secFilings": false
     }
   }
@@ -1630,9 +1815,129 @@ Returns quota information for authenticated user.
 
 ### Quota-Tracked APIs
 
-#### POST /api/ai/chat
+#### POST /api/ai/generate
 
 **Action**: `chatQuery` (daily)
+**Cache**: 5 minutes (server-side)
+**Client**: Admin (for quota tracking)
+
+**Description**: Handles user chat messages and individual AI queries. Uses `withCacheAndQuota` middleware to enforce chat query quota.
+
+**Request**:
+```json
+{
+  "model": "gemini-2.5-flash",
+  "contents": "Explain portfolio diversification",
+  "config": {
+    "responseMimeType": "text/plain"
+  }
+}
+```
+
+**Response**:
+```json
+{
+  "text": "Portfolio diversification is...",
+  "cached": false,
+  "model": "gemini-2.5-flash",
+  "tier": "free"
+}
+```
+
+**Errors**:
+```json
+{
+  "error": "Quota exceeded",
+  "reason": "Daily chat query limit reached (10/day)",
+  "upgradeUrl": "/pricing"
+}
+```
+
+---
+
+#### POST /api/ai/batch
+
+**Action**: None (uses separate `portfolioChange` quota system)
+**Cache**: 5 minutes (server-side)
+**Client**: Admin (for generation, not quota)
+
+**Description**: Handles portfolio batch queries (news, filings, sentiment). Does NOT count against chat query quota. Only checks authentication and cache. Portfolio change quota is checked/tracked separately via `/api/ai/portfolio-change`.
+
+**Request**: Same as `/api/ai/generate`
+
+**Response**: Same as `/api/ai/generate`
+
+---
+
+#### GET /api/ai/portfolio-change
+
+**Action**: `portfolioChange` (check only, no tracking)
+**Cache**: None
+**Client**: Admin
+
+**Description**: Checks if user has remaining portfolio change quota. Called before batch refresh when portfolio composition changes.
+
+**Response**:
+```json
+{
+  "allowed": true,
+  "remaining": 2,
+  "limit": 3,
+  "unlimited": false
+}
+```
+
+**Free tier exhausted**:
+```json
+{
+  "allowed": false,
+  "remaining": 0,
+  "limit": 3,
+  "unlimited": false,
+  "reason": "Daily portfolio change limit reached (3/day)"
+}
+```
+
+---
+
+#### POST /api/ai/portfolio-change
+
+**Action**: `portfolioChange` (track usage)
+**Cache**: None
+**Client**: Admin
+
+**Description**: Records a successful portfolio change. Called after batch refresh completes successfully. Only tracks for free tier.
+
+**Request**:
+```json
+{
+  "success": true
+}
+```
+
+**Response**:
+```json
+{
+  "tracked": true,
+  "remaining": 2,
+  "limit": 3
+}
+```
+
+**Paid tier (not tracked)**:
+```json
+{
+  "tracked": false,
+  "reason": "Unlimited tier",
+  "unlimited": true
+}
+```
+
+---
+
+#### POST /api/ai/chat
+
+**Action**: `chatQuery` (daily) - **DEPRECATED, use `/api/ai/generate`**
 **Cache**: 12 hours
 **Client**: Admin (for quota)
 
@@ -1936,11 +2241,15 @@ lib/
     └── index.ts                # Public exports
 
 app/api/
-├── ai/chat/route.ts            # Chat endpoint (daily quota)
-├── risk-metrics/route.ts       # Analysis endpoint (daily quota)
-├── sec-edgar/route.ts          # Filings endpoint (monthly quota)
-├── user/usage/route.ts         # Usage dashboard (RLS)
-└── user/quota/route.ts         # Quota check (RLS)
+├── ai/
+│   ├── generate/route.ts          # Chat endpoint (chatQuery quota)
+│   ├── batch/route.ts             # Batch endpoint (no chat quota)
+│   └── portfolio-change/route.ts  # Portfolio change quota tracking
+├── risk-metrics/route.ts          # Analysis endpoint (portfolioAnalysis quota)
+├── sec-edgar/route.ts             # Filings endpoint (secFiling quota)
+├── user/
+│   ├── usage/route.ts             # Usage dashboard (RLS)
+│   └── quota/route.ts             # Quota check (RLS)
 ```
 
 ---
@@ -2325,6 +2634,13 @@ getCacheAge(cacheKey)                // Returns age in ms or Infinity
 
 ---
 
-**Last Updated**: 2025-11-25
-**Version**: 2.0
+**Last Updated**: 2025-12-01
+**Version**: 2.1
 **Status**: Production Ready ✅
+
+**Recent Changes (v2.1)**:
+- Added `/api/ai/batch` endpoint for portfolio batch queries (doesn't count against chat quota)
+- Implemented `portfolioChange` quota type for tracking portfolio composition changes
+- Updated quota tracking to separate user chat messages from portfolio data refreshes
+- Added comprehensive Quota Tracking Summary (Section 12.11)
+- Updated all API documentation to reflect new endpoint architecture

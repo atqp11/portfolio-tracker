@@ -10,6 +10,7 @@ interface UsageStats {
     daily: {
       chatQueries: { used: number; limit: number; remaining: number };
       portfolioAnalysis: { used: number; limit: number; remaining: number };
+      portfolioChanges: { used: number; limit: number; remaining: number };
     };
     monthly: {
       secFilings: { used: number; limit: number; remaining: number };
@@ -26,11 +27,13 @@ interface UsageStats {
   percentages: {
     chatQueries: number;
     portfolioAnalysis: number;
+    portfolioChanges: number;
     secFilings: number;
   };
   warnings: {
     chatQueries: boolean;
     portfolioAnalysis: boolean;
+    portfolioChanges: boolean;
     secFilings: boolean;
   };
 }
@@ -212,7 +215,7 @@ export default function UsagePage() {
         </div>
 
         {/* Portfolio Analysis */}
-        <div>
+        <div className="mb-6">
           <div className="flex justify-between items-center mb-2">
             <div>
               <h3 className="font-medium text-gray-900 dark:text-gray-100">
@@ -242,6 +245,43 @@ export default function UsagePage() {
             </div>
           )}
           {stats.warnings.portfolioAnalysis && (
+            <p className="mt-2 text-sm text-yellow-600 dark:text-yellow-400">
+              ⚠️ You're approaching your daily limit
+            </p>
+          )}
+        </div>
+
+        {/* Portfolio Changes */}
+        <div>
+          <div className="flex justify-between items-center mb-2">
+            <div>
+              <h3 className="font-medium text-gray-900 dark:text-gray-100">
+                Portfolio Changes
+              </h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                Add or remove stocks from your portfolio
+              </p>
+            </div>
+            <div className="text-right">
+              <p className="font-semibold text-gray-900 dark:text-gray-100">
+                {stats.usage.daily.portfolioChanges.used} / {formatLimit(stats.usage.daily.portfolioChanges.limit)}
+              </p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                {stats.usage.daily.portfolioChanges.remaining === Infinity
+                  ? 'Unlimited'
+                  : `${stats.usage.daily.portfolioChanges.remaining} remaining`}
+              </p>
+            </div>
+          </div>
+          {stats.usage.daily.portfolioChanges.limit !== Infinity && (
+            <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+              <div
+                className={`h-2 rounded-full transition-all ${getProgressColor(stats.percentages.portfolioChanges)}`}
+                style={{ width: `${Math.min(100, stats.percentages.portfolioChanges)}%` }}
+              />
+            </div>
+          )}
+          {stats.warnings.portfolioChanges && (
             <p className="mt-2 text-sm text-yellow-600 dark:text-yellow-400">
               ⚠️ You're approaching your daily limit
             </p>
@@ -299,7 +339,7 @@ export default function UsagePage() {
       </div>
 
       {/* Upgrade Prompt */}
-      {(stats.warnings.chatQueries || stats.warnings.portfolioAnalysis || stats.warnings.secFilings) && (
+      {(stats.warnings.chatQueries || stats.warnings.portfolioAnalysis || stats.warnings.portfolioChanges || stats.warnings.secFilings) && (
         <div className="bg-gradient-to-r from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 border border-blue-200 dark:border-blue-800 rounded-lg p-6">
           <h3 className="text-lg font-semibold text-blue-900 dark:text-blue-200 mb-2">
             Need More Capacity?
