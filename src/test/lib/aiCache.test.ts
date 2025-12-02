@@ -494,8 +494,10 @@ describe('AI Cache System', () => {
       const result = parseBatchAndCacheIndividual('batch_news', batchArticles, tickers);
       
       expect(result.size).toBe(2);
-      expect(result.get('AAPL')?.length).toBe(2);
-      expect(result.get('GOOGL')?.length).toBe(1);
+      const appleArticles = result.get('AAPL');
+      expect(Array.isArray(appleArticles) ? appleArticles.length : 0).toBe(2);
+      const googleArticles = result.get('GOOGL');
+      expect(Array.isArray(googleArticles) ? googleArticles.length : 0).toBe(1);
       
       // Verify individual caches were created
       expect(loadIndividualCache('batch_news', 'AAPL')).toEqual([
@@ -513,7 +515,8 @@ describe('AI Cache System', () => {
       const result = parseBatchAndCacheIndividual('batch_news', batchArticles, tickers);
       
       expect(result.size).toBe(3);
-      expect(result.get('AAPL')?.length).toBe(1);
+      const appleArticles = result.get('AAPL');
+      expect(Array.isArray(appleArticles) ? appleArticles.length : 0).toBe(1);
       expect(result.get('GOOGL')).toEqual([]);
       expect(result.get('MSFT')).toEqual([]);
     });

@@ -5,6 +5,8 @@
  * Provides middleware functions for checking and tracking usage.
  */
 
+import { NextRequest } from 'next/server';
+import { AuthMiddleware } from './auth.middleware';
 import { TierName } from '@lib/tiers/config';
 import {
   checkAndTrackUsage,
@@ -12,6 +14,9 @@ import {
   UsageAction,
 } from '@lib/tiers/usage-tracker';
 import { QuotaExceededError } from './error-handler.middleware';
+import { getTierConfig } from '@lib/tiers';
+import { portfolioRepository } from '@backend/modules/portfolio/repository/portfolio.repository';
+import { stockRepository } from '@backend/modules/stocks/repository/stock.repository';
 
 /**
  * Quota check result type
@@ -159,4 +164,71 @@ export function withQuotaCheck(
     await QuotaMiddleware.enforce(userId, action, tier);
     return handler(userId, tier, ...args);
   };
+}
+
+/**
+ * Portfolio count quota middleware
+ * Checks if user can create another portfolio based on their tier
+ */
+export function withPortfolioQuota<T extends (...args: any[]) => Promise<any>>(
+  handler: T
+): T {
+  return (async (request: NextRequest, context: any = {}) => {
+    const profile = await AuthMiddleware.requireProfile();
+    const tier = profile.tier as TierName;
+    const tierConfig = getTierConfig(tier);
+
+    const portfolios = await portfolioRepository.findAll();
+    if (portfolios.length >= tierConfig.maxPortfolios) {
+      throw new QuotaExceededError(
+        `You have reached the limit of ${tierConfig.maxPortfolios} portfolios for the ${tier} tier.`,
+        { upgradeUrl: '/pricing' }
+      );
+    }
+
+    return handler(request, context);
+  }) as T;
+}
+
+/**
+ * Stock count quota middleware
+ * Checks if user can add another stock to a portfolio based on their tier
+ */
+export function withStockQuota<T extends (...args: any[]) => Promise<any>>(
+  handler: T
+): T {
+  return (async (request: NextRequest, context: any = {}) => {
+    const profile = await AuthMiddleware.requireProfile();
+    const tier = profile.tier as TierName;
+    const tierConfig = getTierConfig(tier);
+
+    // Get portfolioId from request body (already parsed by validation middleware)
+    let portfolioId = context.body?.portfolioId;
+    
+    // If not in context.body, try parsing the request
+    if (!portfolioId) {
+      try {
+        const body = await request.clone().json();
+        portfolioId = body.portfolioId;
+      } catch (error) {
+        console.warn("Could not extract portfolioId from request for stock quota check");
+        return handler(request, context);
+      }
+    }
+
+    if (!portfolioId) {
+      console.warn("Portfolio ID not found for stock quota check");
+      return handler(request, context);
+    }
+
+    const stocks = await stockRepository.findByPortfolioId(portfolioId);
+    if (stocks.length >= tierConfig.maxStocksPerPortfolio) {
+      throw new QuotaExceededError(
+        `You have reached the limit of ${tierConfig.maxStocksPerPortfolio} stocks for the ${tier} tier in this portfolio.`,
+        { upgradeUrl: '/pricing' }
+      );
+    }
+
+    return handler(request, context);
+  }) as T;
 }

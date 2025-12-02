@@ -28,6 +28,7 @@ export interface TierLimits {
   // Data Access Limits (Monthly)
   secFilingsPerMonth: number;
   newsUpdatesFrequency: string;
+  chatHistoryRetentionDays: number;
 
   // AI Model Configuration
   aiModel: 'flash' | 'flash-pro' | 'flash-pro-priority';
@@ -49,7 +50,7 @@ export interface TierLimits {
     thesisHealthScoring: boolean;
     emailSupport: boolean;
 
-    // Pro Tier Only
+    // Premium Tier Only
     technicalAnalysis: boolean;
     monteCarloSimulations: boolean;
     smartAlerts: boolean;
@@ -76,17 +77,18 @@ export const TIER_CONFIG: Record<TierName, TierLimits> = {
     priceDisplay: 'Free',
 
     // Portfolio Limits
-    maxPortfolios: 1,
-    maxStocksPerPortfolio: 10,
+    maxPortfolios: 1, // Not specified, but reasonable default
+    maxStocksPerPortfolio: 20,
 
     // AI Usage Limits (Daily)
-    chatQueriesPerDay: 10,
-    portfolioAnalysisPerDay: 1,
+    chatQueriesPerDay: 20,
+    portfolioAnalysisPerDay: 1, // Not specified, but reasonable default
     concurrentRequests: 2,
 
     // Data Access Limits (Monthly)
-    secFilingsPerMonth: 3,
+    secFilingsPerMonth: 3, // Not specified, but reasonable default
     newsUpdatesFrequency: '1×/day',
+    chatHistoryRetentionDays: 14,
 
     // AI Model Configuration
     aiModel: 'flash',
@@ -108,7 +110,7 @@ export const TIER_CONFIG: Record<TierName, TierLimits> = {
       thesisHealthScoring: false,
       emailSupport: false,
 
-      // Pro Tier Only
+      // Premium Tier Only
       technicalAnalysis: false,
       monteCarloSimulations: false,
       smartAlerts: false,
@@ -130,21 +132,22 @@ export const TIER_CONFIG: Record<TierName, TierLimits> = {
 
   basic: {
     // Pricing
-    price: 9.99,
-    priceDisplay: '$9.99/month',
+    price: 6,
+    priceDisplay: '$6/month',
 
     // Portfolio Limits
-    maxPortfolios: 3,
+    maxPortfolios: 5, // Not specified, but reasonable default
     maxStocksPerPortfolio: 50,
 
     // AI Usage Limits (Daily)
     chatQueriesPerDay: 100,
-    portfolioAnalysisPerDay: 10,
+    portfolioAnalysisPerDay: 10, // Not specified, but reasonable default
     concurrentRequests: 5,
 
     // Data Access Limits (Monthly)
     secFilingsPerMonth: Infinity,
     newsUpdatesFrequency: '3×/day',
+    chatHistoryRetentionDays: 365, // 1 year
 
     // AI Model Configuration
     aiModel: 'flash-pro',
@@ -166,7 +169,7 @@ export const TIER_CONFIG: Record<TierName, TierLimits> = {
       thesisHealthScoring: true,
       emailSupport: true,
 
-      // Pro Tier Only
+      // Premium Tier Only
       technicalAnalysis: false,
       monteCarloSimulations: false,
       smartAlerts: false,
@@ -183,26 +186,27 @@ export const TIER_CONFIG: Record<TierName, TierLimits> = {
 
     // Cost Analysis
     estimatedMonthlyCost: 0.75,
-    grossMargin: 92.5,
+    grossMargin: 87.5,
   },
 
   premium: {
     // Pricing
-    price: 19.99,
-    priceDisplay: '$19.99/month',
+    price: 15.99,
+    priceDisplay: '$15.99/month',
 
     // Portfolio Limits
     maxPortfolios: Infinity,
-    maxStocksPerPortfolio: Infinity,
+    maxStocksPerPortfolio: 150,
 
     // AI Usage Limits (Daily)
-    chatQueriesPerDay: Infinity,
+    chatQueriesPerDay: 700,
     portfolioAnalysisPerDay: Infinity,
     concurrentRequests: 10,
 
     // Data Access Limits (Monthly)
     secFilingsPerMonth: Infinity,
     newsUpdatesFrequency: 'real-time',
+    chatHistoryRetentionDays: Infinity,
 
     // AI Model Configuration
     aiModel: 'flash-pro-priority',
@@ -224,7 +228,7 @@ export const TIER_CONFIG: Record<TierName, TierLimits> = {
       thesisHealthScoring: true,
       emailSupport: true,
 
-      // Pro Tier Only
+      // Premium Tier Only
       technicalAnalysis: true,
       monteCarloSimulations: true,
       smartAlerts: true,
@@ -241,7 +245,7 @@ export const TIER_CONFIG: Record<TierName, TierLimits> = {
 
     // Cost Analysis
     estimatedMonthlyCost: 2.00,
-    grossMargin: 90.0,
+    grossMargin: 87.5,
   },
 };
 
@@ -256,7 +260,9 @@ export function getTierConfig(tier: TierName): TierLimits {
  * Check if user's tier allows a specific feature
  */
 export function hasFeature(tier: TierName, feature: keyof TierLimits['features']): boolean {
-  return TIER_CONFIG[tier].features[feature];
+  const tierConfig = TIER_CONFIG[tier];
+  if (!tierConfig) return false;
+  return tierConfig.features[feature];
 }
 
 /**

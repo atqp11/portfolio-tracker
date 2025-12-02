@@ -7,12 +7,20 @@
 import { GET, POST, PUT, DELETE } from '@app/api/stocks/route';
 import { createMockRequest, extractJSON } from '../helpers/test-utils';
 import { stockService } from '@backend/modules/stocks/service/stock.service';
+import { stockRepository } from '@backend/modules/stocks/repository/stock.repository';
 import { NotFoundError } from '@backend/common/middleware/error-handler.middleware';
 import * as authSession from '@lib/auth/session';
+import { checkAndTrackUsage } from '@lib/tiers/usage-tracker';
 
 // Mock the service layer, which is the dependency of the controller
 jest.mock('@backend/modules/stocks/service/stock.service');
 jest.mock('@lib/auth/session');
+jest.mock('@backend/modules/stocks/repository/stock.repository');
+jest.mock('@lib/tiers/usage-tracker', () => ({
+  checkAndTrackUsage: jest.fn(),
+  checkQuota: jest.fn(),
+  trackUsage: jest.fn(),
+}));
 
 // Mock authenticated user
 const mockUser = {
@@ -45,6 +53,15 @@ describe('Stock API (Refactored)', () => {
     jest.clearAllMocks();
     // Mock authenticated user by default
     (authSession.getUser as jest.Mock).mockResolvedValue(mockUser);
+    (authSession.getUserProfile as jest.Mock).mockResolvedValue(mockUser);
+    
+    // Mock repository for quota checks
+    (stockRepository.findByPortfolioId as jest.Mock).mockResolvedValue([]);
+    
+    // Mock usage tracker to allow operations by default
+    (checkAndTrackUsage as jest.Mock).mockResolvedValue({
+      allowed: true,
+    });
   });
 
   describe('GET /api/stocks', () => {
@@ -123,6 +140,9 @@ describe('Stock API (Refactored)', () => {
     };
 
     it('should create a new stock with valid data', async () => {
+      (authSession.getUser as jest.Mock).mockResolvedValue({ id: 'user-123', email: 'test@example.com' });
+      (authSession.getUserProfile as jest.Mock).mockResolvedValue({ id: 'user-123', email: 'test@example.com', tier: 'free' });
+      (stockRepository.findByPortfolioId as jest.Mock).mockResolvedValue([]); // For quota check
       (stockService.create as jest.Mock).mockResolvedValue(mockStock);
 
       const request = createMockRequest({
@@ -140,6 +160,10 @@ describe('Stock API (Refactored)', () => {
     });
 
     it('should return 400 for invalid data', async () => {
+      (authSession.getUser as jest.Mock).mockResolvedValue({ id: 'user-123', email: 'test@example.com' });
+      (authSession.getUserProfile as jest.Mock).mockResolvedValue({ id: 'user-123', email: 'test@example.com', tier: 'free' });
+      (stockRepository.findByPortfolioId as jest.Mock).mockResolvedValue([]); // For quota check
+      
       const invalidData = { ...validCreateData, symbol: '' }; // Invalid symbol
       const request = createMockRequest({
         method: 'POST',

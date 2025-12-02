@@ -108,6 +108,7 @@ export interface UsageTracking {
   chat_queries: number;
   portfolio_analysis: number;
   sec_filings: number;
+  portfolio_changes: number;
   period_start: string;
   period_end: string;
   created_at: string;

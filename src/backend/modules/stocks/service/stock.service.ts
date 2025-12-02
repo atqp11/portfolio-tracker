@@ -45,6 +45,7 @@ export class StockService {
     this.validateCreateData(stockData);
 
     const stock = await stockRepository.create(stockData);
+    
     return this.transformToDTO(stock);
   }
 
@@ -53,10 +54,6 @@ export class StockService {
    * Applies business rules and transforms DTO to database model
    */
   async update(stockId: string, data: UpdateStockInput): Promise<any> {
-
-    // Get existing stock for calculations (already transformed to DTO)
-    const existingStockDTO = await this.findById(stockId);
-
     // Get raw stock for repository operations
     const existingStock = await stockRepository.findById(stockId);
     if (!existingStock) {
@@ -70,6 +67,7 @@ export class StockService {
     this.validateUpdateData(updateData);
 
     const stock = await stockRepository.update(stockId, updateData);
+    
     return this.transformToDTO(stock);
   }
 
@@ -81,6 +79,7 @@ export class StockService {
     await this.findById(stockId);
 
     await stockRepository.delete(stockId);
+    
     return { success: true };
   }
 
@@ -200,6 +199,7 @@ export class StockService {
       createdAt: stock.created_at,
     };
   }
+
 }
 
 // Export singleton instance

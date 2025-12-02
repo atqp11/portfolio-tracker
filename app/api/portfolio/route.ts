@@ -8,6 +8,7 @@
 import { NextRequest } from 'next/server';
 import { portfolioController } from '@backend/modules/portfolio/portfolio.controller';
 import { withErrorHandler } from '@backend/common/middleware/error-handler.middleware';
+import { withPortfolioQuota } from '@backend/common/middleware/quota.middleware';
 import { withValidation } from '@backend/common/middleware/validation.middleware';
 import { withAuth } from '@backend/common/middleware/auth.middleware';
 import { z } from 'zod';
@@ -47,8 +48,10 @@ export const GET = withErrorHandler(
  */
 export const POST = withErrorHandler(
   withAuth(
-    withValidation(createPortfolioSchema)(
-      (req: NextRequest, context: any) => portfolioController.create(req, context)
+    withPortfolioQuota(
+      withValidation(createPortfolioSchema)(
+        (req: NextRequest, context: any) => portfolioController.create(req, context)
+      )
     )
   )
 );

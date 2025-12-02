@@ -32,12 +32,14 @@ function aggregateUsageRows(rows: UsageTracking[] | null): UsageTracking | null 
     acc.chat_queries += row.chat_queries ?? 0;
     acc.portfolio_analysis += row.portfolio_analysis ?? 0;
     acc.sec_filings += row.sec_filings ?? 0;
+    acc.portfolio_changes += row.portfolio_changes ?? 0;
     return acc;
   }, {
     ...rows[0],
     chat_queries: rows[0].chat_queries ?? 0,
     portfolio_analysis: rows[0].portfolio_analysis ?? 0,
     sec_filings: rows[0].sec_filings ?? 0,
+    portfolio_changes: rows[0].portfolio_changes ?? 0,
   });
 }
 
@@ -104,6 +106,7 @@ async function getOrCreateUsageRecord(
       chat_queries: 0,
       portfolio_analysis: 0,
       sec_filings: 0,
+      portfolio_changes: 0,
       period_start: startStr,
       period_end: endStr,
     })
@@ -358,15 +361,4 @@ export async function getUsageStats(userId: string, tier: TierName) {
       secFilings: filingPercent >= 80,
     },
   };
-}
-
-/**
- * Reset usage for testing purposes (admin only)
- */
-export async function resetUsage(userId: string): Promise<void> {
-  const supabase = createAdminClient();
-
-  await supabase.from('usage_tracking').delete().eq('user_id', userId);
-
-  console.log(`Usage reset for user ${userId}`);
 }

@@ -244,6 +244,13 @@ export default function Home() {
     console.log(`Refreshing prices for ${stocks.length} stocks...`);
 
     try {
+      const res = await fetch('/api/portfolio/refresh', { method: 'POST' });
+      if (!res.ok) {
+        const { error } = await res.json();
+        alert(error);
+        return;
+      }
+
       const refreshPromises = (stocks || []).map((stock: Stock) =>
         fetchAndUpdateStockPrice(stock.id, stock.symbol, stock.shares, false)
       );

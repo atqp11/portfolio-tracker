@@ -7,6 +7,7 @@
 import { NextRequest } from 'next/server';
 import { stockController } from '@backend/modules/stocks/stock.controller';
 import { withErrorHandler } from '@backend/common/middleware/error-handler.middleware';
+import { withStockQuota } from '@backend/common/middleware/quota.middleware';
 import { withValidation } from '@backend/common/middleware/validation.middleware';
 import { withAuth } from '@backend/common/middleware/auth.middleware';
 import { z } from 'zod';
@@ -46,8 +47,10 @@ export const GET = withErrorHandler(
  */
 export const POST = withErrorHandler(
   withAuth(
-    withValidation(createStockSchema)(
-      (req: NextRequest, context: any) => stockController.create(req, context)
+    withStockQuota(
+      withValidation(createStockSchema)(
+        (req: NextRequest, context: any) => stockController.create(req, context)
+      )
     )
   )
 );

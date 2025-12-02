@@ -53,6 +53,7 @@ model UsageTracking {
   chatQueries       Int      @default(0) @map("chat_queries")
   portfolioAnalysis Int      @default(0) @map("portfolio_analysis")
   secFilings        Int      @default(0) @map("sec_filings")
+  portfolioChanges  Int      @default(0) @map("portfolio_changes")
   periodStart       DateTime @map("period_start") @db.Timestamptz(6)
   periodEnd         DateTime @map("period_end") @db.Timestamptz(6)
   createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
