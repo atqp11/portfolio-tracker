@@ -21,11 +21,20 @@ jest.mock('@lib/supabase/admin', () => ({
     from: jest.fn().mockReturnValue({
       select: jest.fn().mockReturnValue({
         eq: jest.fn().mockReturnValue({
-          eq: jest.fn().mockReturnValue({
-            eq: jest.fn().mockReturnValue({
-              limit: jest.fn().mockReturnValue({
-                maybeSingle: jest.fn().mockResolvedValue({ data: null, error: null }),
-              }),
+          gte: jest.fn().mockReturnValue({
+            lte: jest.fn().mockResolvedValue({
+              data: [{
+                id: 'test-record-id',
+                user_id: 'test-user-id',
+                tier: 'free',
+                chat_queries: 0,
+                portfolio_analysis: 0,
+                sec_filings: 0,
+                portfolio_changes: 0,
+                period_start: new Date().toISOString(),
+                period_end: new Date().toISOString(),
+              }],
+              error: null,
             }),
           }),
         }),
