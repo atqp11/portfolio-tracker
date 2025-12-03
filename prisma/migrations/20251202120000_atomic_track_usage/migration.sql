@@ -5,7 +5,7 @@ CREATE OR REPLACE FUNCTION increment_usage(
 )
 RETURNS void AS $$
 DECLARE
-  v_record_id BIGINT;
+  v_record_id TEXT;
   v_period_start TIMESTAMPTZ;
   v_period_end TIMESTAMPTZ;
   v_period_type TEXT;

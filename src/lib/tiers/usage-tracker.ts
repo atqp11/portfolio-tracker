@@ -66,31 +66,45 @@ function getCurrentPeriod(type: 'daily' | 'monthly'): { start: Date; end: Date }
 export async function getUserUsage(userId: string, tier: TierName) {
   const supabase = createAdminClient();
 
-  // Get daily usage - use normalized timestamps for exact matching
+  // Get daily usage
+  // Query for records where period_start falls on today (UTC)
+  // This avoids precision issues between JS milliseconds and DB microseconds
   const dailyPeriod = getCurrentPeriod('daily');
   const dailyStartStr = dailyPeriod.start.toISOString();
-  const dailyEndStr = dailyPeriod.end.toISOString();
+  // Use start of next day for the upper bound (exclusive) to catch any precision
+  const nextDayStart = new Date(dailyPeriod.start);
+  nextDayStart.setUTCDate(nextDayStart.getUTCDate() + 1);
+  const nextDayStartStr = nextDayStart.toISOString();
 
   const { data: dailyUsageRows } = await supabase
     .from('usage_tracking')
     .select('*')
     .eq('user_id', userId)
     .gte('period_start', dailyStartStr)
-    .lte('period_end', dailyEndStr);
+    .lt('period_start', nextDayStartStr);
 
   const dailyUsage = aggregateUsageRows(dailyUsageRows || null);
 
-  // Get monthly usage - use normalized timestamps for exact matching
+  // Get monthly usage
+  // Monthly records have period_start = first of month AND period_end = last of month
+  // We need to distinguish from daily records which also fall in this month
   const monthlyPeriod = getCurrentPeriod('monthly');
   const monthlyStartStr = monthlyPeriod.start.toISOString();
-  const monthlyEndStr = monthlyPeriod.end.toISOString();
+  // Use start of next month to verify period_end (monthly records span entire month)
+  const nextMonthStart = new Date(Date.UTC(
+    monthlyPeriod.start.getUTCFullYear(),
+    monthlyPeriod.start.getUTCMonth() + 1,
+    1
+  ));
+  const nextMonthStartStr = nextMonthStart.toISOString();
 
   const { data: monthlyUsageRows } = await supabase
     .from('usage_tracking')
     .select('*')
     .eq('user_id', userId)
     .gte('period_start', monthlyStartStr)
-    .lte('period_end', monthlyEndStr);
+    .lt('period_start', new Date(monthlyPeriod.start.getTime() + 1000).toISOString()) // Within 1 second of month start
+    .gte('period_end', nextMonthStartStr); // period_end must be in next month (monthly record)
 
   const monthlyUsage = aggregateUsageRows(monthlyUsageRows || null);
 

@@ -508,14 +508,6 @@ export async function createUsageRecord1(
   return data;
 }
 
-/**
- * Normalize timestamp to consistent string format for DB storage/queries
- * Ensures exact matches between writes and reads
- */
-function normalizeTimestamp(date: Date): string {
-  return date.toISOString().replace('Z', '+00:00');
-}
-
 function aggregateUsageRows(rows: UsageTracking[] | null): UsageTracking | null {
   if (!rows || rows.length === 0) {
     return null;
@@ -525,12 +517,14 @@ function aggregateUsageRows(rows: UsageTracking[] | null): UsageTracking | null 
     acc.chat_queries += row.chat_queries ?? 0;
     acc.portfolio_analysis += row.portfolio_analysis ?? 0;
     acc.sec_filings += row.sec_filings ?? 0;
+    acc.portfolio_changes += row.portfolio_changes ?? 0;
     return acc;
   }, {
     ...rows[0],
     chat_queries: rows[0].chat_queries ?? 0,
     portfolio_analysis: rows[0].portfolio_analysis ?? 0,
     sec_filings: rows[0].sec_filings ?? 0,
+    portfolio_changes: rows[0].portfolio_changes ?? 0,
   });
 }
 
@@ -548,24 +542,22 @@ export async function getCurrentUserUsage(userId: string): Promise<{
   const now = new Date();
 
   // Get daily usage (current day)
+  // Query by period_start range to avoid precision issues between JS milliseconds and DB microseconds
   const dailyStart = new Date(now);
   dailyStart.setUTCHours(0, 0, 0, 0);
 
-  const dailyEnd = new Date(dailyStart);
-  dailyEnd.setUTCHours(23, 59, 59, 999);
+  // Use start of next day as upper bound (exclusive)
+  const nextDayStart = new Date(dailyStart);
+  nextDayStart.setUTCDate(nextDayStart.getUTCDate() + 1);
 
-  // Normalize timestamps for exact matching
-  const dailyStartStr = normalizeTimestamp(dailyStart);
-  const dailyEndStr = normalizeTimestamp(dailyEnd);
-
-  // Query for daily records using exact timestamp match
-  // Fetch ALL matching records and aggregate them to handle duplicates
+  // Query for daily records using range match on period_start
+  // This avoids exact timestamp matching issues with microsecond precision
   const { data: dailyUsageRows, error: dailyError } = await supabase
     .from('usage_tracking')
     .select('*')
     .eq('user_id', userId)
-    .eq('period_start', dailyStartStr)
-    .eq('period_end', dailyEndStr);
+    .gte('period_start', dailyStart.toISOString())
+    .lt('period_start', nextDayStart.toISOString());
 
   const dailyUsage = aggregateUsageRows(dailyUsageRows || null);
   
@@ -574,19 +566,21 @@ export async function getCurrentUserUsage(userId: string): Promise<{
   }
 
   // Get monthly usage (current month)
+  // Monthly records have period_start = first of month AND period_end = last of month
+  // We need to distinguish from daily records which also fall in this month
   const monthlyStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-  const monthlyEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0, 23, 59, 59, 999));
   
-  // Normalize timestamps for exact matching
-  const monthlyStartStr = normalizeTimestamp(monthlyStart);
-  const monthlyEndStr = normalizeTimestamp(monthlyEnd);
+  // Query for records where period_start is exactly the first of the month
+  // and period_end is in the next month (indicating a monthly record, not daily)
+  const nextMonthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
 
   const { data: monthlyUsageRows, error: monthlyError } = await supabase
     .from('usage_tracking')
     .select('*')
     .eq('user_id', userId)
-    .eq('period_start', monthlyStartStr)
-    .eq('period_end', monthlyEndStr);
+    .gte('period_start', monthlyStart.toISOString())
+    .lt('period_start', new Date(monthlyStart.getTime() + 1000).toISOString()) // Within 1 second of month start
+    .gte('period_end', nextMonthStart.toISOString()); // period_end must be in next month (monthly record)
 
   const monthlyUsage = aggregateUsageRows(monthlyUsageRows || null);
 

@@ -16,29 +16,45 @@ import { getTierConfig, TierName } from '@lib/tiers/config';
 import { checkQuota, trackUsage, getUserUsage } from '@lib/tiers/usage-tracker';
 
 // Mock Supabase client
+const mockQueryResult = {
+  data: [{
+    id: 'test-record-id',
+    user_id: 'test-user-id',
+    tier: 'free',
+    chat_queries: 0,
+    portfolio_analysis: 0,
+    sec_filings: 0,
+    portfolio_changes: 0,
+    period_start: new Date().toISOString(),
+    period_end: new Date().toISOString(),
+  }],
+  error: null,
+};
+
+// Create a chainable mock that supports any order of query methods
+const createChainableMock = (): Record<string, unknown> => {
+  const methods = ['eq', 'gte', 'lt', 'lte', 'gt', 'neq', 'like', 'ilike', 'is', 'in', 'contains', 'order', 'limit'];
+  
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const chainable: any = {};
+  
+  methods.forEach(method => {
+    chainable[method] = jest.fn().mockImplementation(() => chainable);
+  });
+  
+  // Make the chainable resolve when awaited
+  chainable.then = (resolve: (value: typeof mockQueryResult) => void) => {
+    resolve(mockQueryResult);
+    return Promise.resolve(mockQueryResult);
+  };
+  
+  return chainable;
+};
+
 jest.mock('@lib/supabase/admin', () => ({
   createAdminClient: () => ({
     from: jest.fn().mockReturnValue({
-      select: jest.fn().mockReturnValue({
-        eq: jest.fn().mockReturnValue({
-          gte: jest.fn().mockReturnValue({
-            lte: jest.fn().mockResolvedValue({
-              data: [{
-                id: 'test-record-id',
-                user_id: 'test-user-id',
-                tier: 'free',
-                chat_queries: 0,
-                portfolio_analysis: 0,
-                sec_filings: 0,
-                portfolio_changes: 0,
-                period_start: new Date().toISOString(),
-                period_end: new Date().toISOString(),
-              }],
-              error: null,
-            }),
-          }),
-        }),
-      }),
+      select: jest.fn().mockReturnValue(createChainableMock()),
       insert: jest.fn().mockReturnValue({
         select: jest.fn().mockReturnValue({
           single: jest.fn().mockResolvedValue({
@@ -61,6 +77,7 @@ jest.mock('@lib/supabase/admin', () => ({
         eq: jest.fn().mockResolvedValue({ error: null }),
       }),
     }),
+    rpc: jest.fn().mockResolvedValue({ error: null }),
   }),
 }));
 
