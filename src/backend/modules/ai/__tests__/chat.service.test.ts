@@ -94,6 +94,7 @@ describe('ChatService', () => {
       const request: ChatRequestDto = {
         message: 'What is the stock market?',
         ragContext: 'Some context',
+        bypassCache: false,
         portfolio: {
           symbols: ['AAPL', 'GOOGL'],
           totalValue: 100000,
@@ -156,6 +157,7 @@ describe('ChatService', () => {
       const request: ChatRequestDto = {
         message: 'Complex financial question',
         ragContext: '',
+        bypassCache: false,
       };
 
       const mockAIResponse = {
@@ -188,6 +190,7 @@ describe('ChatService', () => {
       const request: ChatRequestDto = {
         message: 'test',
         ragContext: '',
+        bypassCache: false,
       };
 
       const error = new Error('AI service unavailable');

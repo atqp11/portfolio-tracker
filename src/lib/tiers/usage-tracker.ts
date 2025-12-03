@@ -15,14 +15,6 @@ import { UsageTracking } from '@lib/supabase/db';
 
 export type UsageAction = 'chatQuery' | 'portfolioAnalysis' | 'secFiling' | 'portfolioChange';
 
-/**
- * Normalize timestamp to consistent string format for DB storage/queries
- * Ensures exact matches between writes and reads
- */
-function normalizeTimestamp(date: Date): string {
-  return date.toISOString().replace('Z', '+00:00');
-}
-
 function aggregateUsageRows(rows: UsageTracking[] | null): UsageTracking | null {
   if (!rows || rows.length === 0) {
     return null;
@@ -69,63 +61,6 @@ function getCurrentPeriod(type: 'daily' | 'monthly'): { start: Date; end: Date }
 }
 
 /**
- * Get or create usage record for current period
- */
-async function getOrCreateUsageRecord(
-  userId: string,
-  tier: TierName,
-  periodType: 'daily' | 'monthly'
-): Promise<UsageTracking> {
-  const supabase = createAdminClient();
-  const { start, end } = getCurrentPeriod(periodType);
-
-  // Normalize timestamps for consistent matching
-  const startStr = normalizeTimestamp(start);
-  const endStr = normalizeTimestamp(end);
-
-  // Try to find existing record for current period using exact timestamp match
-  const { data: existing, error: findError } = await supabase
-    .from('usage_tracking')
-    .select('*')
-    .eq('user_id', userId)
-    .eq('period_start', startStr)
-    .eq('period_end', endStr)
-    .limit(1)
-    .maybeSingle();
-
-  if (existing && !findError) {
-    return existing;
-  }
-
-  // Create new record for current period with normalized timestamps
-  const { data: newRecord, error: createError } = await supabase
-    .from('usage_tracking')
-    .insert({
-      user_id: userId,
-      tier,
-      chat_queries: 0,
-      portfolio_analysis: 0,
-      sec_filings: 0,
-      portfolio_changes: 0,
-      period_start: startStr,
-      period_end: endStr,
-    })
-    .select()
-    .single();
-
-  if (createError) {
-    console.error('[getOrCreateUsageRecord] Failed to create usage record:', createError);
-    throw new Error(`Failed to initialize usage tracking: ${createError.message}`);
-  }
-
-  if (!newRecord) {
-    throw new Error('Failed to initialize usage tracking: No record returned');
-  }
-
-  return newRecord;
-}
-
-/**
  * Get current usage for a user
  */
 export async function getUserUsage(userId: string, tier: TierName) {
@@ -133,29 +68,29 @@ export async function getUserUsage(userId: string, tier: TierName) {
 
   // Get daily usage - use normalized timestamps for exact matching
   const dailyPeriod = getCurrentPeriod('daily');
-  const dailyStartStr = normalizeTimestamp(dailyPeriod.start);
-  const dailyEndStr = normalizeTimestamp(dailyPeriod.end);
+  const dailyStartStr = dailyPeriod.start.toISOString();
+  const dailyEndStr = dailyPeriod.end.toISOString();
 
   const { data: dailyUsageRows } = await supabase
     .from('usage_tracking')
     .select('*')
     .eq('user_id', userId)
-    .eq('period_start', dailyStartStr)
-    .eq('period_end', dailyEndStr);
+    .gte('period_start', dailyStartStr)
+    .lte('period_end', dailyEndStr);
 
   const dailyUsage = aggregateUsageRows(dailyUsageRows || null);
 
   // Get monthly usage - use normalized timestamps for exact matching
   const monthlyPeriod = getCurrentPeriod('monthly');
-  const monthlyStartStr = normalizeTimestamp(monthlyPeriod.start);
-  const monthlyEndStr = normalizeTimestamp(monthlyPeriod.end);
+  const monthlyStartStr = monthlyPeriod.start.toISOString();
+  const monthlyEndStr = monthlyPeriod.end.toISOString();
 
   const { data: monthlyUsageRows } = await supabase
     .from('usage_tracking')
     .select('*')
     .eq('user_id', userId)
-    .eq('period_start', monthlyStartStr)
-    .eq('period_end', monthlyEndStr);
+    .gte('period_start', monthlyStartStr)
+    .lte('period_end', monthlyEndStr);
 
   const monthlyUsage = aggregateUsageRows(monthlyUsageRows || null);
 
@@ -289,62 +224,16 @@ export async function trackUsage(
 ): Promise<void> {
   const supabase = createAdminClient();
 
-  // Determine period type
-  const periodType = action === 'secFiling' ? 'monthly' : 'daily';
-
-  // Get or create usage record
-  const record = await getOrCreateUsageRecord(userId, tier, periodType);
-
-  // Increment appropriate counter
-  const updates: { chat_queries?: number; portfolio_analysis?: number; sec_filings?: number; portfolio_changes?: number } = {};
-
-  switch (action) {
-    case 'chatQuery':
-      updates.chat_queries = (record.chat_queries || 0) + 1;
-      break;
-    case 'portfolioAnalysis':
-      updates.portfolio_analysis = (record.portfolio_analysis || 0) + 1;
-      break;
-    case 'secFiling':
-      updates.sec_filings = (record.sec_filings || 0) + 1;
-      break;
-    case 'portfolioChange':
-      updates.portfolio_changes = (record.portfolio_changes || 0) + 1;
-      break;
-  }
-
-  // Update database
-  const { error } = await supabase
-    .from('usage_tracking')
-    .update(updates)
-    .eq('id', record.id);
+  const { error } = await supabase.rpc('increment_usage', {
+    p_user_id: userId,
+    p_action: action,
+    p_tier: tier,
+  });
 
   if (error) {
-    console.error('[Usage Tracker] Failed to track usage:', error);
+    console.error('[Usage Tracker] Failed to track usage via RPC:', error);
     // Don't throw - allow request to proceed even if tracking fails
   }
-}
-
-/**
- * Check quota and track usage in one operation
- * Returns true if action is allowed, false otherwise
- */
-export async function checkAndTrackUsage(
-  userId: string,
-  action: UsageAction,
-  tier: TierName
-): Promise<{ allowed: boolean; reason?: string }> {
-  // Check quota first
-  const quota = await checkQuota(userId, action, tier);
-
-  if (!quota.allowed) {
-    return { allowed: false, reason: quota.reason };
-  }
-
-  // Track usage (increment counter)
-  await trackUsage(userId, action, tier);
-
-  return { allowed: true };
 }
 
 /**

@@ -8,7 +8,7 @@
 import { NextRequest } from 'next/server';
 import { GET } from '@app/api/user/usage/route';
 import { getUserProfile } from '@lib/auth/session';
-import { getCurrentUserUsage } from '@lib/supabase/db';
+import { getCurrentUserUsage, UsageTracking, Profile } from '@lib/supabase/db';
 import { getTierConfig } from '@lib/tiers';
 
 // Mock dependencies
@@ -20,6 +20,30 @@ const mockGetUserProfile = getUserProfile as jest.MockedFunction<typeof getUserP
 const mockGetCurrentUserUsage = getCurrentUserUsage as jest.MockedFunction<typeof getCurrentUserUsage>;
 const mockGetTierConfig = getTierConfig as jest.MockedFunction<typeof getTierConfig>;
 
+const mockProfile: Profile = {
+  id: 'user-123',
+  email: 'test@example.com',
+  tier: 'free',
+  created_at: new Date().toISOString(),
+  name: 'Test User',
+  is_admin: false,
+  updated_at: new Date().toISOString(),
+};
+
+const mockUsage: UsageTracking = {
+  id: '1',
+  user_id: 'user-123',
+  tier: 'free',
+  chat_queries: 0,
+  portfolio_analysis: 0,
+  sec_filings: 0,
+  portfolio_changes: 0,
+  period_start: new Date().toISOString(),
+  period_end: new Date().toISOString(),
+  created_at: new Date().toISOString(),
+};
+
+
 describe('User Usage Integration Tests', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -27,19 +51,16 @@ describe('User Usage Integration Tests', () => {
 
   describe('GET /api/user/usage', () => {
     it('should return usage stats for authenticated user', async () => {
-      mockGetUserProfile.mockResolvedValue({
-        id: 'user-123',
-        email: 'test@example.com',
-        tier: 'free',
-        created_at: new Date().toISOString(),
-      });
+      mockGetUserProfile.mockResolvedValue(mockProfile);
 
       mockGetCurrentUserUsage.mockResolvedValue({
         daily: {
+          ...mockUsage,
           chat_queries: 5,
           portfolio_analysis: 2,
         },
         monthly: {
+          ...mockUsage,
           sec_filings: 3,
         },
       });
@@ -50,8 +71,10 @@ describe('User Usage Integration Tests', () => {
         portfolioAnalysisPerDay: 3,
         secFilingsPerMonth: 5,
         price: 0,
-        features: [],
-      });
+        features: {},
+        maxPortfolios: 1,
+        maxStocksPerPortfolio: 10,
+      } as any);
 
       const request = new NextRequest('http://localhost:3000/api/user/usage', {
         method: 'GET',
@@ -99,19 +122,16 @@ describe('User Usage Integration Tests', () => {
     });
 
     it('should return warnings when usage >= 80%', async () => {
-      mockGetUserProfile.mockResolvedValue({
-        id: 'user-123',
-        email: 'test@example.com',
-        tier: 'free',
-        created_at: new Date().toISOString(),
-      });
+      mockGetUserProfile.mockResolvedValue(mockProfile);
 
       mockGetCurrentUserUsage.mockResolvedValue({
         daily: {
+          ...mockUsage,
           chat_queries: 9,  // 90%
           portfolio_analysis: 3,  // 100%
         },
         monthly: {
+          ...mockUsage,
           sec_filings: 4,  // 80%
         },
       });
@@ -122,8 +142,10 @@ describe('User Usage Integration Tests', () => {
         portfolioAnalysisPerDay: 3,
         secFilingsPerMonth: 5,
         price: 0,
-        features: [],
-      });
+        features: {},
+        maxPortfolios: 1,
+        maxStocksPerPortfolio: 10,
+      } as any);
 
       const request = new NextRequest('http://localhost:3000/api/user/usage', {
         method: 'GET',
@@ -139,19 +161,16 @@ describe('User Usage Integration Tests', () => {
     });
 
     it('should handle premium tier with infinite limits', async () => {
-      mockGetUserProfile.mockResolvedValue({
-        id: 'user-premium',
-        email: 'premium@example.com',
-        tier: 'premium',
-        created_at: new Date().toISOString(),
-      });
+      mockGetUserProfile.mockResolvedValue({ ...mockProfile, tier: 'premium' });
 
       mockGetCurrentUserUsage.mockResolvedValue({
         daily: {
+          ...mockUsage,
           chat_queries: 100,
           portfolio_analysis: 50,
         },
         monthly: {
+          ...mockUsage,
           sec_filings: 200,
         },
       });
@@ -162,8 +181,10 @@ describe('User Usage Integration Tests', () => {
         portfolioAnalysisPerDay: Infinity,
         secFilingsPerMonth: Infinity,
         price: 99,
-        features: [],
-      });
+        features: {},
+        maxPortfolios: 1,
+        maxStocksPerPortfolio: 10,
+      } as any);
 
       const request = new NextRequest('http://localhost:3000/api/user/usage', {
         method: 'GET',
@@ -180,16 +201,11 @@ describe('User Usage Integration Tests', () => {
     });
 
     it('should handle zero usage correctly', async () => {
-      mockGetUserProfile.mockResolvedValue({
-        id: 'user-new',
-        email: 'new@example.com',
-        tier: 'free',
-        created_at: new Date().toISOString(),
-      });
+      mockGetUserProfile.mockResolvedValue(mockProfile);
 
       mockGetCurrentUserUsage.mockResolvedValue({
-        daily: {},
-        monthly: {},
+        daily: { ...mockUsage, chat_queries: 0, portfolio_analysis: 0 },
+        monthly: { ...mockUsage, sec_filings: 0 },
       });
 
       mockGetTierConfig.mockReturnValue({
@@ -198,8 +214,10 @@ describe('User Usage Integration Tests', () => {
         portfolioAnalysisPerDay: 3,
         secFilingsPerMonth: 5,
         price: 0,
-        features: [],
-      });
+        features: {},
+        maxPortfolios: 1,
+        maxStocksPerPortfolio: 10,
+      } as any);
 
       const request = new NextRequest('http://localhost:3000/api/user/usage', {
         method: 'GET',
@@ -216,16 +234,11 @@ describe('User Usage Integration Tests', () => {
     });
 
     it('should include valid period boundaries', async () => {
-      mockGetUserProfile.mockResolvedValue({
-        id: 'user-123',
-        email: 'test@example.com',
-        tier: 'free',
-        created_at: new Date().toISOString(),
-      });
+      mockGetUserProfile.mockResolvedValue(mockProfile);
 
       mockGetCurrentUserUsage.mockResolvedValue({
-        daily: {},
-        monthly: {},
+        daily: { ...mockUsage },
+        monthly: { ...mockUsage },
       });
 
       mockGetTierConfig.mockReturnValue({
@@ -234,8 +247,10 @@ describe('User Usage Integration Tests', () => {
         portfolioAnalysisPerDay: 3,
         secFilingsPerMonth: 5,
         price: 0,
-        features: [],
-      });
+        features: {},
+        maxPortfolios: 1,
+        maxStocksPerPortfolio: 10,
+      } as any);
 
       const request = new NextRequest('http://localhost:3000/api/user/usage', {
         method: 'GET',
@@ -252,12 +267,7 @@ describe('User Usage Integration Tests', () => {
     });
 
     it('should return 500 on service error', async () => {
-      mockGetUserProfile.mockResolvedValue({
-        id: 'user-123',
-        email: 'test@example.com',
-        tier: 'free',
-        created_at: new Date().toISOString(),
-      });
+      mockGetUserProfile.mockResolvedValue(mockProfile);
 
       mockGetCurrentUserUsage.mockRejectedValue(new Error('Database connection failed'));
 
@@ -275,19 +285,16 @@ describe('User Usage Integration Tests', () => {
     });
 
     it('should handle quota exceeded scenario', async () => {
-      mockGetUserProfile.mockResolvedValue({
-        id: 'user-123',
-        email: 'test@example.com',
-        tier: 'free',
-        created_at: new Date().toISOString(),
-      });
+      mockGetUserProfile.mockResolvedValue(mockProfile);
 
       mockGetCurrentUserUsage.mockResolvedValue({
         daily: {
+          ...mockUsage,
           chat_queries: 15,  // Over limit
           portfolio_analysis: 5,  // Over limit
         },
         monthly: {
+          ...mockUsage,
           sec_filings: 10,  // Over limit
         },
       });
@@ -298,8 +305,10 @@ describe('User Usage Integration Tests', () => {
         portfolioAnalysisPerDay: 3,
         secFilingsPerMonth: 5,
         price: 0,
-        features: [],
-      });
+        features: {},
+        maxPortfolios: 1,
+        maxStocksPerPortfolio: 10,
+      } as any);
 
       const request = new NextRequest('http://localhost:3000/api/user/usage', {
         method: 'GET',

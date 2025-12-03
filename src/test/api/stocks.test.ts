@@ -10,14 +10,12 @@ import { stockService } from '@backend/modules/stocks/service/stock.service';
 import { stockRepository } from '@backend/modules/stocks/repository/stock.repository';
 import { NotFoundError } from '@backend/common/middleware/error-handler.middleware';
 import * as authSession from '@lib/auth/session';
-import { checkAndTrackUsage } from '@lib/tiers/usage-tracker';
 
 // Mock the service layer, which is the dependency of the controller
 jest.mock('@backend/modules/stocks/service/stock.service');
 jest.mock('@lib/auth/session');
 jest.mock('@backend/modules/stocks/repository/stock.repository');
 jest.mock('@lib/tiers/usage-tracker', () => ({
-  checkAndTrackUsage: jest.fn(),
   checkQuota: jest.fn(),
   trackUsage: jest.fn(),
 }));
@@ -57,11 +55,6 @@ describe('Stock API (Refactored)', () => {
     
     // Mock repository for quota checks
     (stockRepository.findByPortfolioId as jest.Mock).mockResolvedValue([]);
-    
-    // Mock usage tracker to allow operations by default
-    (checkAndTrackUsage as jest.Mock).mockResolvedValue({
-      allowed: true,
-    });
   });
 
   describe('GET /api/stocks', () => {

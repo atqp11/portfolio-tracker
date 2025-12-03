@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "tsc" : "tsc --noEmit",
+    "tsc": "tsc --noEmit",
     "dev:sync": "prisma db pull && prisma generate && next dev",
     "build": "prisma generate && next build",
     "start": "next start",

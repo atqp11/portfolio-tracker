@@ -6,7 +6,7 @@
  */
 
 import { UsageService } from '@backend/modules/user/service/usage.service';
-import { getCurrentUserUsage } from '@lib/supabase/db';
+import { getCurrentUserUsage, UsageTracking } from '@lib/supabase/db';
 import { getTierConfig } from '@lib/tiers';
 
 // Mock dependencies
@@ -15,6 +15,19 @@ jest.mock('@lib/tiers');
 
 const mockGetCurrentUserUsage = getCurrentUserUsage as jest.MockedFunction<typeof getCurrentUserUsage>;
 const mockGetTierConfig = getTierConfig as jest.MockedFunction<typeof getTierConfig>;
+
+const mockUsage: UsageTracking = {
+  id: '1',
+  user_id: 'user-123',
+  tier: 'free',
+  chat_queries: 0,
+  portfolio_analysis: 0,
+  sec_filings: 0,
+  portfolio_changes: 0,
+  period_start: new Date().toISOString(),
+  period_end: new Date().toISOString(),
+  created_at: new Date().toISOString(),
+};
 
 describe('UsageService', () => {
   let service: UsageService;
@@ -27,8 +40,8 @@ describe('UsageService', () => {
   describe('getUserUsageStats', () => {
     it('should calculate stats for user with no usage', async () => {
       mockGetCurrentUserUsage.mockResolvedValue({
-        daily: {},
-        monthly: {},
+        daily: { ...mockUsage, chat_queries: 0, portfolio_analysis: 0 },
+        monthly: { ...mockUsage, sec_filings: 0 },
       });
 
       mockGetTierConfig.mockReturnValue({
@@ -37,8 +50,10 @@ describe('UsageService', () => {
         portfolioAnalysisPerDay: 3,
         secFilingsPerMonth: 5,
         price: 0,
-        features: [],
-      });
+        features: {},
+        maxPortfolios: 1,
+        maxStocksPerPortfolio: 10,
+      } as any);
 
       const stats = await service.getUserUsageStats('user-123', 'free');
 
@@ -69,10 +84,12 @@ describe('UsageService', () => {
     it('should calculate stats for user with partial usage', async () => {
       mockGetCurrentUserUsage.mockResolvedValue({
         daily: {
+          ...mockUsage,
           chat_queries: 5,
           portfolio_analysis: 2,
         },
         monthly: {
+          ...mockUsage,
           sec_filings: 3,
         },
       });
@@ -83,8 +100,10 @@ describe('UsageService', () => {
         portfolioAnalysisPerDay: 3,
         secFilingsPerMonth: 5,
         price: 0,
-        features: [],
-      });
+        features: {},
+        maxPortfolios: 1,
+        maxStocksPerPortfolio: 10,
+      } as any);
 
       const stats = await service.getUserUsageStats('user-123', 'free');
 
@@ -111,10 +130,12 @@ describe('UsageService', () => {
     it('should handle quota exceeded (100%+ usage)', async () => {
       mockGetCurrentUserUsage.mockResolvedValue({
         daily: {
+          ...mockUsage,
           chat_queries: 12,
           portfolio_analysis: 5,
         },
         monthly: {
+          ...mockUsage,
           sec_filings: 8,
         },
       });
@@ -125,8 +146,10 @@ describe('UsageService', () => {
         portfolioAnalysisPerDay: 3,
         secFilingsPerMonth: 5,
         price: 0,
-        features: [],
-      });
+        features: {},
+        maxPortfolios: 1,
+        maxStocksPerPortfolio: 10,
+      } as any);
 
       const stats = await service.getUserUsageStats('user-123', 'free');
 
@@ -141,10 +164,12 @@ describe('UsageService', () => {
     it('should set warnings when usage >= 80%', async () => {
       mockGetCurrentUserUsage.mockResolvedValue({
         daily: {
+          ...mockUsage,
           chat_queries: 8,  // 80%
           portfolio_analysis: 2,  // 66%
         },
         monthly: {
+          ...mockUsage,
           sec_filings: 5,  // 100%
         },
       });
@@ -155,8 +180,10 @@ describe('UsageService', () => {
         portfolioAnalysisPerDay: 3,
         secFilingsPerMonth: 5,
         price: 0,
-        features: [],
-      });
+        features: {},
+        maxPortfolios: 1,
+        maxStocksPerPortfolio: 10,
+      } as any);
 
       const stats = await service.getUserUsageStats('user-123', 'free');
 
@@ -168,10 +195,12 @@ describe('UsageService', () => {
     it('should handle infinite limits (premium tier)', async () => {
       mockGetCurrentUserUsage.mockResolvedValue({
         daily: {
+          ...mockUsage,
           chat_queries: 100,
           portfolio_analysis: 50,
         },
         monthly: {
+          ...mockUsage,
           sec_filings: 200,
         },
       });
@@ -182,8 +211,10 @@ describe('UsageService', () => {
         portfolioAnalysisPerDay: Infinity,
         secFilingsPerMonth: Infinity,
         price: 99,
-        features: [],
-      });
+        features: {},
+        maxPortfolios: 1,
+        maxStocksPerPortfolio: 10,
+      } as any);
 
       const stats = await service.getUserUsageStats('user-123', 'premium');
 
@@ -212,8 +243,8 @@ describe('UsageService', () => {
 
     it('should include valid period boundaries', async () => {
       mockGetCurrentUserUsage.mockResolvedValue({
-        daily: {},
-        monthly: {},
+        daily: { ...mockUsage },
+        monthly: { ...mockUsage },
       });
 
       mockGetTierConfig.mockReturnValue({
@@ -222,8 +253,10 @@ describe('UsageService', () => {
         portfolioAnalysisPerDay: 3,
         secFilingsPerMonth: 5,
         price: 0,
-        features: [],
-      });
+        features: {},
+        maxPortfolios: 1,
+        maxStocksPerPortfolio: 10,
+      } as any);
 
       const stats = await service.getUserUsageStats('user-123', 'free');
 
@@ -258,8 +291,8 @@ describe('UsageService', () => {
 
     it('should handle missing usage data gracefully', async () => {
       mockGetCurrentUserUsage.mockResolvedValue({
-        daily: undefined,
-        monthly: undefined,
+        daily: null,
+        monthly: null,
       });
 
       mockGetTierConfig.mockReturnValue({
@@ -268,8 +301,10 @@ describe('UsageService', () => {
         portfolioAnalysisPerDay: 3,
         secFilingsPerMonth: 5,
         price: 0,
-        features: [],
-      });
+        features: {},
+        maxPortfolios: 1,
+        maxStocksPerPortfolio: 10,
+      } as any);
 
       const stats = await service.getUserUsageStats('user-123', 'free');
 
@@ -293,8 +328,8 @@ describe('UsageService', () => {
 
       for (const testCase of testCases) {
         mockGetCurrentUserUsage.mockResolvedValue({
-          daily: { chat_queries: testCase.used },
-          monthly: {},
+          daily: { ...mockUsage, chat_queries: testCase.used },
+          monthly: { ...mockUsage },
         });
 
         mockGetTierConfig.mockReturnValue({
@@ -303,8 +338,10 @@ describe('UsageService', () => {
           portfolioAnalysisPerDay: 3,
           secFilingsPerMonth: 5,
           price: 0,
-          features: [],
-        });
+          features: {},
+          maxPortfolios: 1,
+          maxStocksPerPortfolio: 10,
+        } as any);
 
         const stats = await service.getUserUsageStats('user-123', 'free');
         expect(stats.percentages.chatQueries).toBe(testCase.expected);

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { secEdgarService } from '@backend/modules/stocks/service/sec-edgar.service';
-import { checkAndTrackUsage, type TierName } from '@lib/tiers';
+import { checkQuota, trackUsage, type TierName } from '@lib/tiers';
 import { getUserProfile } from '@lib/auth/session';
 import { ErrorResponse, SuccessResponse } from '@lib/types/base/response.dto';
 
@@ -17,8 +17,8 @@ export async function GET(request: Request) {
     return NextResponse.json(ErrorResponse.unauthorized(), { status: 401 });
   }
 
-  // Check and track usage (monthly quota for SEC filings)
-  const quotaCheck = await checkAndTrackUsage(
+  // Check quota (but don't track yet)
+  const quotaCheck = await checkQuota(
     profile.id,
     'secFiling',
     profile.tier as TierName
@@ -55,6 +55,19 @@ export async function GET(request: Request) {
   try {
     console.log(`📄 Fetching SEC filings for CIK: ${cik} (user: ${profile.id}, tier: ${profile.tier})`);
     const data = await secEdgarService.getCompanyFilings(cik.trim());
+
+    // If successful, track usage (non-blocking)
+    try {
+      await trackUsage(profile.id, 'secFiling', profile.tier as TierName);
+    } catch (trackError) {
+      // Log but don't fail the request - user already got their data
+      console.error('[SEC Edgar] Failed to track usage:', {
+        userId: profile.id,
+        tier: profile.tier,
+        error: trackError instanceof Error ? trackError.message : String(trackError),
+      });
+    }
+
     return NextResponse.json(data);
   } catch (err: any) {
     // Graceful error handling for known cases

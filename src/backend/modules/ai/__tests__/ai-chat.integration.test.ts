@@ -15,7 +15,7 @@ jest.mock('@lib/ai/confidence-router');
 jest.mock('@lib/telemetry/ai-logger');
 
 import { getUserProfile } from '@lib/auth/session';
-import { checkAndTrackUsage } from '@lib/tiers';
+import { checkQuota, trackUsage } from '@lib/tiers';
 import { routeQueryWithConfidence } from '@lib/ai/confidence-router';
 import { getTelemetryStats } from '@lib/telemetry/ai-logger';
 
@@ -31,7 +31,7 @@ describe('AI Chat Integration Tests', () => {
       tier: 'free',
     });
 
-    (checkAndTrackUsage as jest.Mock).mockResolvedValue({
+    (checkQuota as jest.Mock).mockResolvedValue({
       allowed: true,
     });
   });
@@ -67,8 +67,9 @@ describe('AI Chat Integration Tests', () => {
       expect(data.cached).toBe(false);
       expect(data.confidence).toBe(0.90);
       
-      // Verify quota was checked
-      expect(checkAndTrackUsage).toHaveBeenCalledWith('user-123', 'chatQuery', 'free');
+      // Verify quota was checked and tracked
+      expect(checkQuota).toHaveBeenCalledWith('user-123', 'chatQuery', 'free');
+      expect(trackUsage).toHaveBeenCalledWith('user-123', 'chatQuery', 'free');
     });
 
     it('should return cached response without quota check', async () => {
@@ -105,7 +106,8 @@ describe('AI Chat Integration Tests', () => {
       expect(response1.status).toBe(200);
 
       // Clear mocks
-      (checkAndTrackUsage as jest.Mock).mockClear();
+      (checkQuota as jest.Mock).mockClear();
+      (trackUsage as jest.Mock).mockClear();
       (routeQueryWithConfidence as jest.Mock).mockClear();
 
       // Second request with same body - should hit cache
@@ -123,7 +125,7 @@ describe('AI Chat Integration Tests', () => {
       expect(data.cacheAge).toBeDefined();
       
       // Verify quota was NOT checked for cached response
-      expect(checkAndTrackUsage).not.toHaveBeenCalled();
+      expect(checkQuota).not.toHaveBeenCalled();
       // Verify AI was NOT called again
       expect(routeQueryWithConfidence).not.toHaveBeenCalled();
     });
@@ -167,7 +169,7 @@ describe('AI Chat Integration Tests', () => {
     });
 
     it('should return 429 if quota exceeded', async () => {
-      (checkAndTrackUsage as jest.Mock).mockResolvedValue({
+      (checkQuota as jest.Mock).mockResolvedValue({
         allowed: false,
         reason: 'Daily limit of 10 queries exceeded',
       });
@@ -298,6 +300,158 @@ describe('AI Chat Integration Tests', () => {
       expect(data.success).toBe(false);
       expect(data.error.code).toBe('INTERNAL_ERROR');
       expect(data.error.message).toBe('AI service timeout');
+    });
+
+    // P1: Critical test for check-then-track separation
+    it('should NOT track usage when handler returns error (check-then-track separation)', async () => {
+      const mockAIResponse = {
+        text: 'Error response',
+        confidence: 0.90,
+        model: 'gemini-2.0-flash-exp',
+        sources: [],
+        tokensUsed: { input: 50, output: 100, total: 150 },
+        latencyMs: 300,
+        escalated: false,
+        cost: 0.0001,
+      };
+
+      // Mock AI service to return success but we'll verify tracking behavior
+      (routeQueryWithConfidence as jest.Mock).mockRejectedValue(
+        new Error('AI processing failed')
+      );
+
+      const request = new NextRequest('http://localhost:3000/api/ai/chat', {
+        method: 'POST',
+        body: JSON.stringify({
+          message: 'test message that will fail',
+        }),
+      });
+
+      const response = await POST(request);
+
+      // Verify request failed (4xx or 5xx)
+      expect(response.status).toBeGreaterThanOrEqual(400);
+
+      // CRITICAL: Verify usage was NOT tracked on failure
+      expect(trackUsage).not.toHaveBeenCalled();
+    });
+
+    it('should track usage only after successful handler execution', async () => {
+      const mockAIResponse = {
+        text: 'Successful response',
+        confidence: 0.90,
+        model: 'gemini-2.0-flash-exp',
+        sources: [],
+        tokensUsed: { input: 50, output: 100, total: 150 },
+        latencyMs: 300,
+        escalated: false,
+        cost: 0.0001,
+      };
+
+      (routeQueryWithConfidence as jest.Mock).mockResolvedValue(mockAIResponse);
+
+      const request = new NextRequest('http://localhost:3000/api/ai/chat', {
+        method: 'POST',
+        body: JSON.stringify({
+          message: 'successful test',
+        }),
+      });
+
+      const response = await POST(request);
+
+      // Verify request succeeded
+      expect(response.status).toBe(200);
+
+      // CRITICAL: Verify quota was checked BEFORE handler
+      expect(checkQuota).toHaveBeenCalledWith('user-123', 'chatQuery', 'free');
+
+      // CRITICAL: Verify usage was tracked AFTER successful response
+      expect(trackUsage).toHaveBeenCalledWith('user-123', 'chatQuery', 'free');
+
+      // Verify the order: checkQuota should be called before trackUsage
+      const checkQuotaCallOrder = (checkQuota as jest.Mock).mock.invocationCallOrder[0];
+      const trackUsageCallOrder = (trackUsage as jest.Mock).mock.invocationCallOrder[0];
+      expect(checkQuotaCallOrder).toBeLessThan(trackUsageCallOrder);
+    });
+
+    // P1: Critical test for tracking failure resiliency
+    it('should succeed even if usage tracking fails (resiliency)', async () => {
+      const mockAIResponse = {
+        text: 'This is a successful response',
+        confidence: 0.90,
+        model: 'gemini-2.0-flash-exp',
+        sources: [],
+        tokensUsed: { input: 50, output: 100, total: 150 },
+        latencyMs: 300,
+        escalated: false,
+        cost: 0.0001,
+      };
+
+      (routeQueryWithConfidence as jest.Mock).mockResolvedValue(mockAIResponse);
+
+      // Mock trackUsage to fail
+      (trackUsage as jest.Mock).mockRejectedValue(
+        new Error('Database connection failed during tracking')
+      );
+
+      const request = new NextRequest('http://localhost:3000/api/ai/chat', {
+        method: 'POST',
+        body: JSON.stringify({
+          message: 'test message',
+        }),
+      });
+
+      const response = await POST(request);
+      const data = await response.json();
+
+      // CRITICAL: Request should still succeed even though tracking failed
+      expect(response.status).toBe(200);
+      expect(data.text).toBe('This is a successful response');
+
+      // Verify trackUsage was attempted
+      expect(trackUsage).toHaveBeenCalledWith('user-123', 'chatQuery', 'free');
+    });
+
+    it('should handle multiple tracking failures gracefully', async () => {
+      const mockAIResponse = {
+        text: 'Response text',
+        confidence: 0.90,
+        model: 'gemini-2.0-flash-exp',
+        sources: [],
+        tokensUsed: { input: 50, output: 100, total: 150 },
+        latencyMs: 300,
+        escalated: false,
+        cost: 0.0001,
+      };
+
+      (routeQueryWithConfidence as jest.Mock).mockResolvedValue(mockAIResponse);
+
+      // Mock trackUsage to fail with different errors
+      const trackingErrors = [
+        new Error('RPC timeout'),
+        new Error('Supabase connection lost'),
+        new Error('Network error'),
+      ];
+
+      for (const error of trackingErrors) {
+        (trackUsage as jest.Mock).mockRejectedValueOnce(error);
+        (checkQuota as jest.Mock).mockResolvedValue({ allowed: true });
+
+        const request = new NextRequest('http://localhost:3000/api/ai/chat', {
+          method: 'POST',
+          body: JSON.stringify({
+            message: `test ${error.message}`,
+          }),
+        });
+
+        const response = await POST(request);
+
+        // Each request should succeed despite tracking failure
+        expect(response.status).toBe(200);
+      }
+
+      // Verify all tracking attempts were made
+      expect(trackUsage).toHaveBeenCalledTimes(trackingErrors.length);
     });
   });
 

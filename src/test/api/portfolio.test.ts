@@ -10,7 +10,6 @@ jest.mock('@lib/auth/session');
 jest.mock('@backend/modules/portfolio/service/portfolio.service');
 jest.mock('@backend/modules/portfolio/repository/portfolio.repository');
 jest.mock('@lib/tiers/usage-tracker', () => ({
-  checkAndTrackUsage: jest.fn(),
   checkQuota: jest.fn(),
   trackUsage: jest.fn(),
 }));
@@ -21,7 +20,6 @@ import * as authSession from '@lib/auth/session';
 import { portfolioService } from '@backend/modules/portfolio/service/portfolio.service';
 import { portfolioRepository } from '@backend/modules/portfolio/repository/portfolio.repository';
 import { NotFoundError, ForbiddenError } from '@backend/common/middleware/error-handler.middleware';
-import { checkAndTrackUsage } from '@lib/tiers/usage-tracker';
 
 // Import route handlers dynamically after mocks to ensure they pick up mocked modules
 let GET: any, POST: any, PUT: any, DELETE: any;
@@ -49,11 +47,6 @@ describe('Portfolio API', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    
-    // Mock usage tracker to allow operations by default
-    (checkAndTrackUsage as jest.Mock).mockResolvedValue({
-      allowed: true,
-    });
   });
 
   describe('GET /api/portfolio', () => {

@@ -9,7 +9,6 @@ import { NextRequest } from 'next/server';
 import { AuthMiddleware } from './auth.middleware';
 import { TierName } from '@lib/tiers/config';
 import {
-  checkAndTrackUsage,
   checkQuota,
   UsageAction,
 } from '@lib/tiers/usage-tracker';
@@ -41,7 +40,7 @@ export class QuotaMiddleware {
     action: UsageAction,
     tier: TierName
   ): Promise<void> {
-    const result = await checkAndTrackUsage(userId, action, tier);
+    const result = await checkQuota(userId, action, tier);
 
     if (!result.allowed) {
       throw new QuotaExceededError(
@@ -178,7 +177,17 @@ export function withPortfolioQuota<T extends (...args: any[]) => Promise<any>>(
     const tier = profile.tier as TierName;
     const tierConfig = getTierConfig(tier);
 
-    const portfolios = await portfolioRepository.findAll();
+    let portfolios;
+    try {
+      portfolios = await portfolioRepository.findAll();
+    } catch (error) {
+      console.error('[Portfolio Quota] Failed to fetch portfolios for quota check:', {
+        userId: profile.id,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      throw new Error('Unable to verify portfolio quota. Please try again.');
+    }
+
     if (portfolios.length >= tierConfig.maxPortfolios) {
       throw new QuotaExceededError(
         `You have reached the limit of ${tierConfig.maxPortfolios} portfolios for the ${tier} tier.`,
@@ -204,24 +213,39 @@ export function withStockQuota<T extends (...args: any[]) => Promise<any>>(
 
     // Get portfolioId from request body (already parsed by validation middleware)
     let portfolioId = context.body?.portfolioId;
-    
+
     // If not in context.body, try parsing the request
     if (!portfolioId) {
       try {
         const body = await request.clone().json();
         portfolioId = body.portfolioId;
       } catch (error) {
-        console.warn("Could not extract portfolioId from request for stock quota check");
+        console.warn('[Stock Quota] Could not extract portfolioId from request for stock quota check');
+        // If we can't get portfolioId, let the handler proceed
+        // The handler will validate and return proper error if portfolioId is required
         return handler(request, context);
       }
     }
 
     if (!portfolioId) {
-      console.warn("Portfolio ID not found for stock quota check");
+      console.warn('[Stock Quota] Portfolio ID not found for stock quota check');
+      // If we can't get portfolioId, let the handler proceed
+      // The handler will validate and return proper error if portfolioId is required
       return handler(request, context);
     }
 
-    const stocks = await stockRepository.findByPortfolioId(portfolioId);
+    let stocks;
+    try {
+      stocks = await stockRepository.findByPortfolioId(portfolioId);
+    } catch (error) {
+      console.error('[Stock Quota] Failed to fetch stocks for quota check:', {
+        userId: profile.id,
+        portfolioId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      throw new Error('Unable to verify stock quota. Please try again.');
+    }
+
     if (stocks.length >= tierConfig.maxStocksPerPortfolio) {
       throw new QuotaExceededError(
         `You have reached the limit of ${tierConfig.maxStocksPerPortfolio} stocks for the ${tier} tier in this portfolio.`,

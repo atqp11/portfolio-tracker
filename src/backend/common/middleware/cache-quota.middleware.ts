@@ -13,7 +13,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { AuthMiddleware } from './auth.middleware';
-import { checkAndTrackUsage, type TierName, type UsageAction } from '@lib/tiers';
+import { checkQuota, trackUsage, type TierName, type UsageAction } from '@lib/tiers';
 import { ErrorResponse } from '@lib/types/base/response.dto';
 import { QuotaExceededError } from './error-handler.middleware';
 
@@ -104,8 +104,8 @@ export function withCacheAndQuota<TRequest = any>(
         }
       }
 
-      // Step 3: Cache miss - check and track quota
-      const quotaCheck = await checkAndTrackUsage(userId, quotaType, userTier);
+      // Step 3: Cache miss - check quota (but don't track yet)
+      const quotaCheck = await checkQuota(userId, quotaType, userTier);
 
       if (!quotaCheck.allowed) {
         throw new QuotaExceededError(
@@ -124,7 +124,26 @@ export function withCacheAndQuota<TRequest = any>(
         },
       };
 
-      return handler(request, enhancedContext);
+      const response = await handler(request, enhancedContext);
+
+      // Step 5: If handler was successful, track usage
+      // Use status code check for better compatibility (2xx responses)
+      if (response.status >= 200 && response.status < 300) {
+        try {
+          await trackUsage(userId, quotaType, userTier);
+        } catch (error) {
+          // Log but don't fail the request - usage tracking is non-critical
+          // The user already got their response successfully
+          console.error('[Cache-Quota] Failed to track usage:', {
+            userId,
+            quotaType,
+            userTier,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      }
+
+      return response;
     }) as T;
   };
 }

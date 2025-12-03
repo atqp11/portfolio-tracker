@@ -3298,3 +3298,50 @@ npm run build
    - **Rendering** time (layout, paint)
    - **Long tasks** (>50ms)
 
+
+---
+
+## Quota Enforcement & Usage Tracking
+
+**Reference:** See [Quota Enforcement Patterns](./QUOTA_ENFORCEMENT_PATTERNS.md) for detailed patterns
+
+### Core Pattern
+
+All quota-enforced features MUST use the **Check-Then-Track** pattern:
+
+```typescript
+// 1. Check quota (read-only)
+const quotaCheck = await checkQuota(userId, action, tier);
+if (!quotaCheck.allowed) throw new QuotaExceededError();
+
+// 2. Execute operation
+const response = await expensiveOperation();
+
+// 3. Track ONLY if successful (with error handling)
+if (response.status >= 200 && response.status < 300) {
+  try {
+    await trackUsage(userId, action, tier);
+  } catch (error) {
+    console.error('[Handler] Tracking failed:', error);
+  }
+}
+```
+
+### Key Rules
+
+1. **Never track before operation completes** - Users should not be charged for failures
+2. **Always wrap trackUsage in try-catch** - Tracking failures must not crash requests
+3. **Use status code ranges** - Check `200-299` not just `response.ok`
+4. **Protect external calls** - Wrap repository/API calls in try-catch
+5. **Test concurrent scenarios** - Verify race condition prevention
+
+### Testing Requirements
+
+Every quota-enforced feature must test:
+- ✅ Usage NOT tracked on failure
+- ✅ Proper call order (check → execute → track)
+- ✅ Request succeeds when tracking fails
+- ✅ Concurrent requests respect limits
+
+**See:** [QUOTA_ENFORCEMENT_PATTERNS.md](./QUOTA_ENFORCEMENT_PATTERNS.md) for complete guidelines
+

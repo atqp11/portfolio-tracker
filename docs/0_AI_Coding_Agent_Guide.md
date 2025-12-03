@@ -1,4 +1,4 @@
-# Huide for AI Coding Agents
+# Guide for AI Coding Agents
 
 This document provides a comprehensive overview of the project's architecture, data strategies, and development workflows. It serves as a guide for developers and AI assistants (like Gemini, Claude Code) working on this codebase.
 

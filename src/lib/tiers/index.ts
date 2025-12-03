@@ -27,7 +27,6 @@ export {
   getUserUsage,
   checkQuota,
   trackUsage,
-  checkAndTrackUsage,
   getUsageStats,
   type UsageAction,
 } from './usage-tracker';
