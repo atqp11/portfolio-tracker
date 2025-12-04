@@ -99,11 +99,11 @@ export class FinancialDataService {
   }
 
   /**
-   * Get cache TTL based on user tier (fundamentals use filings TTL)
+   * Get cache TTL based on user tier
    */
   private getCacheTTL(tier?: TierName): number {
     if (tier) {
-      return getCacheTTL('filings', tier);
+      return getCacheTTL('fundamentals', tier);
     }
     return this.DEFAULT_TTL;
   }

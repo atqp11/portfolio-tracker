@@ -10,6 +10,7 @@
 import type { CacheTTLConfig, TierName } from './types';
 
 export const CACHE_TTL_CONFIG: CacheTTLConfig = {
+  // Stock market data
   quotes: {
     free: 15 * 60 * 1000,    // 15 minutes
     basic: 10 * 60 * 1000,   // 10 minutes
@@ -22,18 +23,34 @@ export const CACHE_TTL_CONFIG: CacheTTLConfig = {
     premium: 1 * 60 * 60 * 1000, // 1 hour
   },
 
+  // Company data
+  fundamentals: {
+    free: 7 * 24 * 60 * 60 * 1000,   // 7 days (quarterly updates)
+    basic: 7 * 24 * 60 * 60 * 1000,  // 7 days
+    premium: 7 * 24 * 60 * 60 * 1000, // 7 days
+  },
+
+  companyInfo: {
+    free: 30 * 24 * 60 * 60 * 1000,   // 30 days (rarely changes)
+    basic: 30 * 24 * 60 * 60 * 1000,  // 30 days
+    premium: 30 * 24 * 60 * 60 * 1000, // 30 days
+  },
+
+  // News & content
   news: {
     free: 60 * 60 * 1000,  // 1 hour
     basic: 60 * 60 * 1000, // 1 hour
     premium: 60 * 60 * 1000, // 1 hour
   },
 
+  // SEC filings (immutable once published)
   filings: {
-    free: 7 * 24 * 60 * 60 * 1000,  // 7 days
-    basic: 7 * 24 * 60 * 60 * 1000, // 7 days
-    premium: 7 * 24 * 60 * 60 * 1000, // 7 days
+    free: 30 * 24 * 60 * 60 * 1000,  // 30 days
+    basic: 30 * 24 * 60 * 60 * 1000, // 30 days
+    premium: 30 * 24 * 60 * 60 * 1000, // 30 days
   },
 
+  // AI responses
   aiChat: {
     free: 12 * 60 * 60 * 1000,  // 12 hours
     basic: 12 * 60 * 60 * 1000, // 12 hours
@@ -81,6 +98,8 @@ export function getTierTTLs(tier: TierName): Record<keyof CacheTTLConfig, number
   return {
     quotes: CACHE_TTL_CONFIG.quotes[tier],
     commodities: CACHE_TTL_CONFIG.commodities[tier],
+    fundamentals: CACHE_TTL_CONFIG.fundamentals[tier],
+    companyInfo: CACHE_TTL_CONFIG.companyInfo[tier],
     news: CACHE_TTL_CONFIG.news[tier],
     filings: CACHE_TTL_CONFIG.filings[tier],
     aiChat: CACHE_TTL_CONFIG.aiChat[tier],

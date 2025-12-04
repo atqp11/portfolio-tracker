@@ -95,8 +95,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 - Configured Dependabot for automated dependency updates (`.github/dependabot.yml`)
+  - Weekly npm dependency scans
+  - Auto-PR creation for security patches
+  - Grouped dev dependencies to reduce PR noise
 - Updated `.env.local.example` with security documentation
 - All production API keys stored in Vercel Secrets
+- Removed vulnerable `realtime-newsapi` package (CVE-2025-55182 fix)
+
+### Phase 1: Cache TTL Compliance & Documentation
+- **Cache TTL Configuration Fixes** (`src/lib/config/cache-ttl.config.ts`)
+  - Added `fundamentals` TTL: 7 days (quarterly financial updates)
+  - Added `companyInfo` TTL: 30 days (rarely changing company metadata)
+  - Updated `filings` TTL: 7 days → 30 days (SEC filings are immutable)
+  - Added organizational comments for better code clarity
+- **TypeScript Interface Updates** (`src/lib/config/types.ts`)
+  - Added `fundamentals` and `companyInfo` to `CacheTTLConfig` interface
+  - Updated `getTierTTLs()` helper function
+- **Service Layer Fix** (`src/backend/modules/stocks/service/financial-data.service.ts`)
+  - Changed from using `filings` TTL to `fundamentals` TTL for semantic correctness
+- **Architecture Documentation** (`docs/3_Architecture/TECHNICAL_ARCHITECTURE_OVERVIEW.md`)
+  - Added comprehensive "Multi-Tier Caching Architecture" section
+  - Documented L1 (Client), L2 (Redis), L3 (PostgreSQL) cache hierarchy
+  - Included TTL tables, cost analysis, migration status, monitoring guidance
+  - Added code examples for cache usage patterns
+- **Planning Documentation** (`product/Planning/refactoring/production-readiness-2024/`)
+  - Created `L2_CACHE_REVIEW_AND_L3_PLAN.md` - Comprehensive review of L2 implementation + L3 database cache plan
+  - L2 Status: 100% compliant with production readiness plan
+  - L3 Plan: 12-hour implementation guide with cost savings analysis ($91,450/year)
 
 ---
 

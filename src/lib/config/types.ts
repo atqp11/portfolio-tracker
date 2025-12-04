@@ -162,6 +162,12 @@ export interface CacheTTLConfig {
   /** Commodity price cache TTL by tier (in milliseconds) */
   commodities: Record<TierName, number>;
 
+  /** Company fundamentals cache TTL by tier (in milliseconds) */
+  fundamentals: Record<TierName, number>;
+
+  /** Company info cache TTL by tier (in milliseconds) */
+  companyInfo: Record<TierName, number>;
+
   /** News article cache TTL by tier (in milliseconds) */
   news: Record<TierName, number>;
 
