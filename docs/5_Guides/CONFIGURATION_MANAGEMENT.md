@@ -260,8 +260,8 @@ console.log(`Estimated cost: $${cost.toFixed(4)}`);
 | Layer | Technology | TTL | Purpose | Status |
 |-------|-----------|-----|---------|--------|
 | **L1** | localStorage + IndexedDB | 15 min | Client-side, instant UX | Planned (Phase 3) |
-| **L2** | Vercel KV / Upstash Redis | Varies | Distributed, 60-80% hit rate | ✅ Implemented |
-| **L3** | PostgreSQL cache table | 30+ days | Long-term persistent | Planned (Phase 4) |
+| **L2** | Vercel KV / Upstash Redis | 5min - 7 days | Distributed, 60-80% hit rate | ✅ Implemented |
+| **L3** | PostgreSQL (Supabase) | 30 days - 1 year | Long-term persistent cache | ✅ Implemented |
 
 ### Goals
 
@@ -335,6 +335,177 @@ The cache adapter automatically detects the provider based on environment variab
 
 ---
 
+## L3 Cache (Database Persistent Cache)
+
+### Overview
+
+L3 cache uses PostgreSQL (Supabase) for long-term persistent storage of expensive-to-compute data. Unlike L2 (Redis), L3 cache is never evicted and is queryable via SQL.
+
+**Note:** L3 cache infrastructure is production-ready. Service-level integration (AI summarization, company profiles, news sentiment) to be wired in future PRs.
+
+**Use Cases:**
+- ✅ AI-generated SEC filing summaries ($0.10-0.50 per generation)
+- ✅ Company profile aggregations (3-5 API calls)
+- ✅ Historical news sentiment analysis (batch processed)
+
+**Benefits:**
+- 💾 **Persistent:** Data is never lost due to eviction
+- 💰 **Cost-effective:** $0 for free tier (500 MB), $25/month for 8GB
+- 📊 **Queryable:** SQL access for analytics
+- ♻️ **Reusable:** Data can be reused across many requests
+
+### Database Tables
+
+#### 1. Filing Summaries Cache
+```sql
+cache_filing_summaries (
+  ticker VARCHAR(10),
+  filing_type VARCHAR(20),
+  filing_date DATE,
+  summary_text TEXT,
+  key_points JSONB,
+  sentiment_score DECIMAL(3,2),
+  generated_at TIMESTAMP,
+  generated_by VARCHAR(50),
+  expires_at TIMESTAMP,
+  PRIMARY KEY (ticker, filing_type, filing_date)
+)
+```
+
+**TTL:** 1 year (filings are immutable once published)
+
+#### 2. Company Profiles Cache
+```sql
+cache_company_profiles (
+  ticker VARCHAR(10) PRIMARY KEY,
+  profile_data JSONB,
+  updated_at TIMESTAMP,
+  expires_at TIMESTAMP,
+  source_count INTEGER,
+  last_verified TIMESTAMP
+)
+```
+
+**TTL:** 30-90 days (based on company size/volatility)
+
+#### 3. News Sentiment Cache
+```sql
+cache_news_sentiment (
+  id SERIAL PRIMARY KEY,
+  ticker VARCHAR(10),
+  news_date DATE,
+  news_url TEXT,
+  news_title TEXT,
+  sentiment_score DECIMAL(3,2),
+  sentiment_label VARCHAR(20),
+  confidence DECIMAL(3,2),
+  ai_summary TEXT,
+  key_topics JSONB,
+  processed_at TIMESTAMP,
+  processed_by VARCHAR(50)
+)
+```
+
+**TTL:** Permanent (historical data)
+
+### Usage Example
+
+```typescript
+import { getDatabaseCache } from '@lib/cache/database-cache.adapter';
+
+const dbCache = getDatabaseCache();
+
+// Check L3 cache for filing summary
+const summary = await dbCache.getFilingSummary('AAPL', '10-K', '2024-09-30');
+
+if (summary) {
+  console.log('L3 cache hit:', summary.summary_text);
+} else {
+  // L3 miss - generate with AI (expensive!)
+  const fresh = await generateFilingSummary('AAPL', '10-K', '2024-09-30');
+
+  // Store in L3 cache (1 year TTL)
+  await dbCache.setFilingSummary({
+    ticker: 'AAPL',
+    filing_type: '10-K',
+    filing_date: '2024-09-30',
+    summary_text: fresh.summary,
+    key_points: fresh.keyPoints,
+    sentiment_score: fresh.sentiment,
+    generated_by: 'gemini-1.5-flash',
+    data_version: 1,
+    generated_at: new Date().toISOString(),
+    expires_at: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString()
+  });
+}
+```
+
+### Cache Hierarchy Flow
+
+```
+1. Client requests SEC filing summary
+2. Check L2 (Redis) - 15 min TTL
+   ├─ Hit → Return immediately
+   └─ Miss → Check L3 (Database)
+       ├─ Hit → Return from database, cache in L2
+       └─ Miss → Generate with AI ($$$)
+           └─ Cache in both L3 (1 year) and L2 (15 min)
+```
+
+### Cost Savings
+
+| Operation | Without L3 | With L3 | Savings |
+|-----------|------------|---------|---------|
+| Filing summaries | $200/year | $200 one-time | $200/year after year 1 |
+| Company profiles | 2500 API calls/request | 28 calls/day | 96% reduction |
+| News sentiment | $250/day re-processing | $0 (query cache) | $91,250/year |
+| **Total** | — | — | **$91,450+/year** |
+
+### Cleanup & Maintenance
+
+L3 cache is automatically cleaned by a daily cron job:
+
+**Cron Job:** `/api/tasks/cleanup-cache`
+**Schedule:** Daily at 3:00 AM UTC
+**Configuration:** `vercel.json`
+
+```json
+{
+  "crons": [
+    {
+      "path": "/api/tasks/cleanup-cache",
+      "schedule": "0 3 * * *"
+    }
+  ]
+}
+```
+
+**Security:** Protected by `CRON_SECRET` environment variable
+
+### Monitoring
+
+Check cache statistics:
+
+```typescript
+const stats = await dbCache.getStats();
+console.log(stats);
+// {
+//   filing_summaries_count: 2000,
+//   company_profiles_count: 500,
+//   news_sentiment_count: 50000,
+//   total_size_estimate_mb: 115
+// }
+```
+
+Manual cleanup (admin only):
+
+```bash
+curl -X POST https://yourapp.com/api/tasks/cleanup-cache \
+  -H "Authorization: Bearer YOUR_CRON_SECRET"
+```
+
+---
+
 ## Cache TTL Configuration
 
 ### `cache-ttl.config.ts`
@@ -354,6 +525,8 @@ export const CACHE_TTL_CONFIG = {
 
 ### TTL by Data Type and Tier
 
+#### L2 Cache (Redis) TTLs
+
 | Data Type | Free | Basic | Premium | Rationale |
 |-----------|------|-------|---------|-----------|
 | Stock Quotes | 15 min | 10 min | 5 min | Balance cost vs freshness |
@@ -361,6 +534,14 @@ export const CACHE_TTL_CONFIG = {
 | Fundamentals | 7 days | 7 days | 7 days | Quarterly updates only |
 | News | 1 hour | 1 hour | 1 hour | Timely content |
 | AI Responses | 12 hours | 12 hours | 12 hours | User-specific, expensive |
+
+#### L3 Cache (Database) TTLs
+
+| Data Type | Free | Basic | Premium | Rationale |
+|-----------|------|-------|---------|-----------|
+| Filing Summaries | 1 year | 1 year | 1 year | Immutable once published |
+| Company Profiles | 90 days | 60 days | 30 days | Based on company size |
+| News Sentiment | Permanent | Permanent | Permanent | Historical data |
 
 ### Why Tier-Based TTLs?
 

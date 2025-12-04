@@ -7,7 +7,7 @@
  * - Data type: Balance update frequency vs. cost
  */
 
-import type { CacheTTLConfig, TierName } from './types';
+import type { CacheTTLConfig, TierName } from '@lib/config/types';
 
 export const CACHE_TTL_CONFIG: CacheTTLConfig = {
   // Stock market data
@@ -62,6 +62,31 @@ export const CACHE_TTL_CONFIG: CacheTTLConfig = {
     basic: 12 * 60 * 60 * 1000, // 12 hours
     premium: 12 * 60 * 60 * 1000, // 12 hours
   },
+
+  // ============================================================================
+  // L3 CACHE (Database - Long-term persistent storage)
+  // ============================================================================
+
+  // AI-generated filing summaries (expensive to regenerate)
+  filingSummaries: {
+    free: 365 * 24 * 60 * 60 * 1000,   // 1 year
+    basic: 365 * 24 * 60 * 60 * 1000,  // 1 year
+    premium: 365 * 24 * 60 * 60 * 1000, // 1 year
+  },
+
+  // Company profiles (aggregated from multiple sources)
+  companyProfiles: {
+    free: 90 * 24 * 60 * 60 * 1000,   // 90 days (S&P 500)
+    basic: 60 * 24 * 60 * 60 * 1000,  // 60 days (mid-cap)
+    premium: 30 * 24 * 60 * 60 * 1000, // 30 days (small-cap/volatile)
+  },
+
+  // News sentiment (historical data - never expires)
+  newsSentiment: {
+    free: Infinity,   // Permanent
+    basic: Infinity,  // Permanent
+    premium: Infinity, // Permanent
+  },
 };
 
 // ============================================================================
@@ -104,6 +129,9 @@ export function getTierTTLs(tier: TierName): Record<keyof CacheTTLConfig, number
     filings: CACHE_TTL_CONFIG.filings[tier],
     aiChat: CACHE_TTL_CONFIG.aiChat[tier],
     portfolioAnalysis: CACHE_TTL_CONFIG.portfolioAnalysis[tier],
+    filingSummaries: CACHE_TTL_CONFIG.filingSummaries[tier],
+    companyProfiles: CACHE_TTL_CONFIG.companyProfiles[tier],
+    newsSentiment: CACHE_TTL_CONFIG.newsSentiment[tier],
   };
 }
 

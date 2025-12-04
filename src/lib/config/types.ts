@@ -156,6 +156,7 @@ export interface CacheProviderConfig {
 // ============================================================================
 
 export interface CacheTTLConfig {
+  // L2 Cache (Redis/Vercel KV)
   /** Stock quote cache TTL by tier (in milliseconds) */
   quotes: Record<TierName, number>;
 
@@ -179,6 +180,16 @@ export interface CacheTTLConfig {
 
   /** Portfolio analysis cache TTL by tier (in milliseconds) */
   portfolioAnalysis: Record<TierName, number>;
+
+  // L3 Cache (PostgreSQL - Long-term persistent storage)
+  /** AI-generated filing summaries cache TTL by tier (in milliseconds) */
+  filingSummaries: Record<TierName, number>;
+
+  /** Company profile aggregations cache TTL by tier (in milliseconds) */
+  companyProfiles: Record<TierName, number>;
+
+  /** News sentiment analysis cache TTL by tier (in milliseconds) */
+  newsSentiment: Record<TierName, number>;
 }
 
 // ============================================================================

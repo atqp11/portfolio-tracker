@@ -334,6 +334,123 @@ export interface Database {
           created_at?: string
         }
       }
+      // ========================================================================
+      // L3 Cache Tables
+      // ========================================================================
+      cache_filing_summaries: {
+        Row: {
+          ticker: string
+          filing_type: string
+          filing_date: string
+          summary_text: string
+          key_points: Json | null
+          sentiment_score: number | null
+          generated_at: string
+          generated_by: string | null
+          data_version: number
+          expires_at: string | null
+        }
+        Insert: {
+          ticker: string
+          filing_type: string
+          filing_date: string
+          summary_text: string
+          key_points?: Json | null
+          sentiment_score?: number | null
+          generated_at?: string
+          generated_by?: string | null
+          data_version?: number
+          expires_at?: string | null
+        }
+        Update: {
+          ticker?: string
+          filing_type?: string
+          filing_date?: string
+          summary_text?: string
+          key_points?: Json | null
+          sentiment_score?: number | null
+          generated_at?: string
+          generated_by?: string | null
+          data_version?: number
+          expires_at?: string | null
+        }
+      }
+      cache_company_profiles: {
+        Row: {
+          ticker: string
+          profile_data: Json
+          updated_at: string
+          data_version: number
+          expires_at: string
+          source_count: number
+          last_verified: string | null
+        }
+        Insert: {
+          ticker: string
+          profile_data: Json
+          updated_at?: string
+          data_version?: number
+          expires_at: string
+          source_count: number
+          last_verified?: string | null
+        }
+        Update: {
+          ticker?: string
+          profile_data?: Json
+          updated_at?: string
+          data_version?: number
+          expires_at?: string
+          source_count?: number
+          last_verified?: string | null
+        }
+      }
+      cache_news_sentiment: {
+        Row: {
+          id: number
+          ticker: string
+          news_date: string
+          news_url: string | null
+          news_title: string
+          sentiment_score: number
+          sentiment_label: string
+          confidence: number | null
+          ai_summary: string | null
+          key_topics: Json | null
+          processed_at: string
+          processed_by: string | null
+          data_version: number
+        }
+        Insert: {
+          id?: number
+          ticker: string
+          news_date: string
+          news_url?: string | null
+          news_title: string
+          sentiment_score: number
+          sentiment_label: string
+          confidence?: number | null
+          ai_summary?: string | null
+          key_topics?: Json | null
+          processed_at?: string
+          processed_by?: string | null
+          data_version?: number
+        }
+        Update: {
+          id?: number
+          ticker?: string
+          news_date?: string
+          news_url?: string | null
+          news_title?: string
+          sentiment_score?: number
+          sentiment_label?: string
+          confidence?: number | null
+          ai_summary?: string | null
+          key_topics?: Json | null
+          processed_at?: string
+          processed_by?: string | null
+          data_version?: number
+        }
+      }
     }
     Views: {
       [_ in never]: never

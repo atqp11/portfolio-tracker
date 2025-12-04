@@ -180,3 +180,62 @@ model ChecklistTask {
   @@map("checklist_tasks")
   @@schema("public")
 }
+
+// ============================================================================
+// L3 Cache Tables (Long-term persistent cache)
+// ============================================================================
+
+model CacheFilingSummary {
+  ticker         String    @db.VarChar(10)
+  filingType     String    @map("filing_type") @db.VarChar(20)
+  filingDate     DateTime  @map("filing_date") @db.Date
+  summaryText    String    @map("summary_text")
+  keyPoints      Json?     @map("key_points")
+  sentimentScore Decimal?  @map("sentiment_score") @db.Decimal(3, 2)
+  generatedAt    DateTime  @default(now()) @map("generated_at") @db.Timestamptz(6)
+  generatedBy    String?   @map("generated_by") @db.VarChar(50)
+  dataVersion    Int       @default(1) @map("data_version")
+  expiresAt      DateTime? @map("expires_at") @db.Timestamptz(6)
+
+  @@id([ticker, filingType, filingDate])
+  @@index([ticker, filingDate(sort: Desc)], map: "idx_filing_summaries_ticker_date")
+  @@index([expiresAt], map: "idx_filing_summaries_expires")
+  @@map("cache_filing_summaries")
+  @@schema("public")
+}
+
+model CacheCompanyProfile {
+  ticker        String    @id @db.VarChar(10)
+  profileData   Json      @map("profile_data")
+  updatedAt     DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+  dataVersion   Int       @default(1) @map("data_version")
+  expiresAt     DateTime  @map("expires_at") @db.Timestamptz(6)
+  sourceCount   Int       @map("source_count")
+  lastVerified  DateTime? @map("last_verified") @db.Timestamptz(6)
+
+  @@index([expiresAt], map: "idx_company_profiles_expires")
+  @@map("cache_company_profiles")
+  @@schema("public")
+}
+
+model CacheNewsSentiment {
+  id             Int      @id @default(autoincrement())
+  ticker         String   @db.VarChar(10)
+  newsDate       DateTime @map("news_date") @db.Date
+  newsUrl        String?  @map("news_url")
+  newsTitle      String   @map("news_title")
+  sentimentScore Decimal  @map("sentiment_score") @db.Decimal(3, 2)
+  sentimentLabel String   @map("sentiment_label") @db.VarChar(20)
+  confidence     Decimal? @db.Decimal(3, 2)
+  aiSummary      String?  @map("ai_summary")
+  keyTopics      Json?    @map("key_topics")
+  processedAt    DateTime @default(now()) @map("processed_at") @db.Timestamptz(6)
+  processedBy    String?  @map("processed_by") @db.VarChar(50)
+  dataVersion    Int      @default(1) @map("data_version")
+
+  @@index([ticker, newsDate(sort: Desc)], map: "idx_news_sentiment_ticker_date")
+  @@index([ticker, sentimentScore, newsDate], map: "idx_news_sentiment_score")
+  @@unique([ticker, newsDate, newsUrl], map: "idx_news_sentiment_unique")
+  @@map("cache_news_sentiment")
+  @@schema("public")
+}
