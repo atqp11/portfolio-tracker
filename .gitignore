@@ -157,9 +157,6 @@ dist/
 *.sqlite
 *.sqlite3
 
-# Lock files (optional - you may want to commit these)
-# Note: package-lock.json is ignored at bottom of file for this project
-
 # Generated files
 *.generated.*
 auto-generated-*
@@ -193,6 +190,3 @@ nul
 
 # Next.js TypeScript definitions
 next-env.d.ts
-
-# Package lock files
-package-lock.json
