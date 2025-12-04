@@ -195,7 +195,7 @@ export const PROVIDER_CONFIG = {
   },
 
   yahooFinance: {
-    name: 'yahoo-finance',
+    name: 'yahooFinance',
     enabled: true,
     priority: 2, // FALLBACK (use only if Tiingo fails)
     baseUrl: 'https://query2.finance.yahoo.com',
@@ -217,7 +217,7 @@ export const PROVIDER_CONFIG = {
   },
 
   alphaVantage: {
-    name: 'alpha-vantage',
+    name: 'alphaVantage',
     enabled: true,
     priority: 3, // TERTIARY (commodities only after Phase 3)
     baseUrl: 'https://www.alphavantage.co/query',
@@ -265,7 +265,7 @@ export const PROVIDER_CONFIG = {
   // ========================================
 
   secEdgar: {
-    name: 'sec-edgar',
+    name: 'secEdgar',
     enabled: true,
     priority: 1, // PRIMARY for filings
     baseUrl: 'https://www.sec.gov',
