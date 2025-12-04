@@ -1,8 +1,10 @@
 # Phase 1 Quick Start Guide
 
-**Timeline:** Week 1 (40 hours)
+**Timeline:** Week 1-1.5 (42 hours)
 **Goal:** Resolve production blockers (cache + security)
-**Prerequisites:** Plan approved, accounts set up
+**Prerequisites:** Phase 0 completed, plan approved, accounts set up
+
+**IMPORTANT:** Phase 0 (Configuration System) MUST be completed first. This creates the configuration foundation that Phase 1 builds upon.
 
 ---
 
@@ -10,115 +12,152 @@
 
 Before starting implementation, ensure:
 
+- [ ] **Phase 0 completed** (Configuration system)
 - [ ] Plan reviewed and approved (`PRODUCTION_READINESS_PLAN.md`)
-- [ ] Budget approved ($2,000 for Phase 1, $9,000 total)
-- [ ] Vercel KV account created (https://vercel.com/dashboard)
-- [ ] Environment variables ready (KV_URL, KV_REST_API_TOKEN, KV_REST_API_URL)
+- [ ] Budget approved ($2,100 for Phase 1, $10,500 total)
+- [ ] **Cache Provider Account Created** (choose ONE):
+  - Option A: Vercel KV (recommended for Vercel deployments)
+  - Option B: Upstash Redis direct (if not using Vercel)
+- [ ] Environment variables ready:
+  - Vercel KV: `KV_REST_API_URL`, `KV_REST_API_TOKEN`
+  - OR Upstash: `UPSTASH_REDIS_URL`, `UPSTASH_REDIS_TOKEN`
 - [ ] Feature branch created: `feature/cache-refactoring`
 - [ ] Team notified (dev deployment may have temporary issues)
 
 ---
 
-## Day 1: Vercel KV Setup (8 hours)
+## Day 1: Cache Provider Setup (8 hours)
 
-### Task 1.1: Enable Vercel KV (1 hour)
+### Task 1.1: Set Up Redis Cache Provider (1 hour)
+
+**Choose ONE option based on your deployment:**
+
+---
+
+#### **Option A: Vercel KV (Recommended for Vercel)**
 
 **Steps:**
 1. Go to Vercel Dashboard → Your Project → Storage
 2. Click "Create Database" → Select "KV (Redis)"
 3. Choose region (same as deployment region for low latency)
-4. Copy connection credentials:
-   ```
-   KV_URL=redis://...
-   KV_REST_API_URL=https://...
-   KV_REST_API_TOKEN=...
-   ```
+4. Copy connection credentials from dashboard
 
 5. Add to local `.env.local`:
    ```bash
-   # Redis Cache (Vercel KV)
-   KV_URL=redis://default:xxx@xxx.upstash.io:6379
-   KV_REST_API_URL=https://xxx.upstash.io
-   KV_REST_API_TOKEN=xxx
+   # Vercel KV (Upstash managed by Vercel)
+   KV_REST_API_URL=https://your-kv-url.upstash.io
+   KV_REST_API_TOKEN=your-token-here
    ```
 
 6. Add to Vercel project (Dashboard → Settings → Environment Variables)
 
-7. **Test connection:**
+7. **Install package:**
    ```bash
    npm install @vercel/kv
    ```
 
-   Create test file: `scripts/test-kv.ts`
+8. **Test connection:**
+   Create test file: `scripts/test-cache.ts`
    ```typescript
    import { kv } from '@vercel/kv';
 
-   async function testKV() {
-     await kv.set('test-key', 'Hello Redis!');
+   async function testVercelKV() {
+     await kv.set('test-key', 'Hello Vercel KV!');
      const value = await kv.get('test-key');
      console.log('✅ Vercel KV working:', value);
      await kv.del('test-key');
    }
 
-   testKV().catch(console.error);
+   testVercelKV().catch(console.error);
    ```
 
-   Run: `npx tsx scripts/test-kv.ts`
-
-**Success Criteria:**
-- ✅ Vercel KV enabled in dashboard
-- ✅ Environment variables configured
-- ✅ Test connection successful
+   Run: `npx tsx scripts/test-cache.ts`
 
 ---
 
-### Task 1.2: Create Cache Adapter Interface (4 hours)
+#### **Option B: Upstash Redis (Direct Connection)**
+
+**Steps:**
+1. Go to https://console.upstash.com
+2. Create account or login
+3. Click "Create Database" → Select region
+4. Copy connection credentials:
+   - REST URL
+   - REST Token
+
+5. Add to local `.env.local`:
+   ```bash
+   # Upstash Redis (Direct connection)
+   UPSTASH_REDIS_URL=https://your-redis-url.upstash.io
+   UPSTASH_REDIS_TOKEN=your-token-here
+   ```
+
+6. **Install package:**
+   ```bash
+   npm install @upstash/redis
+   ```
+
+7. **Test connection:**
+   Create test file: `scripts/test-cache.ts`
+   ```typescript
+   import { Redis } from '@upstash/redis';
+
+   async function testUpstash() {
+     const redis = new Redis({
+       url: process.env.UPSTASH_REDIS_URL!,
+       token: process.env.UPSTASH_REDIS_TOKEN!,
+     });
+
+     await redis.set('test-key', 'Hello Upstash!');
+     const value = await redis.get('test-key');
+     console.log('✅ Upstash Redis working:', value);
+     await redis.del('test-key');
+   }
+
+   testUpstash().catch(console.error);
+   ```
+
+   Run: `npx tsx scripts/test-cache.ts`
+
+---
+
+**Success Criteria:**
+- ✅ Redis cache provider account created
+- ✅ Environment variables configured in `.env.local`
+- ✅ Environment variables added to Vercel/deployment platform
+- ✅ Test connection successful
+- ✅ Correct package installed (@vercel/kv OR @upstash/redis)
+
+---
+
+### Task 1.2: Create Cache Adapter Interface (6 hours)
 
 **File to Create:** `src/lib/cache/adapter.ts`
+
+**Supported Providers:**
+1. ✅ Vercel KV (Upstash managed by Vercel)
+2. ✅ Upstash Redis (Direct connection)
+3. ✅ In-Memory (Development only)
 
 **Implementation:**
 
 ```typescript
+import { CACHE_PROVIDER_CONFIG } from '@lib/config/cache-provider.config';
+
 /**
  * Cache Adapter Interface
- * Allows swapping cache implementations (Redis, In-Memory, etc.)
+ * Allows swapping cache implementations (Vercel KV, Upstash, In-Memory)
  */
-
 export interface CacheAdapter {
-  /**
-   * Get value from cache
-   * @returns Cached value or null if not found/expired
-   */
   get<T>(key: string): Promise<T | null>;
-
-  /**
-   * Set value in cache with TTL
-   * @param key Cache key
-   * @param value Value to cache
-   * @param ttl Time-to-live in milliseconds
-   */
   set<T>(key: string, value: T, ttl: number): Promise<void>;
-
-  /**
-   * Get cache entry age in milliseconds
-   * @returns Age in ms, -1 if not found, Infinity if no expiration
-   */
   getAge(key: string): Promise<number>;
-
-  /**
-   * Delete key from cache
-   */
   delete(key: string): Promise<void>;
-
-  /**
-   * Clear cache (optionally by pattern)
-   * @param pattern Optional glob pattern (e.g., "quote:*")
-   */
   clear(pattern?: string): Promise<void>;
 }
 
 /**
- * Vercel KV (Redis) Implementation
+ * Vercel KV Implementation (Upstash managed by Vercel)
  */
 export class VercelKVAdapter implements CacheAdapter {
   private kv: typeof import('@vercel/kv').kv;
@@ -129,11 +168,10 @@ export class VercelKVAdapter implements CacheAdapter {
 
   async get<T>(key: string): Promise<T | null> {
     try {
-      const value = await this.kv.get<T>(key);
-      return value;
+      return await this.kv.get<T>(key);
     } catch (error) {
       console.error('[VercelKV] Get error:', error);
-      return null;
+      return null; // Cache failures should not break the app
     }
   }
 
@@ -143,52 +181,45 @@ export class VercelKVAdapter implements CacheAdapter {
       await this.kv.set(key, value, { ex: ttlSeconds });
     } catch (error) {
       console.error('[VercelKV] Set error:', error);
-      // Don't throw - cache failures should not break the app
     }
   }
 
-  async getAge(key: string): Promise<number> {
+  // ... other methods (getAge, delete, clear)
+}
+
+/**
+ * Upstash Redis Implementation (Direct connection)
+ */
+export class UpstashRedisAdapter implements CacheAdapter {
+  private redis: Redis;
+
+  constructor() {
+    const { Redis } = require('@upstash/redis');
+    this.redis = new Redis({
+      url: process.env.UPSTASH_REDIS_URL!,
+      token: process.env.UPSTASH_REDIS_TOKEN!,
+    });
+  }
+
+  async get<T>(key: string): Promise<T | null> {
     try {
-      const ttl = await this.kv.ttl(key);
-
-      if (ttl === -2) return -1; // Key doesn't exist
-      if (ttl === -1) return Infinity; // No expiration set
-
-      // Approximate age (we don't know original TTL)
-      // This is a limitation of Redis - we can only know remaining TTL
-      return 0; // Return 0 to indicate "exists but age unknown"
+      return await this.redis.get<T>(key);
     } catch (error) {
-      console.error('[VercelKV] GetAge error:', error);
-      return -1;
+      console.error('[Upstash] Get error:', error);
+      return null;
     }
   }
 
-  async delete(key: string): Promise<void> {
+  async set<T>(key: string, value: T, ttl: number): Promise<void> {
     try {
-      await this.kv.del(key);
+      const ttlSeconds = Math.floor(ttl / 1000);
+      await this.redis.set(key, value, { ex: ttlSeconds });
     } catch (error) {
-      console.error('[VercelKV] Delete error:', error);
+      console.error('[Upstash] Set error:', error);
     }
   }
 
-  async clear(pattern?: string): Promise<void> {
-    try {
-      if (pattern) {
-        const keys = await this.kv.keys(pattern);
-        if (keys.length > 0) {
-          await this.kv.del(...keys);
-        }
-      } else {
-        // Clear all keys (use with caution!)
-        const allKeys = await this.kv.keys('*');
-        if (allKeys.length > 0) {
-          await this.kv.del(...allKeys);
-        }
-      }
-    } catch (error) {
-      console.error('[VercelKV] Clear error:', error);
-    }
-  }
+  // ... other methods
 }
 
 /**
@@ -210,58 +241,31 @@ export class InMemoryCacheAdapter implements CacheAdapter {
     return entry.value as T;
   }
 
-  async set<T>(key: string, value: T, ttl: number): Promise<void> {
-    this.cache.set(key, {
-      value,
-      timestamp: Date.now(),
-      ttl
-    });
-  }
-
-  async getAge(key: string): Promise<number> {
-    const entry = this.cache.get(key);
-    if (!entry) return -1;
-
-    const age = Date.now() - entry.timestamp;
-    if (age > entry.ttl) {
-      this.cache.delete(key);
-      return -1;
-    }
-
-    return age;
-  }
-
-  async delete(key: string): Promise<void> {
-    this.cache.delete(key);
-  }
-
-  async clear(pattern?: string): Promise<void> {
-    if (pattern) {
-      const regex = new RegExp(pattern.replace('*', '.*'));
-      for (const key of this.cache.keys()) {
-        if (regex.test(key)) {
-          this.cache.delete(key);
-        }
-      }
-    } else {
-      this.cache.clear();
-    }
-  }
+  // ... other methods
 }
 
 /**
- * Factory function to create cache adapter
- * Uses Redis in production, in-memory in development
+ * Factory function - auto-detects provider from Phase 0 config
  */
 export function createCacheAdapter(): CacheAdapter {
-  const useRedis = process.env.USE_REDIS_CACHE !== 'false'; // Default to true
+  const config = CACHE_PROVIDER_CONFIG; // From Phase 0
 
-  if (useRedis && process.env.KV_REST_API_URL) {
-    console.log('[Cache] Using Vercel KV (Redis)');
-    return new VercelKVAdapter();
-  } else {
-    console.log('[Cache] Using In-Memory cache (development only)');
-    return new InMemoryCacheAdapter();
+  switch (config.type) {
+    case 'vercel-kv':
+      console.log('[Cache] Using Vercel KV (Upstash managed by Vercel)');
+      return new VercelKVAdapter();
+
+    case 'upstash':
+      console.log('[Cache] Using Upstash Redis (Direct connection)');
+      return new UpstashRedisAdapter();
+
+    case 'memory':
+      console.log('[Cache] Using In-Memory cache (Development only)');
+      return new InMemoryCacheAdapter();
+
+    default:
+      console.warn('[Cache] Unknown provider, falling back to memory');
+      return new InMemoryCacheAdapter();
   }
 }
 
@@ -275,6 +279,12 @@ export function getCacheAdapter(): CacheAdapter {
   return cacheInstance;
 }
 ```
+
+**Key Features:**
+- ✅ Auto-detects cache provider from Phase 0 config
+- ✅ Supports Vercel KV OR direct Upstash
+- ✅ Graceful degradation on cache errors
+- ✅ In-memory fallback for local development
 
 **Test File:** `src/lib/cache/__tests__/adapter.test.ts`
 

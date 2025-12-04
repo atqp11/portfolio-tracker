@@ -2,10 +2,11 @@
 
 **Project:** Portfolio Tracker
 **Created:** 2025-12-03
-**Timeline:** 4-5 weeks
+**Timeline:** 6 weeks
 **Status:** Planning Phase
-**Investment:** ~$9,000 (180 hours)
-**Expected ROI:** $5,000+ annual savings + production readiness
+**Investment:** ~$10,500 (210 hours)
+**Expected ROI:** $7,896/year savings + production readiness
+**Break-Even:** 16 months
 
 ---
 
@@ -30,10 +31,11 @@ This plan outlines a comprehensive architectural refactoring to prepare the Port
 ### Timeline Overview
 
 ```
-Week 1: Foundation (Cache + Security)
+Week 0.5: Configuration System (Foundation)
+Week 1-1.5: Cache Migration + Security
 Week 2-3: Data Source Orchestrator + Tiingo Migration
 Week 4: RSS News Migration + Testing
-Week 5: Hardening + Production Deployment
+Week 5-6: Comprehensive Testing + Hardening + Production Deployment
 ```
 
 ---
@@ -532,11 +534,465 @@ class StockDataService {
 
 ## Phase-by-Phase Implementation
 
-### Phase 1: Foundation (Week 1) - PRODUCTION BLOCKERS
+### Phase 0: Configuration System (Week 0.5) - CRITICAL FOUNDATION
+
+**Goal:** Create centralized configuration system for all providers, AI models, and cache settings
+
+**Effort:** 20 hours
+
+**Why This Phase is Critical:**
+- Eliminates hardcoded settings scattered across 15+ service files
+- Makes it easy to adjust provider settings without code changes
+- Enables environment-based configuration overrides
+- Simplifies adding new providers or AI models (from 2 hours to 10 minutes)
+- Provides startup validation to catch configuration errors early
+- Required foundation for Phase 1+ implementation
+
+**Business Value:**
+- Reduces maintenance time by 60%
+- Catches configuration errors before deployment
+- Enables A/B testing and feature flags
+- Simplifies onboarding new developers
+
+---
+
+#### Tasks
+
+**0.1 Create Provider Configuration System**
+- **Files to Create:**
+  - `src/lib/config/providers.config.ts` - All provider settings
+  - `src/lib/config/types.ts` - Configuration interfaces
+
+**Implementation:**
+
+```typescript
+// src/lib/config/types.ts
+export interface ProviderConfig {
+  name: string;
+  enabled: boolean;
+  priority: number; // 1 = primary, 2 = fallback, 3 = tertiary
+  baseUrl?: string;
+  apiKey?: string;
+  timeout: number;
+  retryAttempts: number;
+  retryDelay: number;
+  circuitBreaker: {
+    failureThreshold: number;
+    resetTimeout: number;
+    halfOpenMaxRequests: number;
+  };
+  rateLimit: {
+    requestsPerMinute: number;
+    requestsPerDay: number;
+  };
+}
+
+// src/lib/config/providers.config.ts
+export const PROVIDER_CONFIG = {
+  // Stock Quote Providers
+  tiingo: {
+    name: 'tiingo',
+    enabled: process.env.FEATURE_TIINGO_ENABLED === 'true',
+    priority: 1, // PRIMARY
+    baseUrl: 'https://api.tiingo.com/tiingo',
+    apiKey: process.env.TIINGO_API_KEY,
+    timeout: 10000,
+    retryAttempts: 2,
+    retryDelay: 1000,
+    circuitBreaker: {
+      failureThreshold: 5,
+      resetTimeout: 60000,
+      halfOpenMaxRequests: 3,
+    },
+    rateLimit: {
+      requestsPerMinute: 100,
+      requestsPerDay: 10000,
+    },
+    batchSize: 500,
+  },
+
+  yahooFinance: {
+    name: 'yahoo-finance',
+    enabled: true,
+    priority: 2, // FALLBACK (use only if Tiingo fails)
+    baseUrl: 'https://query2.finance.yahoo.com',
+    timeout: 8000,
+    retryAttempts: 1,
+    retryDelay: 500,
+    circuitBreaker: {
+      failureThreshold: 3,
+      resetTimeout: 120000,
+      halfOpenMaxRequests: 1,
+    },
+    rateLimit: {
+      requestsPerMinute: 10,
+      requestsPerDay: 500,
+    },
+    maxCacheTTL: 5 * 60 * 1000, // ToS compliance
+  },
+
+  alphaVantage: {
+    name: 'alpha-vantage',
+    enabled: true,
+    priority: 3, // TERTIARY (commodities only after Phase 3)
+    baseUrl: 'https://www.alphavantage.co/query',
+    apiKey: process.env.ALPHAVANTAGE_API_KEY,
+    timeout: 15000,
+    retryAttempts: 2,
+    retryDelay: 2000,
+    circuitBreaker: {
+      failureThreshold: 5,
+      resetTimeout: 60000,
+      halfOpenMaxRequests: 2,
+    },
+    rateLimit: {
+      requestsPerMinute: 5,
+      requestsPerDay: 25,
+    },
+  },
+
+  // Additional providers: rss, secEdgar, etc.
+} as const;
+```
+
+**Effort:** 5 hours
+
+---
+
+**0.2 Create AI Model Configuration System**
+- **File to Create:** `src/lib/config/ai-models.config.ts`
+
+**Implementation:**
+
+```typescript
+export interface AIModelConfig {
+  provider: 'gemini' | 'groq' | 'openai';
+  model: string;
+  endpoint: string;
+  apiKey: string;
+  maxTokens: number;
+  temperature: number;
+  timeout: number;
+  priority: number; // 1 = primary, 2 = fallback
+  fallback?: AIModelConfig;
+  costPerToken: {
+    input: number;
+    output: number;
+  };
+}
+
+export const AI_MODEL_CONFIG = {
+  // Tier-based model selection
+  tierModels: {
+    free: {
+      provider: 'gemini' as const,
+      model: 'gemini-1.5-flash-8b', // PRIMARY for free tier
+      priority: 1,
+      endpoint: 'https://generativelanguage.googleapis.com/v1beta',
+      apiKey: process.env.GEMINI_API_KEY!,
+      maxTokens: 1024,
+      temperature: 0.7,
+      timeout: 30000,
+      costPerToken: { input: 0.0001, output: 0.0003 },
+      fallback: {
+        provider: 'groq' as const,
+        model: 'llama-3.3-70b-versatile', // FALLBACK
+        priority: 2,
+        endpoint: 'https://api.groq.com/openai/v1',
+        apiKey: process.env.GROQ_API_KEY!,
+        maxTokens: 1024,
+        temperature: 0.7,
+        timeout: 20000,
+        costPerToken: { input: 0.0004, output: 0.0008 },
+      },
+    },
+
+    basic: {
+      provider: 'gemini' as const,
+      model: 'gemini-1.5-flash', // PRIMARY for basic tier
+      priority: 1,
+      // ... (similar structure)
+    },
+
+    premium: {
+      provider: 'gemini' as const,
+      model: 'gemini-1.5-pro', // PRIMARY for premium tier
+      priority: 1,
+      // ... (similar structure)
+    },
+  },
+
+  // Task-specific model overrides
+  taskModels: {
+    sentiment: {
+      provider: 'groq' as const,
+      model: 'llama-3.3-70b-versatile',
+      priority: 1, // PRIMARY for sentiment (fast & cheap)
+      maxTokens: 512,
+      temperature: 0.3,
+    },
+  },
+};
+```
+
+**Effort:** 5 hours
+
+---
+
+**0.3 Create Cache Provider Configuration**
+- **File to Create:** `src/lib/config/cache-provider.config.ts`
+
+**Supported Cache Providers:**
+1. **Vercel KV** (priority 1) - Upstash Redis managed by Vercel (recommended for Vercel)
+2. **Upstash Redis** (priority 1) - Direct Upstash connection (use if not on Vercel)
+3. **In-Memory** (priority 3) - Local development only, fallback in emergencies
+
+```typescript
+export type CacheProviderType = 'upstash' | 'vercel-kv' | 'memory';
+
+export const CACHE_PROVIDER_CONFIG = {
+  type: detectCacheProvider(),
+
+  // Provider credentials
+  upstash: {
+    priority: 1,
+    url: process.env.UPSTASH_REDIS_URL,
+    token: process.env.UPSTASH_REDIS_TOKEN,
+  },
+  vercelKV: {
+    priority: 1,
+    restUrl: process.env.KV_REST_API_URL,
+    restToken: process.env.KV_REST_API_TOKEN,
+  },
+  memory: {
+    priority: 3, // Fallback only
+  },
+
+  fallback: 'memory',
+};
+
+function detectCacheProvider(): CacheProviderType {
+  // Auto-detect based on available credentials
+  if (process.env.UPSTASH_REDIS_URL) return 'upstash';
+  if (process.env.KV_REST_API_URL) return 'vercel-kv';
+  return 'memory';
+}
+```
+
+**Effort:** 3 hours
+
+---
+
+**0.4 Create Cache TTL Configuration**
+- **File to Create:** `src/lib/config/cache-ttl.config.ts`
+
+```typescript
+export const CACHE_TTL_CONFIG = {
+  quotes: {
+    free: 15 * 60 * 1000,    // 15 min
+    basic: 10 * 60 * 1000,   // 10 min
+    premium: 5 * 60 * 1000,  // 5 min
+  },
+  commodities: {
+    free: 4 * 60 * 60 * 1000,
+    basic: 2 * 60 * 60 * 1000,
+    premium: 1 * 60 * 60 * 1000,
+  },
+  // ... other data types
+};
+
+export function getCacheTTL(dataType: string, tier: TierName): number {
+  return CACHE_TTL_CONFIG[dataType][tier];
+}
+```
+
+**Effort:** 2 hours
+
+---
+
+**0.5 Create API Key Mapping & Validation**
+- **Files to Create:**
+  - `src/lib/config/api-keys.config.ts` - API key mapping reference
+  - `src/lib/config/validation.ts` - Startup validation
+
+**API Key Mapping:**
+
+```typescript
+// src/lib/config/api-keys.config.ts
+export const API_KEY_MAPPING = {
+  tiingo: {
+    envVar: 'TIINGO_API_KEY',
+    required: true,
+    usage: 'Stock quotes (primary), commodities',
+    documentation: 'https://api.tiingo.com/documentation/general/overview',
+    freeTier: 'Yes - $0/month (500 req/day)',
+    paidTier: 'Power - $10/month (unlimited)',
+  },
+
+  gemini: {
+    envVar: 'GEMINI_API_KEY',
+    required: true,
+    usage: 'AI chat, analysis, summaries',
+    documentation: 'https://ai.google.dev/gemini-api/docs',
+    freeTier: 'Yes - $0/month (60 req/min)',
+  },
+
+  groq: {
+    envVar: 'GROQ_API_KEY',
+    required: false, // Fallback only
+    usage: 'AI fallback, sentiment analysis',
+    documentation: 'https://console.groq.com/docs',
+    freeTier: 'Yes - $0/month (30 req/min)',
+  },
+
+  vercelKV: {
+    envVars: ['KV_REST_API_URL', 'KV_REST_API_TOKEN'],
+    required: false, // Falls back to memory in dev
+    usage: 'Vercel KV (Upstash managed by Vercel)',
+    documentation: 'https://vercel.com/docs/storage/vercel-kv',
+    note: 'Auto-configured in Vercel dashboard',
+  },
+
+  upstashRedis: {
+    envVars: ['UPSTASH_REDIS_URL', 'UPSTASH_REDIS_TOKEN'],
+    required: false,
+    usage: 'Direct Upstash Redis connection',
+    documentation: 'https://upstash.com/docs/redis',
+  },
+
+  yahooFinance: {
+    envVar: null,
+    required: false,
+    usage: 'Quote fallback (internal use only)',
+    restrictions: '⚠️ Cannot redistribute data per ToS. Use as fallback only.',
+  },
+};
+
+export function getMissingRequiredKeys(): string[] {
+  const missing: string[] = [];
+
+  for (const [provider, config] of Object.entries(API_KEY_MAPPING)) {
+    if (config.required) {
+      if (config.envVars) {
+        for (const envVar of config.envVars) {
+          if (!process.env[envVar]) {
+            missing.push(`${envVar} (${provider})`);
+          }
+        }
+      } else if (config.envVar && !process.env[config.envVar]) {
+        missing.push(`${config.envVar} (${provider})`);
+      }
+    }
+  }
+
+  return missing;
+}
+```
+
+**Startup Validation:**
+
+```typescript
+// src/lib/config/validation.ts
+export function validateConfiguration() {
+  const errors: string[] = [];
+  const warnings: string[] = [];
+
+  // 1. Check required API keys
+  const missingKeys = getMissingRequiredKeys();
+  if (missingKeys.length > 0) {
+    errors.push(`Missing required API keys: ${missingKeys.join(', ')}`);
+  }
+
+  // 2. Check cache provider
+  if (!CACHE_PROVIDER_CONFIG.vercelKV.restUrl && !CACHE_PROVIDER_CONFIG.upstash.url) {
+    warnings.push('No Redis cache configured. Using in-memory (not suitable for production)');
+  }
+
+  // 3. Production without Redis = ERROR
+  if (process.env.NODE_ENV === 'production' && CACHE_PROVIDER_CONFIG.type === 'memory') {
+    errors.push('❌ Production requires Redis (Vercel KV or Upstash). In-memory cache will cause 0% hit rate.');
+  }
+
+  // 4. Check provider priorities
+  const quoteProviders = [PROVIDER_CONFIG.tiingo, PROVIDER_CONFIG.yahooFinance];
+  const enabledProviders = quoteProviders.filter(p => p.enabled);
+  if (enabledProviders.length === 0) {
+    errors.push('No quote providers enabled');
+  }
+
+  // Log results
+  if (errors.length > 0) {
+    console.error('[Config] ❌ Configuration errors:');
+    errors.forEach(err => console.error(`  ${err}`));
+    throw new Error('Invalid configuration. Fix errors above.');
+  }
+
+  if (warnings.length > 0) {
+    console.warn('[Config] ⚠️  Configuration warnings:');
+    warnings.forEach(warn => console.warn(`  ${warn}`));
+  }
+
+  console.log('[Config] ✅ Configuration validated');
+  console.log(`[Config] Cache: ${CACHE_PROVIDER_CONFIG.type}`);
+  console.log(`[Config] Quote Primary: ${enabledProviders[0]?.name}`);
+}
+
+// Call during app startup (Next.js middleware or app initialization)
+if (typeof window === 'undefined') {
+  validateConfiguration();
+}
+```
+
+**Effort:** 3 hours
+
+---
+
+**0.6 Documentation**
+- **File to Create:** `docs/5_Guides/CONFIGURATION_MANAGEMENT.md`
+
+**Content:**
+- How to add new providers
+- How to adjust settings via env vars
+- Provider priority explanation
+- API key setup guide
+
+**Effort:** 2 hours
+
+---
+
+#### Testing Strategy (Phase 0)
+
+**Test Scenarios:**
+1. ✅ Startup validation catches missing required keys
+2. ✅ Startup validation catches production without Redis
+3. ✅ Provider priority sorting (primary before fallback)
+4. ✅ Cache provider auto-detection
+5. ✅ TTL retrieval by data type and tier
+6. ✅ AI model selection by tier
+
+**Files to Create:**
+- `src/lib/config/__tests__/validation.test.ts`
+- `src/lib/config/__tests__/providers.test.ts`
+
+**Effort:** Already included in task estimates
+
+---
+
+#### Success Metrics (Phase 0)
+
+- ✅ All provider settings centralized (15+ files → 4 config files)
+- ✅ No hardcoded timeouts/TTLs in services (0 hardcoded values)
+- ✅ Startup validation catches errors (100% of missing keys detected)
+- ✅ Adding new provider takes 10 minutes (vs. 2 hours previously)
+- ✅ Configuration documented with examples
+
+---
+
+### Phase 1: Foundation (Week 1-1.5) - PRODUCTION BLOCKERS
 
 **Goal:** Replace in-memory cache with Redis, establish security baseline
 
-**Effort:** 40 hours
+**Effort:** 42 hours (increased from 40 to include Upstash adapter + usage examples)
 
 #### Tasks
 
@@ -555,12 +1011,230 @@ class StockDataService {
 
 **1.2 Create Cache Adapter Interface**
 - **File to Create:** `src/lib/cache/adapter.ts`
-- **Implementation:**
-  - `CacheAdapter` interface
-  - `VercelKVAdapter` class
-  - `InMemoryCacheAdapter` class (dev only)
-  - `createCacheAdapter()` factory
-- **Effort:** 4 hours
+
+**Supported Cache Providers:**
+
+1. **Vercel KV (Recommended for Vercel deployments)**
+   - Upstash Redis managed by Vercel
+   - Auto-configured through Vercel dashboard
+   - HTTP REST API connection
+   - Priority: 1 (Primary)
+
+2. **Upstash Redis (Direct connection)**
+   - Use if you need control outside Vercel
+   - Direct Redis protocol connection
+   - Requires separate Upstash account
+   - Priority: 1 (Primary)
+
+3. **In-Memory (Development only)**
+   - No Redis needed for local development
+   - Zero cost
+   - Priority: 3 (Fallback only)
+
+**Implementation:**
+
+```typescript
+// Cache Adapter Interface
+export interface CacheAdapter {
+  get<T>(key: string): Promise<T | null>;
+  set<T>(key: string, value: T, ttl: number): Promise<void>;
+  getAge(key: string): Promise<number>;
+  delete(key: string): Promise<void>;
+  clear(pattern?: string): Promise<void>;
+}
+
+/**
+ * Vercel KV Implementation (Upstash managed by Vercel)
+ * Uses HTTP REST API
+ */
+export class VercelKVAdapter implements CacheAdapter {
+  private kv: typeof import('@vercel/kv').kv;
+
+  constructor() {
+    this.kv = require('@vercel/kv').kv;
+  }
+
+  async get<T>(key: string): Promise<T | null> {
+    try {
+      return await this.kv.get<T>(key);
+    } catch (error) {
+      console.error('[VercelKV] Get error:', error);
+      return null; // Cache failures should not break the app
+    }
+  }
+
+  async set<T>(key: string, value: T, ttl: number): Promise<void> {
+    try {
+      const ttlSeconds = Math.floor(ttl / 1000);
+      await this.kv.set(key, value, { ex: ttlSeconds });
+    } catch (error) {
+      console.error('[VercelKV] Set error:', error);
+    }
+  }
+
+  // ... other methods
+}
+
+/**
+ * Upstash Redis Implementation (Direct connection)
+ * Uses Redis protocol via @upstash/redis package
+ */
+export class UpstashRedisAdapter implements CacheAdapter {
+  private redis: Redis;
+
+  constructor() {
+    const { Redis } = require('@upstash/redis');
+    this.redis = new Redis({
+      url: process.env.UPSTASH_REDIS_URL!,
+      token: process.env.UPSTASH_REDIS_TOKEN!,
+    });
+  }
+
+  async get<T>(key: string): Promise<T | null> {
+    try {
+      return await this.redis.get<T>(key);
+    } catch (error) {
+      console.error('[Upstash] Get error:', error);
+      return null;
+    }
+  }
+
+  async set<T>(key: string, value: T, ttl: number): Promise<void> {
+    try {
+      const ttlSeconds = Math.floor(ttl / 1000);
+      await this.redis.set(key, value, { ex: ttlSeconds });
+    } catch (error) {
+      console.error('[Upstash] Set error:', error);
+    }
+  }
+
+  // ... other methods
+}
+
+/**
+ * In-Memory Cache (Development Only)
+ */
+export class InMemoryCacheAdapter implements CacheAdapter {
+  private cache = new Map<string, { value: any; timestamp: number; ttl: number }>();
+
+  async get<T>(key: string): Promise<T | null> {
+    const entry = this.cache.get(key);
+    if (!entry) return null;
+
+    const age = Date.now() - entry.timestamp;
+    if (age > entry.ttl) {
+      this.cache.delete(key);
+      return null;
+    }
+
+    return entry.value as T;
+  }
+
+  // ... other methods
+}
+
+/**
+ * Factory function - uses configuration from Phase 0
+ */
+export function createCacheAdapter(): CacheAdapter {
+  const config = CACHE_PROVIDER_CONFIG; // From Phase 0
+
+  switch (config.type) {
+    case 'vercel-kv':
+      console.log('[Cache] Using Vercel KV (Upstash managed by Vercel)');
+      return new VercelKVAdapter();
+
+    case 'upstash':
+      console.log('[Cache] Using Upstash Redis (Direct connection)');
+      return new UpstashRedisAdapter();
+
+    case 'memory':
+      console.log('[Cache] Using In-Memory cache (Development only)');
+      return new InMemoryCacheAdapter();
+
+    default:
+      console.warn('[Cache] Unknown provider, falling back to memory');
+      return new InMemoryCacheAdapter();
+  }
+}
+
+// Singleton instance
+let cacheInstance: CacheAdapter | null = null;
+
+export function getCacheAdapter(): CacheAdapter {
+  if (!cacheInstance) {
+    cacheInstance = createCacheAdapter();
+  }
+  return cacheInstance;
+}
+```
+
+**Dependencies to Install:**
+
+```bash
+# For Vercel KV
+npm install @vercel/kv
+
+# For direct Upstash (if not using Vercel KV)
+npm install @upstash/redis
+```
+
+**Usage Examples (How Services Will Use This):**
+
+```typescript
+// BEFORE (hardcoded, won't work in production):
+import { loadFromCache, saveToCache } from '@lib/utils/serverCache';
+
+class StockDataService {
+  async getQuote(symbol: string): Promise<StockQuote> {
+    const cached = loadFromCache<StockQuote>(`quote-${symbol}`);
+    if (cached) return cached;
+
+    const quote = await this.fetchQuote(symbol);
+    saveToCache(`quote-${symbol}`, quote);
+    return quote;
+  }
+}
+
+// AFTER (distributed cache, works in production):
+import { getCacheAdapter } from '@lib/cache/adapter';
+import { getCacheTTL } from '@lib/config/cache-ttl.config';
+
+class StockDataService {
+  private cache = getCacheAdapter();
+
+  async getQuote(symbol: string, userTier: TierName): Promise<StockQuote> {
+    const cacheKey = `quote:${symbol}:v1`;
+
+    // Check cache
+    const cached = await this.cache.get<StockQuote>(cacheKey);
+    if (cached) {
+      console.log(`[Stock] Cache hit: ${symbol}`);
+      return { ...cached, source: 'cache' };
+    }
+
+    console.log(`[Stock] Cache miss: ${symbol}`);
+
+    // Fetch from provider
+    const quote = await this.fetchQuote(symbol);
+
+    // Cache with tier-based TTL
+    const ttl = getCacheTTL('quotes', userTier);
+    await this.cache.set(cacheKey, quote, ttl);
+
+    return quote;
+  }
+}
+```
+
+**Benefits of This Approach:**
+- ✅ Pluggable cache providers (switch from Vercel KV to Upstash in 1 line)
+- ✅ Graceful degradation (cache errors don't break the app)
+- ✅ Development without Redis (in-memory cache for local testing)
+- ✅ Production-ready (distributed cache across serverless instances)
+- ✅ Tier-based TTLs (free tier: 15min, premium: 5min)
+
+**Effort:** 6 hours (increased from 4 to include Upstash adapter and usage examples)
 
 ---
 
@@ -1230,11 +1904,11 @@ const USE_RSS_NEWS = process.env.FEATURE_RSS_NEWS_ENABLED === 'true';
 
 ---
 
-### Phase 4: Testing & Hardening (Week 4-5)
+### Phase 4: Testing & Hardening (Week 5-6)
 
-**Goal:** Comprehensive testing, error handling, edge cases
+**Goal:** Comprehensive testing, error handling, edge cases, resilience testing
 
-**Effort:** 50 hours
+**Effort:** 58 hours (increased from 50 to include cache resilience and circuit breaker edge case tests)
 
 #### 4.1 Comprehensive Service Tests
 
@@ -1298,7 +1972,31 @@ const USE_RSS_NEWS = process.env.FEATURE_RSS_NEWS_ENABLED === 'true';
 29. ✅ Empty portfolio → Empty news array
 30. ✅ Network disconnected → Graceful error
 
-**Effort:** 30 hours
+**Cache Resilience Scenarios (NEW):**
+31. ✅ Cache provider unavailable at startup → Graceful degradation (app starts, logs warning)
+32. ✅ Cache stampede (100 concurrent requests for expired key) → Request deduplication (1 API call)
+33. ✅ Partial cache failure (get works, set fails) → Log warning, return data
+34. ✅ Cache data corruption (malformed JSON) → Detect, delete corrupted key, fetch fresh
+35. ✅ Cache network partition recovery → Fall back to direct API, resume caching when recovered
+
+**Circuit Breaker Edge Cases (NEW):**
+36. ✅ Circuit half-open with partial success (50% fail rate) → Policy decision test
+37. ✅ Concurrent requests during circuit reset → Single test request in half-open
+38. ✅ Circuit breaker reset race condition → Only 1 request tests provider
+
+**UI/UX Fallback Scenarios (NEW):**
+39. ✅ Stale cache with warning → Display warning banner to user
+40. ✅ All providers failed → Show error message with retry button
+41. ✅ Partial batch failure → Show successful data + error banner for failed symbols
+
+**Test Files to Create:**
+- `src/lib/cache/__tests__/resilience.test.ts` (scenarios 31-35)
+- `src/lib/data-sources/__tests__/circuit-breaker-edge-cases.test.ts` (scenarios 36-38)
+- `src/test/integration/fallback-ui.test.ts` (scenarios 39-41)
+
+**Total Test Scenarios:** 41 (was 30, added 11 new)
+
+**Effort:** 38 hours (increased from 30 to include new resilience tests)
 
 ---
 
@@ -1655,18 +2353,19 @@ As the team grows and the architecture matures, formal training and onboarding p
 
 | Category | Hours | Cost @ $50/hour |
 |----------|-------|----------------|
-| Phase 1: Foundation | 40 | $2,000 |
+| Phase 0: Configuration | 20 | $1,000 |
+| Phase 1: Foundation | 42 | $2,100 |
 | Phase 2: Orchestrator | 40 | $2,000 |
 | Phase 3: Migration | 50 | $2,500 |
-| Phase 4: Testing | 50 | $2,500 |
-| **Total** | **180** | **$9,000** |
+| Phase 4: Testing & Hardening | 58 | $2,900 |
+| **Total** | **210** | **$10,500** |
 
 ### Return on Investment
 
 **Year 1:**
 - Cost savings: $658/month × 12 = $7,896/year
-- Investment: $9,000
-- **Net ROI:** -$1,104 (break-even after 14 months)
+- Investment: $10,500
+- **Net ROI:** -$2,604 (break-even after 16 months)
 
 **Year 2+:**
 - Annual savings: $7,896/year
@@ -1685,35 +2384,42 @@ As the team grows and the architecture matures, formal training and onboarding p
 ## Timeline Summary
 
 ```
-Week 1: Foundation
-├─ Day 1-2: Vercel KV setup + Cache adapter (16h)
+Week 0.5: Configuration System (FOUNDATION)
+├─ Day 1: Provider + AI model configs (10h)
+├─ Day 2: Cache + TTL configs (5h)
+└─ Day 3: API key mapping + validation + docs (5h)
+
+Week 1-1.5: Foundation (Cache + Security)
+├─ Day 1-2: Vercel KV setup + Cache adapter (Upstash support) (18h)
 ├─ Day 3-4: Migrate services to cache adapter (16h)
 └─ Day 5: Security scanning + documentation (8h)
 
-Week 2: Orchestrator
+Week 2-2.5: Orchestrator
 ├─ Day 1: Design + documentation (8h)
 ├─ Day 2-3: Implement orchestrator + circuit breaker (16h)
 ├─ Day 4: Refactor StockDataService (8h)
 └─ Day 5: Testing (8h)
 
-Week 3: Tiingo Migration
+Week 3-3.5: Tiingo Migration
 ├─ Day 1-2: Tiingo DAO + integration (12h)
-├─ Day 3: Update services (8h)
+├─ Day 3: Update services with priority config (8h)
 ├─ Day 4-5: Testing + deployment (20h)
 
-Week 4: RSS News Migration
+Week 4-4.5: RSS News Migration
 ├─ Day 1-2: RSS parser + DAO (12h)
 ├─ Day 3: Refactor NewsService (8h)
 ├─ Day 4-5: Testing + cleanup (20h)
 
-Week 5: Testing & Hardening
+Week 5-6: Testing & Hardening (EXPANDED)
 ├─ Day 1-2: Comprehensive tests (16h)
-├─ Day 3: Integration tests (8h)
-├─ Day 4: Error handling standardization (8h)
-├─ Day 5: Load testing + deployment (8h)
+├─ Day 3-4: Cache resilience + circuit breaker edge cases (16h) ← NEW
+├─ Day 5: Integration tests (8h)
+├─ Day 6: Error handling standardization (8h)
+├─ Day 7: UI fallback tests (6h) ← NEW
+├─ Day 8: Load testing + deployment (4h)
 ```
 
-**Total:** 5 weeks, 180 hours, $9,000 investment
+**Total:** 6 weeks, 220 hours, $11,000 investment
 
 ---
 
@@ -1732,8 +2438,20 @@ Week 5: Testing & Hardening
 
 ## Appendix A: Files to Create
 
+**Phase 0:**
+- `src/lib/config/types.ts` - Configuration interfaces
+- `src/lib/config/providers.config.ts` - Provider settings (Tiingo, Yahoo, etc.)
+- `src/lib/config/ai-models.config.ts` - AI model configuration per tier
+- `src/lib/config/cache-provider.config.ts` - Cache provider selection
+- `src/lib/config/cache-ttl.config.ts` - TTL settings per data type and tier
+- `src/lib/config/api-keys.config.ts` - API key mapping reference
+- `src/lib/config/validation.ts` - Startup validation
+- `src/lib/config/__tests__/validation.test.ts`
+- `src/lib/config/__tests__/providers.test.ts`
+- `docs/5_Guides/CONFIGURATION_MANAGEMENT.md`
+
 **Phase 1:**
-- `src/lib/cache/adapter.ts`
+- `src/lib/cache/adapter.ts` (includes UpstashRedisAdapter + usage examples)
 - `src/lib/cache/__tests__/adapter.test.ts`
 - `docs/5_Guides/CACHE_STRATEGY.md`
 - `.github/dependabot.yml`
@@ -1761,19 +2479,28 @@ Week 5: Testing & Hardening
 - `src/backend/modules/news/service/__tests__/news.service.test.ts`
 - `src/test/integration/quote-flow.test.ts`
 - `src/test/integration/news-flow.test.ts`
+- `src/lib/cache/__tests__/resilience.test.ts` - NEW (cache resilience tests)
+- `src/lib/data-sources/__tests__/circuit-breaker-edge-cases.test.ts` - NEW
+- `src/test/integration/fallback-ui.test.ts` - NEW (UI fallback scenarios)
 - `src/lib/errors/standard-errors.ts`
 - `artillery-load-test.yml`
 
-**Total:** 28 new files
+**Total:** 41 new files (was 28, added 13 from Phase 0 + 3 new test files)
 
 ---
 
 ## Appendix B: Dependencies to Add
 
 ```bash
-npm install @vercel/kv
+# Cache Providers (choose one or both)
+npm install @vercel/kv          # For Vercel KV (Upstash managed by Vercel)
+npm install @upstash/redis      # For direct Upstash connection
+
+# RSS News
 npm install rss-parser
-npm install artillery  # Dev dependency for load testing
+
+# Testing
+npm install -D artillery  # Load testing
 ```
 
 ---
@@ -1794,18 +2521,28 @@ npm uninstall @alpha-vantage/api  # If exists
 
 **To Add:**
 ```bash
-# Vercel KV
-KV_URL=
+# Cache Provider (choose ONE option)
+# Option 1: Vercel KV (Upstash managed by Vercel - recommended for Vercel deployments)
 KV_REST_API_URL=
 KV_REST_API_TOKEN=
 
-# Tiingo
-TIINGO_API_KEY=
+# Option 2: Direct Upstash Redis (use if not on Vercel or want more control)
+UPSTASH_REDIS_URL=
+UPSTASH_REDIS_TOKEN=
 
-# Feature Flags
-FEATURE_TIINGO_ENABLED=false  # Gradual rollout
-FEATURE_RSS_NEWS_ENABLED=false  # Gradual rollout
-USE_REDIS_CACHE=true  # Rollback toggle
+# Note: App auto-detects which cache provider to use based on available credentials
+# In development without Redis: automatically falls back to in-memory cache
+
+# Data Providers
+TIINGO_API_KEY=              # Required (Phase 3+)
+GEMINI_API_KEY=              # Required (AI primary)
+GROQ_API_KEY=                # Optional (AI fallback)
+ALPHAVANTAGE_API_KEY=        # Optional (commodities fallback)
+
+# Feature Flags (gradual rollout)
+FEATURE_TIINGO_ENABLED=false
+FEATURE_RSS_NEWS_ENABLED=false
+USE_REDIS_CACHE=true         # Emergency rollback toggle
 ```
 
 **To Keep (Fallback):**
