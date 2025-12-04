@@ -155,7 +155,7 @@ if (appleQuote.data) {
             ▼
 ┌───────────────────────────────────────────────────────────┐
 │               Provider Adapters (Phase 3)                  │
-│  Tiingo │ Yahoo Finance │ AlphaVantage │ FMP │ NewsAPI    │
+│  Tiingo │ Yahoo Finance │ AlphaVantage │ NewsAPI          │
 └───────────────────────────────────────────────────────────┘
 ```
 
@@ -241,7 +241,7 @@ Fetches data using sequential provider fallback with cache and stale handling.
 ```typescript
 const result = await orchestrator.fetchWithFallback<StockQuote>({
   key: 'AAPL',
-  providers: [tiingoProvider, fmpProvider],
+  providers: [tiingoProvider, yahooFinanceProvider],
   cacheKeyPrefix: 'quotes',
   tier: 'free',
 });
@@ -711,10 +711,9 @@ _Will be updated after service migration_
 
 1. **AlphaVantageQuoteProvider** - Stock quotes from AlphaVantage
 2. **AlphaVantageOverviewProvider** - Company fundamentals
-3. **FMPQuoteProvider** - FMP stock quotes
-4. **YahooFinanceProvider** - Yahoo Finance fundamentals
-5. **TiingoBatchQuoteProvider** - Batch stock quotes (implements `BatchDataProvider`)
-6. **NewsAPIProvider** - News articles
+3. **YahooFinanceProvider** - Yahoo Finance quotes and fundamentals
+4. **TiingoBatchQuoteProvider** - Batch stock quotes (implements `BatchDataProvider`)
+5. **NewsAPIProvider** - News articles
 
 ### Implementation Checklist
 

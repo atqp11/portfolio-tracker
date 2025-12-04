@@ -34,9 +34,9 @@ A **5-week architectural refactoring** to make the application production-ready:
 |--------|-------|
 | **Timeline** | 5 weeks (180 hours) |
 | **Investment** | $9,000 @ $50/hour |
-| **Monthly Savings** | $658/month (-94% cost reduction) |
-| **Break-Even** | 14 months |
-| **Year 2+ ROI** | 88% annually |
+| **Monthly Savings** | $110/month (-73% cost reduction) |
+| **Break-Even** | ~82 months |
+| **Primary Value** | Production readiness + scalability |
 
 **Intangible Benefits:**
 - ✅ Production-ready (cannot deploy current version)
@@ -54,11 +54,12 @@ A **5-week architectural refactoring** to make the application production-ready:
 | Provider | Monthly Cost |
 |----------|--------------|
 | Alpha Vantage (quotes) | $50 |
-| NewsAPI (news) | $449 |
-| Finnhub (company news) | $99 |
-| Brave Search (augmentation) | $5-20 |
+| RSS Feeds (news) | $0 (already implemented) |
+| Brave Search (augmentation) | $0-5 |
 | AI (Gemini, no cache) | $100 |
-| **Total** | **~$698/month** |
+| **Total** | **~$150/month** |
+
+**Note:** FMP, NewsAPI, and Finnhub have been removed from the codebase.
 
 ### After Refactoring
 
@@ -70,7 +71,7 @@ A **5-week architectural refactoring** to make the application production-ready:
 | AI (Gemini, 80% cache hit) | $20 |
 | **Total** | **$40/month** |
 
-**Savings:** $658/month (-94%)
+**Savings:** $110/month (-73%)
 
 ---
 
@@ -104,11 +105,11 @@ Week 5: Testing & Deployment
 **Solution:** Redis/Vercel KV distributed cache
 **Impact:** 80% cache hit rate = $160/month savings
 
-### 2. Data Source Costs 🔴
+### 2. Data Source Costs 🟡
 
-**Problem:** NewsAPI costs $449/month at scale
-**Solution:** Free RSS feeds with AI summarization
-**Impact:** -$548/month savings
+**Problem:** Alpha Vantage limited to 25 req/day on free tier
+**Solution:** Tiingo ($10/month) for unlimited stock quotes
+**Impact:** Better scalability and reliability
 
 ### 3. Code Duplication 🟡
 
@@ -134,14 +135,15 @@ Week 5: Testing & Deployment
 
 ### Current State (Risk)
 - ❌ Yahoo Finance: Used for redistribution (ToS violation)
-- ❌ NewsAPI: Expensive at scale, terms unclear
-- ⚠️ Alpha Vantage: Free tier too limited for production
+- ⚠️ Alpha Vantage: Free tier too limited for production (25 req/day)
 
 ### After Refactoring (Compliant)
 - ✅ Tiingo: Commercial redistribution allowed ($10/month)
-- ✅ RSS Feeds: Free, commercial-safe with attribution
+- ✅ RSS Feeds: Free, commercial-safe with attribution (already implemented)
 - ✅ SEC EDGAR: Public domain
 - ✅ Yahoo Finance: Internal use only (backup, not redistribution)
+
+**Note:** FMP, NewsAPI, and Finnhub were already removed for cost optimization.
 
 ---
 

@@ -92,13 +92,13 @@ A single orchestrator that provides three core fetch strategies:
                         ▼
 ┌──────────────────────────────────────────────────────────────────┐
 │               Provider Adapters (Phase 3 - Planned)               │
-│  Tiingo │ Yahoo Finance │ AlphaVantage │ FMP │ NewsAPI           │
+│  Tiingo │ Yahoo Finance │ AlphaVantage │ NewsAPI                  │
 └───────────────────────┬──────────────────────────────────────────┘
                         │
                         ▼
 ┌──────────────────────────────────────────────────────────────────┐
 │                    External APIs                                  │
-│  Tiingo API │ Yahoo Finance │ Alpha Vantage │ FMP │ NewsAPI      │
+│  Tiingo API │ Yahoo Finance │ Alpha Vantage │ NewsAPI            │
 └──────────────────────────────────────────────────────────────────┘
 ```
 
@@ -201,7 +201,7 @@ src/lib/data-sources/
 | Company fundamentals | `fetchWithMerge` | Combine Yahoo + AlphaVantage for complete data |
 | Portfolio quotes (100 symbols) | `batchFetch` | 10 batches instead of 100 API calls |
 | News articles (multiple sources) | `fetchWithMerge` | Aggregate NewsAPI + Benzinga + MarketWatch |
-| Commodity prices (oil, gas) | `fetchWithFallback` | Try FMP → AlphaVantage → Stale |
+| Commodity prices (oil, gas) | `fetchWithFallback` | Try AlphaVantage → Yahoo → Stale |
 | SEC filings | `fetchWithFallback` | Try SEC Edgar → Cache (rare changes) |
 
 ### Decision Tree

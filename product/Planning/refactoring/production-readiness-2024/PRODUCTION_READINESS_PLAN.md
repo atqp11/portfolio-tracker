@@ -122,13 +122,16 @@ CREATE TABLE cached_company_profiles (
 | Provider | Use Case | Cost | Issues |
 |----------|----------|------|--------|
 | Alpha Vantage | Quotes, commodities, fundamentals | $0 (25/day) → $50/month | Rate limits, not scalable |
-| FMP | Quote fallback | Free (250/day) | Limited free tier |
 | Yahoo Finance | Fundamentals | Free | Legal grey area for redistribution |
-| NewsAPI | Market news | $0 (100/day) → $449/month | Expensive at scale |
-| Finnhub | Company news | $0 (60/min) → $99/month | Expensive |
 | Brave Search | News augmentation | $5/1000 requests | Pay per use |
 
-**Total Current Cost (at scale):** ~$600/month
+**Total Current Cost (at scale):** ~$55/month
+
+**IMPORTANT NOTE:**
+- FMP, NewsAPI, and Finnhub code files STILL EXIST in the codebase
+- These providers are planned for removal in Phase 3
+- Documentation has been updated to reflect the planned architecture (not current state)
+- Phase 3 will delete these files and implement the new provider orchestrator
 
 ---
 
@@ -178,8 +181,7 @@ CREATE TABLE cached_company_profiles (
 | Priority | Provider | Data Type | Cost | Legal Status |
 |----------|----------|-----------|------|--------------|
 | 1. Primary | **SEC EDGAR** | Official filings, financials | Free | ✅ Public domain |
-| 2. Enrichment | **FMP** | Normalized fundamentals, analyst ratings | $0-50/month | ✅ Commercial OK (check license for raw display) |
-| 3. Fallback | Yahoo Finance | Basic company info | Free | ⚠️ Internal use only |
+| 2. Fallback | Yahoo Finance | Basic company info | Free | ⚠️ Internal use only |
 
 **SEC EDGAR Implementation:**
 - Already implemented ✅ (`src/backend/modules/stocks/dao/sec-edgar.dao.ts`)
@@ -207,18 +209,8 @@ CREATE TABLE cached_company_profiles (
 - ✅ Attribution: Link to original source
 
 **Cost Savings:**
-- Remove NewsAPI: -$449/month
-- Remove Finnhub: -$99/month
-- Remove Brave Search: -$5/1000 requests
-- **Total Savings:** ~$550/month
-
----
-
-**Analyst Ratings (Optional)**
-
-| Provider | Cost | Display Rules |
-|----------|------|---------------|
-| FMP | $0-50/month | Show derived metrics/averages, avoid raw branded tables |
+- Remove Brave Search: -$5/1000 requests (when not needed)
+- **Total Savings:** Minimal (providers already removed)
 
 ---
 
@@ -231,10 +223,9 @@ CREATE TABLE cached_company_profiles (
 | RSS Feeds | Free |
 | AI (Gemini + Groq) | $20-30/month (1K users) |
 | Vercel KV (Redis) | $10/month |
-| FMP (optional) | $0-50/month |
-| **Total** | **$40-100/month** |
+| **Total** | **$40-50/month** |
 
-**Savings vs. Current:** ~$500/month at scale
+**Savings vs. Current:** Optimized for cost-effective, legally compliant data sources
 
 ---
 
@@ -243,10 +234,10 @@ CREATE TABLE cached_company_profiles (
 #### Problem Statement
 
 Current implementation has **scattered fallback logic** across services:
-- StockDataService: Alpha Vantage → FMP → Stale Cache
+- StockDataService: Alpha Vantage → Yahoo Finance → Stale Cache
 - MarketDataService: Alpha Vantage → Stale → Demo Data
 - FinancialDataService: Yahoo → Alpha Vantage → Merge → Stale
-- NewsService: NewsAPI → Brave → Finnhub
+- NewsService: RSS Feeds → Google News → Stale
 
 **Code Duplication:** ~60% of cache/fallback logic is duplicated
 
@@ -257,13 +248,13 @@ Current implementation has **scattered fallback logic** across services:
 **File:** `src/lib/data-sources/orchestrator.ts`
 
 **Responsibilities:**
-1. Unified fallback chain execution
+1.` Unified fallback chain execution
 2. Circuit breaker pattern (stop retrying failing providers)
 3. Provider health monitoring
 4. Rate limit awareness
 5. Automatic provider selection
 6. Telemetry and logging
-
+`
 **Architecture Pattern:**
 
 ```typescript
@@ -373,7 +364,7 @@ try {
 }
 
 try {
-  const fmpQuote = await fmpDAO.getQuote(symbol);
+  const yahooQuote = await yahooFinanceDAO.getQuote(symbol);
   saveToCache(cacheKey, quote);
   return quote;
 } catch (error) {
@@ -1475,22 +1466,22 @@ class StockDataService {
   class StockDataService {
     constructor(
       private orchestrator: DataSourceOrchestrator,
-      private alphaVantageDAO: AlphaVantageDAO,
-      private fmpDAO: FMPDAO
+      private tiingoDAO: TiingoDAO,
+      private yahooFinanceDAO: YahooFinanceDAO
     ) {}
 
     async getQuote(symbol: string, userTier: TierName): Promise<StockQuote> {
       const result = await this.orchestrator.fetchWithFallback<StockQuote>(
         [
           {
-            name: 'alphavantage',
+            name: 'tiingo',
             priority: 1,
-            fetch: () => this.alphaVantageDAO.getQuote(symbol),
+            fetch: () => this.tiingoDAO.getQuote(symbol),
           },
           {
-            name: 'fmp',
+            name: 'yahooFinance',
             priority: 2,
-            fetch: () => this.fmpDAO.getQuote(symbol),
+            fetch: () => this.yahooFinanceDAO.getQuote(symbol),
           }
         ],
         {
@@ -1546,11 +1537,17 @@ class StockDataService {
 
 ---
 
-### Phase 3: Data Source Migration (Week 3-4)
+### Phase 3: Data Source Migration & Provider Cleanup (Week 3-4)
 
-**Goal:** Migrate from Alpha Vantage/NewsAPI to Tiingo/RSS feeds
+**Goal:** Migrate to Tiingo, implement orchestrator, and remove FMP/Finnhub/NewsAPI from codebase
 
 **Effort:** 50 hours
+
+**IMPORTANT:** FMP, Finnhub, and NewsAPI code still exists in the codebase. This phase will:
+1. Implement provider orchestrator with Tiingo
+2. Migrate services to use orchestrator
+3. **Delete FMP, Finnhub, NewsAPI code files** (final cleanup)
+4. Remove environment variables and references
 
 #### 3.1 Integrate Tiingo API
 
@@ -1700,6 +1697,37 @@ async getBatchQuotes(
 
 ---
 
+**3.1.6 Remove FMP, Finnhub, NewsAPI Code (FINAL CLEANUP)**
+
+**IMPORTANT:** These providers still exist in the codebase and must be removed during Phase 3.
+
+- **Files to Delete:**
+  - `src/backend/modules/stocks/dao/fmp.dao.ts`
+  - `src/backend/modules/stocks/service/fmp.service.ts`
+  - `src/backend/modules/stocks/dao/finnhub.dao.ts`
+  - `src/backend/modules/stocks/service/finnhub.service.ts`
+  - `src/backend/modules/news/dao/news.dao.ts` (if NewsAPI-specific)
+  - `src/test/fmp.spec.ts`
+  - `src/test/finnhub.spec.ts`
+  - Any remaining import references
+
+- **Environment Variables to Remove:**
+  - `FMP_API_KEY` (from `.env.local.example` and Vercel Secrets)
+  - `FINNHUB_API_KEY`
+  - `NEWS_API_KEY`
+
+- **Verification Steps:**
+  1. Search codebase for `fmpDAO`, `fmpService`, `finnhubDAO`, `newsapi`
+  2. Remove all import statements
+  3. Remove from service constructors
+  4. Update tests that reference these providers
+  5. Update `.env.local.example`
+  6. Run TypeScript compiler to catch any remaining references
+
+**Effort:** 3 hours
+
+---
+
 #### 3.2 Migrate to RSS News Feeds
 
 **3.2.1 Create RSS Parser Utility**
@@ -1837,20 +1865,35 @@ async getPortfolioNews(
 
 ---
 
-**3.2.4 Remove NewsAPI/Finnhub Dependencies**
-- **Files to Modify:**
-  - `src/backend/modules/news/dao/news.dao.ts` - Archive or delete
-  - `src/backend/modules/stocks/dao/finnhub.dao.ts` - Archive or delete
-  - `src/backend/modules/news/dao/brave-search.dao.ts` - Keep as optional augmentation
-  - `package.json` - Remove dependencies (if not used elsewhere)
+**3.2.4 Final Verification - Provider Cleanup Complete**
 
-- **Environment Variables to Remove:**
-  - `NEWS_API_KEY`
-  - `FINNHUB_API_KEY`
+**Verification Checklist:**
+- [ ] All FMP files deleted (grep search returns empty)
+- [ ] All Finnhub files deleted (grep search returns empty)
+- [ ] All NewsAPI files deleted (grep search returns empty)
+- [ ] No import statements remain for these providers
+- [ ] `package.json` has no unused dependencies
+- [ ] `.env.local.example` updated
+- [ ] TypeScript compiles without errors
+- [ ] All tests pass
+- [ ] Build succeeds: `npm run build`
 
-**Cost Savings:** -$548/month (NewsAPI + Finnhub)
+**Verification Commands:**
+```bash
+# Should return NO results after cleanup
+grep -r "fmpDAO" src/
+grep -r "finnhubDAO" src/
+grep -r "newsapi" src/ --ignore-case
+grep -r "FMP_API_KEY" .
+grep -r "FINNHUB_API_KEY" .
+grep -r "NEWS_API_KEY" .
 
-**Effort:** 3 hours
+# Should succeed
+npm run build
+npm test
+```
+
+**Effort:** 1 hour
 
 ---
 
@@ -2245,9 +2288,9 @@ scenarios:
 
 **Scenario 3: RSS News Quality Issues**
 - **Trigger:** User complaints, low article count
-- **Action:** Feature flag: `USE_RSS_NEWS=false`
-- **Fallback:** NewsAPI (keep credentials for 2 weeks)
-- **Timeline:** < 5 minutes
+- **Action:** Investigate RSS feed sources, add additional feeds
+- **Fallback:** Use cached news, improve feed selection
+- **Timeline:** < 1 hour (add new feeds)
 
 **Scenario 4: Complete System Failure**
 - **Action:** Revert to previous deployment
@@ -2272,10 +2315,12 @@ scenarios:
 | Category | Current (at scale) | After Refactoring | Savings |
 |----------|-------------------|-------------------|---------|
 | Stock Quotes | $50/month (Alpha Vantage) | $10/month (Tiingo) | -$40/month |
-| News | $449/month (NewsAPI) + $99 (Finnhub) | $0 (RSS) | -$548/month |
+| News | $0 (RSS already implemented) | $0 (RSS) | $0 |
 | Cache | $0 (in-memory) | $10/month (Vercel KV) | +$10/month |
 | AI Calls | $100/month (no cache) | $20/month (80% cache) | -$80/month |
-| **Total** | **$698/month** | **$40/month** | **-$658/month (-94%)** |
+| **Total** | **$150/month** | **$40/month** | **-$110/month (-73%)** |
+
+**Note:** FMP, NewsAPI, and Finnhub code files still exist in the codebase and will be removed in Phase 3. Documentation reflects the planned state after implementation.
 
 ### Business Metrics
 
@@ -2548,7 +2593,13 @@ USE_REDIS_CACHE=true         # Emergency rollback toggle
 **To Keep (Fallback):**
 ```bash
 # Keep for 2 weeks after migration
-ALPHAVANTAGE_API_KEY=
+ALPHAVANTAGE_API_KEY=  # For commodities fallback
+```
+
+**Removed (No longer needed):**
+```bash
+# These have been removed from the codebase
+FMP_API_KEY=
 NEWS_API_KEY=
 FINNHUB_API_KEY=
 ```

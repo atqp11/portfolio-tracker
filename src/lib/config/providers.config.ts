@@ -111,6 +111,26 @@ export const PROVIDER_CONFIG = {
     },
   } satisfies ProviderConfig,
 
+  braveNews: {
+    name: 'braveNews',
+    enabled: process.env.BRAVE_API_KEY !== undefined,
+    priority: 2, // FALLBACK for news
+    baseUrl: 'https://api.search.brave.com/res/v1/news/search',
+    apiKey: process.env.BRAVE_API_KEY,
+    timeout: 10000,
+    retryAttempts: 2,
+    retryDelay: 1000,
+    circuitBreaker: {
+      failureThreshold: 5,
+      resetTimeout: 60000,
+      halfOpenMaxRequests: 3,
+    },
+    rateLimit: {
+      requestsPerMinute: 15, // Brave search limits
+      requestsPerDay: 2000,
+    },
+  } satisfies ProviderConfig,
+
   // --------------------------------------------------------------------------
   // SEC Filing Providers
   // --------------------------------------------------------------------------
@@ -211,8 +231,9 @@ export function isProviderAvailable(name: keyof typeof PROVIDER_CONFIG): boolean
  */
 export const PROVIDER_GROUPS = {
   quotes: ['tiingo', 'yahooFinance'] as const,
+  fundamentals: ['tiingo', 'yahooFinance', 'alphaVantage'] as const,
   commodities: ['tiingo', 'alphaVantage'] as const,
-  news: ['rss'] as const,
+  news: ['rss', 'braveNews'] as const,
   filings: ['secEdgar'] as const,
 } as const;
 

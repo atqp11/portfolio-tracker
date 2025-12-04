@@ -64,8 +64,7 @@ export type {
 export { DataSourceOrchestrator } from './orchestrator';
 
 // ============================================================================
-// RE-EXPORTS (future modules will be added here)
+// PROVIDER ADAPTERS (Phase 3)
 // ============================================================================
 
-// Provider Adapters (Phase 3)
-// export * from './provider-adapters';
+export * from './provider-adapters';

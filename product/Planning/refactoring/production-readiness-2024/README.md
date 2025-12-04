@@ -49,8 +49,10 @@
 **Current State:**
 - In-memory caching works in dev, fails in production (Vercel serverless)
 - Cache hit rate: **0% in production**
-- API costs: **$698/month at scale**
+- API costs: **$150/month at scale**
 - Cannot deploy to production ❌
+
+**Note:** FMP, NewsAPI, and Finnhub have been removed from the codebase.
 
 **Why it matters:**
 Serverless functions don't share memory → each request hits external APIs → expensive + slow
@@ -69,7 +71,7 @@ Serverless functions don't share memory → each request hits external APIs → 
 - Cache hit rate: **60-80%**
 - API costs: **$40/month**
 - Production-ready: **✅**
-- Savings: **$658/month (-94%)**
+- Savings: **$110/month (-73%)**
 
 ---
 
@@ -79,9 +81,9 @@ Serverless functions don't share memory → each request hits external APIs → 
 |--------|-------|
 | Timeline | 5 weeks (180 hours) |
 | Investment | $9,000 @ $50/hour |
-| Monthly Savings | $658/month |
-| Break-Even | 14 months |
-| Year 2+ ROI | 88% annually |
+| Monthly Savings | $110/month |
+| Break-Even | ~82 months |
+| Primary Value | Production readiness + scalability |
 
 ---
 
@@ -90,13 +92,14 @@ Serverless functions don't share memory → each request hits external APIs → 
 ### Current (At Scale)
 ```
 Alpha Vantage:  $50/month
-NewsAPI:        $449/month
-Finnhub:        $99/month
-Brave Search:   $5-20/month
+RSS Feeds:      $0/month (already implemented)
+Brave Search:   $0-5/month (minimal use)
 AI (no cache):  $100/month
 ─────────────────────────
-Total:          $698/month
+Total:          $150/month
 ```
+
+**Note:** FMP, NewsAPI, and Finnhub have been removed from the codebase.
 
 ### After Refactoring
 ```
@@ -107,7 +110,7 @@ AI (80% cache): $20/month
 ─────────────────────────
 Total:          $40/month
 
-Savings:        $658/month (-94%)
+Savings:        $110/month (-73%)
 ```
 
 ---
@@ -315,7 +318,7 @@ Start with:
 - Test coverage: ~20% → **70%**
 
 ### Business
-- Monthly cost: **$698** → **$40** (-94%)
+- Monthly cost: **$150** → **$40** (-73%)
 - Production ready: **❌** → **✅**
 - Scalability: Limited → **0-10K users**
 - Legal compliance: Risks → **100% compliant**
@@ -366,9 +369,8 @@ FEATURE_TIINGO_ENABLED=false
 
 **Phase 3 (RSS News):**
 ```bash
-# Feature flag
-FEATURE_RSS_NEWS_ENABLED=false
-# Reverts to NewsAPI (keep credentials for 2 weeks)
+# Improve RSS feed sources
+# Add additional feeds if quality issues arise
 ```
 
 **Complete Failure:**
@@ -408,7 +410,7 @@ Cannot compress much further without risking quality.
 **You can deploy to production** ✅
 
 But you'll still have:
-- High costs ($698/month vs. $40/month)
+- Higher costs ($150/month vs. $40/month)
 - Duplicated code (technical debt)
 - Legal compliance risks (Yahoo Finance)
 

@@ -5,7 +5,7 @@
  */
 
 import { CircuitBreaker, CircuitBreakerManager, CircuitState } from '../circuit-breaker';
-import type { CircuitBreakerConfig } from '@/lib/config/types';
+import type { CircuitBreakerConfig } from '@lib/config/types';
 
 // Mock console methods to reduce test noise
 beforeAll(() => {
