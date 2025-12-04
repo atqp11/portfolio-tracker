@@ -2,6 +2,8 @@
 
 This document provides a comprehensive overview of the project's architecture, data strategies, and development workflows. It serves as a guide for developers and AI assistants (like Gemini, Claude Code) working on this codebase.
 
+> **📚 Detailed Guidelines:** See [DEVELOPMENT_GUIDELINES.md](./5_Guides/DEVELOPMENT_GUIDELINES.md) for comprehensive coding patterns and best practices.
+
 ## 1. Project Overview
 
 This project is a portfolio tracker application built with a modern web stack. It provides users with tools to monitor their investments, analyze market data, and manage their financial portfolio.
@@ -469,6 +471,147 @@ npm test
 **Husky:** Pre-commit hooks configured in `.husky/`
 
 **Current branch:** main (deploy branch for Vercel)
+
+---
+
+## Development Guidelines Summary
+
+### Critical Principles
+
+1. **Server-First Architecture:** Use Server Components for data fetching. Client Components only for interactivity.
+2. **API Routes are Thin Wrappers:** Delegate all logic to `src/backend/modules/` controllers.
+3. **No Direct Supabase on Frontend:** All data access via `/api/*` routes.
+4. **TypeScript Strict Mode:** No `any` types. Always type function returns.
+5. **Path Aliases Required:** Use `@lib/`, `@/components/`, never `../../../`.
+
+### Code Patterns
+
+**Import Order:**
+```typescript
+// 1. Next.js imports
+import { NextResponse } from 'next/server';
+// 2. Third-party packages
+import { z } from 'zod';
+// 3. Path aliases
+import { prisma } from '@lib/prisma';
+import { Portfolio } from '@/types/portfolio';
+// 4. Relative imports (same directory only)
+import { helper } from './utils';
+```
+
+**Server Component (data fetching):**
+```typescript
+// ✅ GOOD - Server Component fetches data
+async function PortfolioPage() {
+  const portfolio = await prisma.portfolio.findFirst();
+  return <PortfolioDisplay portfolio={portfolio} />;
+}
+```
+
+**Client Component (interactivity only):**
+```typescript
+// ✅ GOOD - Client Component for interactivity
+'use client';
+import { useState } from 'react';
+
+export function SortButton() {
+  const [sortOrder, setSortOrder] = useState('asc');
+  return <button onClick={() => setSortOrder('desc')}>Sort</button>;
+}
+```
+
+**API Route Pattern:**
+```typescript
+// app/api/portfolio/route.ts - THIN WRAPPER
+import { NextResponse } from 'next/server';
+import { getPortfolio } from '@/src/backend/modules/portfolio/portfolio.controller';
+
+export const dynamic = 'force-dynamic';
+
+export async function GET(request: Request) {
+  try {
+    const result = await getPortfolio(request);
+    return NextResponse.json(result);
+  } catch (error) {
+    console.error('API error:', error);
+    return NextResponse.json({ status: 'error', message: 'Internal error' }, { status: 500 });
+  }
+}
+```
+
+### Error Handling
+
+**View Layer:** Use `error.tsx` for route segments, `global-error.tsx` for app-level.
+
+**Controller Layer:** Try-catch with standardized JSON responses:
+```typescript
+return NextResponse.json({ status: 'error', message: 'Validation failed' }, { status: 400 });
+```
+
+**Service Layer:** Throw custom errors (e.g., `NotFoundError`, `ValidationError`).
+
+### State Management
+
+- **Server State:** Use React Query (`useQuery`, `useMutation`)
+- **UI State:** Use `useState`, `useReducer` for local interactivity
+- **No Global State:** Avoid Redux/Context for server data
+
+### Caching Strategy
+
+Multi-layer caching configured via `src/lib/config/`:
+- **Distributed Cache:** Vercel KV / Upstash Redis (60-80% hit rate target)
+- **TTLs by Tier:** Free tier gets longer TTLs, Premium gets fresher data
+
+```typescript
+import { getCacheAdapter } from '@lib/cache/adapter';
+import { getCacheTTL } from '@lib/config/cache-ttl.config';
+
+const cache = getCacheAdapter();
+const ttl = getCacheTTL('quotes', userTier);
+await cache.set(`quote:${symbol}:v1`, data, ttl);
+```
+
+### Database Access
+
+**User-facing operations:** Supabase client (RLS-protected)
+**Admin operations:** Prisma (RLS-bypass, restricted to `src/backend/admin/`)
+
+```typescript
+// ✅ GOOD - Centralized Prisma client
+import { prisma } from '@lib/prisma';
+
+// ✅ GOOD - Handle null results
+const stock = await prisma.stock.findUnique({ where: { id } });
+if (!stock) throw new Error('Stock not found');
+```
+
+### Security Checklist
+
+- [ ] No `NEXT_PUBLIC_` prefix on secrets
+- [ ] Input validation with Zod on all endpoints
+- [ ] Never log API keys or PII
+- [ ] Use parameterized queries (Prisma handles this)
+
+### Performance Checklist
+
+- [ ] Server Components for data fetching
+- [ ] `next/image` for all images
+- [ ] Batch API calls (`Promise.all`)
+- [ ] Memoize expensive calculations (`useMemo`)
+- [ ] Lazy load heavy components (`dynamic()`)
+
+### Code Review Checklist
+
+- [ ] Uses `@/` path aliases (no `../../../`)
+- [ ] TypeScript strict mode passes
+- [ ] Error states handled
+- [ ] Loading states displayed
+- [ ] API routes have `dynamic = 'force-dynamic'`
+- [ ] Database queries check for null
+- [ ] Tests pass: `npm test`
+- [ ] Build succeeds: `npm run build`
+
+---
 
 
 
