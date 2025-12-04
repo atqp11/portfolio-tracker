@@ -3,10 +3,14 @@
  *
  * Business logic layer for company fundamentals and financial statements.
  * Aggregates data from multiple sources with intelligent fallback.
+ *
+ * Phase 1: Migrated to distributed cache (Vercel KV / Upstash Redis)
  */
 import { alphaVantageDAO } from '@backend/modules/stocks/dao/alpha-vantage.dao';
 import { yahooFinanceDAO, YahooFundamentals } from '@backend/modules/stocks/dao/yahoo-finance.dao';
-import { loadFromCache, saveToCache, getCacheAge } from '@lib/utils/serverCache';
+import { getCacheAdapter, type CacheAdapter } from '@lib/cache/adapter';
+import { getCacheTTL } from '@lib/config/cache-ttl.config';
+import type { TierName } from '@lib/config/types';
 
 // ============================================================================
 // INTERFACES
@@ -87,33 +91,53 @@ export interface FinancialStatements {
 // ============================================================================
 
 export class FinancialDataService {
-  private readonly CACHE_TTL = 60 * 60 * 1000; // 1 hour (fundamentals don't change frequently)
+  private readonly cache: CacheAdapter;
+  private readonly DEFAULT_TTL = 60 * 60 * 1000; // 1 hour fallback
+
+  constructor() {
+    this.cache = getCacheAdapter();
+  }
+
+  /**
+   * Get cache TTL based on user tier (fundamentals use filings TTL)
+   */
+  private getCacheTTL(tier?: TierName): number {
+    if (tier) {
+      return getCacheTTL('filings', tier);
+    }
+    return this.DEFAULT_TTL;
+  }
 
   /**
    * Get company fundamentals with intelligent source merging
    *
    * Strategy:
-   * 1. Check cache (1hr TTL)
+   * 1. Check cache (TTL based on tier)
    * 2. Try Yahoo Finance (faster, more complete)
    * 3. Fallback to Alpha Vantage
    * 4. Merge both sources if available
    * 5. Return stale cache if all fail
    *
    * @param symbol - Stock ticker symbol
+   * @param tier - User tier for TTL selection
    * @returns Comprehensive fundamentals data
    */
-  async getFundamentals(symbol: string): Promise<CompanyFundamentals> {
-    const cacheKey = `fundamentals-${symbol}`;
+  async getFundamentals(symbol: string, tier?: TierName): Promise<CompanyFundamentals> {
+    const cacheKey = `fundamentals:${symbol}:v1`;
+    const ttl = this.getCacheTTL(tier);
 
     // 1. Check cache
-    const cached = loadFromCache<CompanyFundamentals>(cacheKey);
-    if (cached && getCacheAge(cacheKey) < this.CACHE_TTL) {
-      console.log(`[FinancialDataService] Cache hit for ${symbol} (age: ${getCacheAge(cacheKey)}ms)`);
+    const cached = await this.cache.get<CompanyFundamentals>(cacheKey);
+    if (cached) {
+      const age = await this.cache.getAge(cacheKey);
+      console.log(`[FinancialDataService] Cache hit for ${symbol} (age: ${age}ms)`);
       return {
         ...cached,
         source: 'cache'
       };
     }
+
+    console.log(`[FinancialDataService] Cache miss for ${symbol}`);
 
     let yahooData: YahooFundamentals | null = null;
     let alphaVantageData: any | null = null;
@@ -139,15 +163,16 @@ export class FinancialDataService {
     // 4. Merge data from both sources if available
     if (yahooData || alphaVantageData) {
       const merged = this.mergeFundamentals(symbol, yahooData, alphaVantageData);
-      saveToCache(cacheKey, merged);
+      await this.cache.set(cacheKey, merged, ttl);
       return merged;
     }
 
     // 5. Return stale cache if available
-    if (cached) {
+    const staleCache = await this.cache.get<CompanyFundamentals>(cacheKey);
+    if (staleCache) {
       console.log(`[FinancialDataService] All providers failed, returning stale cache for ${symbol}`);
       return {
-        ...cached,
+        ...staleCache,
         source: 'cache'
       };
     }
@@ -233,14 +258,16 @@ export class FinancialDataService {
    * Get income statement (annual)
    *
    * @param symbol - Stock ticker symbol
+   * @param tier - User tier for TTL selection
    * @returns Income statement data
    */
-  async getIncomeStatement(symbol: string): Promise<FinancialStatement[]> {
-    const cacheKey = `income-statement-${symbol}`;
+  async getIncomeStatement(symbol: string, tier?: TierName): Promise<FinancialStatement[]> {
+    const cacheKey = `income-statement:${symbol}:v1`;
+    const ttl = this.getCacheTTL(tier);
 
     // Check cache
-    const cached = loadFromCache<FinancialStatement[]>(cacheKey);
-    if (cached && getCacheAge(cacheKey) < this.CACHE_TTL) {
+    const cached = await this.cache.get<FinancialStatement[]>(cacheKey);
+    if (cached) {
       console.log(`[FinancialDataService] Cache hit for income statement ${symbol}`);
       return cached;
     }
@@ -249,7 +276,7 @@ export class FinancialDataService {
     const data = await alphaVantageDAO.getIncomeStatement(symbol);
 
     const statements = data.annualReports || [];
-    saveToCache(cacheKey, statements);
+    await this.cache.set(cacheKey, statements, ttl);
 
     console.log(`[FinancialDataService] Income statement for ${symbol}: ${statements.length} annual reports`);
     return statements;
@@ -259,14 +286,16 @@ export class FinancialDataService {
    * Get balance sheet (annual)
    *
    * @param symbol - Stock ticker symbol
+   * @param tier - User tier for TTL selection
    * @returns Balance sheet data
    */
-  async getBalanceSheet(symbol: string): Promise<FinancialStatement[]> {
-    const cacheKey = `balance-sheet-${symbol}`;
+  async getBalanceSheet(symbol: string, tier?: TierName): Promise<FinancialStatement[]> {
+    const cacheKey = `balance-sheet:${symbol}:v1`;
+    const ttl = this.getCacheTTL(tier);
 
     // Check cache
-    const cached = loadFromCache<FinancialStatement[]>(cacheKey);
-    if (cached && getCacheAge(cacheKey) < this.CACHE_TTL) {
+    const cached = await this.cache.get<FinancialStatement[]>(cacheKey);
+    if (cached) {
       console.log(`[FinancialDataService] Cache hit for balance sheet ${symbol}`);
       return cached;
     }
@@ -275,7 +304,7 @@ export class FinancialDataService {
     const data = await alphaVantageDAO.getBalanceSheet(symbol);
 
     const statements = data.annualReports || [];
-    saveToCache(cacheKey, statements);
+    await this.cache.set(cacheKey, statements, ttl);
 
     console.log(`[FinancialDataService] Balance sheet for ${symbol}: ${statements.length} annual reports`);
     return statements;
@@ -285,14 +314,16 @@ export class FinancialDataService {
    * Get cash flow statement (annual)
    *
    * @param symbol - Stock ticker symbol
+   * @param tier - User tier for TTL selection
    * @returns Cash flow data
    */
-  async getCashFlow(symbol: string): Promise<FinancialStatement[]> {
-    const cacheKey = `cash-flow-${symbol}`;
+  async getCashFlow(symbol: string, tier?: TierName): Promise<FinancialStatement[]> {
+    const cacheKey = `cash-flow:${symbol}:v1`;
+    const ttl = this.getCacheTTL(tier);
 
     // Check cache
-    const cached = loadFromCache<FinancialStatement[]>(cacheKey);
-    if (cached && getCacheAge(cacheKey) < this.CACHE_TTL) {
+    const cached = await this.cache.get<FinancialStatement[]>(cacheKey);
+    if (cached) {
       console.log(`[FinancialDataService] Cache hit for cash flow ${symbol}`);
       return cached;
     }
@@ -301,7 +332,7 @@ export class FinancialDataService {
     const data = await alphaVantageDAO.getCashFlow(symbol);
 
     const statements = data.annualReports || [];
-    saveToCache(cacheKey, statements);
+    await this.cache.set(cacheKey, statements, ttl);
 
     console.log(`[FinancialDataService] Cash flow for ${symbol}: ${statements.length} annual reports`);
     return statements;
@@ -313,14 +344,16 @@ export class FinancialDataService {
    * Fetches income statement, balance sheet, and cash flow in parallel.
    *
    * @param symbol - Stock ticker symbol
+   * @param tier - User tier for TTL selection
    * @returns Combined financial statements
    */
-  async getAllFinancials(symbol: string): Promise<FinancialStatements> {
-    const cacheKey = `all-financials-${symbol}`;
+  async getAllFinancials(symbol: string, tier?: TierName): Promise<FinancialStatements> {
+    const cacheKey = `all-financials:${symbol}:v1`;
+    const ttl = this.getCacheTTL(tier);
 
     // Check cache
-    const cached = loadFromCache<FinancialStatements>(cacheKey);
-    if (cached && getCacheAge(cacheKey) < this.CACHE_TTL) {
+    const cached = await this.cache.get<FinancialStatements>(cacheKey);
+    if (cached) {
       console.log(`[FinancialDataService] Cache hit for all financials ${symbol}`);
       return {
         ...cached,
@@ -332,9 +365,9 @@ export class FinancialDataService {
 
     // Fetch all statements in parallel
     const [incomeStatement, balanceSheet, cashFlow] = await Promise.all([
-      this.getIncomeStatement(symbol),
-      this.getBalanceSheet(symbol),
-      this.getCashFlow(symbol)
+      this.getIncomeStatement(symbol, tier),
+      this.getBalanceSheet(symbol, tier),
+      this.getCashFlow(symbol, tier)
     ]);
 
     const result: FinancialStatements = {
@@ -346,7 +379,7 @@ export class FinancialDataService {
       timestamp: Date.now()
     };
 
-    saveToCache(cacheKey, result);
+    await this.cache.set(cacheKey, result, ttl);
 
     console.log(`[FinancialDataService] All financials for ${symbol}: ${incomeStatement.length} income, ${balanceSheet.length} balance, ${cashFlow.length} cash flow`);
     return result;

@@ -3,11 +3,15 @@
  *
  * Business logic layer for company and market news.
  * Aggregates news from multiple sources (Finnhub, Brave Search).
+ *
+ * Phase 1: Migrated to distributed cache (Vercel KV / Upstash Redis)
  */
 import { finnhubDAO } from '../../stocks/dao/finnhub.dao';
 import { FinnhubNews } from '@lib/types/finnhub-news.dto';
 import { braveSearchDAO, BraveSearchResult } from '../dao/brave-search.dao';
-import { loadFromCache, saveToCache, getCacheAge } from '@lib/utils/serverCache';
+import { getCacheAdapter, type CacheAdapter } from '@lib/cache/adapter';
+import { getCacheTTL } from '@lib/config/cache-ttl.config';
+import type { TierName } from '@lib/config/types';
 import { NewsDAO } from '../dao/news.dao';
 import { NewsArticle as NewsAPIArticle } from '@lib/types/news.dto';
 import { generateText } from '@lib/ai/gemini';
@@ -37,37 +41,56 @@ export interface NewsResponse {
 // ============================================================================
 
 export class NewsService {
-  private readonly CACHE_TTL = 15 * 60 * 1000; // 15 minutes (news is time-sensitive)
+  private readonly cache: CacheAdapter;
+  private readonly DEFAULT_TTL = 15 * 60 * 1000; // 15 minutes fallback
   private readonly MARKET_NEWS_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours for market news
+  private readonly AI_QUERY_CACHE_TTL = 7 * 24 * 60 * 60 * 1000; // 7 days for AI queries
   private newsDAO: NewsDAO | null = null;
+
+  constructor() {
+    this.cache = getCacheAdapter();
+  }
+
+  /**
+   * Get cache TTL based on user tier
+   */
+  private getCacheTTL(tier?: TierName): number {
+    if (tier) {
+      return getCacheTTL('news', tier);
+    }
+    return this.DEFAULT_TTL;
+  }
 
   /**
    * Get company news from multiple sources
    *
    * Strategy:
-   * 1. Check cache (15min TTL)
+   * 1. Check cache (TTL based on tier)
    * 2. Fetch from Finnhub (primary for company-specific news)
    * 3. Augment with Brave Search if needed
    * 4. Merge, deduplicate, and sort by recency
    *
    * @param symbol - Stock ticker symbol
    * @param limit - Maximum number of articles to return
+   * @param tier - User tier for TTL selection
    * @returns Aggregated news articles
    */
-  async getCompanyNews(symbol: string, limit: number = 20): Promise<NewsResponse> {
-    const cacheKey = `company-news-${symbol}`;
+  async getCompanyNews(symbol: string, limit: number = 20, tier?: TierName): Promise<NewsResponse> {
+    const cacheKey = `company-news:${symbol}:v1`;
+    const ttl = this.getCacheTTL(tier);
 
     // 1. Check cache
-    const cached = loadFromCache<NewsResponse>(cacheKey);
-    if (cached && getCacheAge(cacheKey) < this.CACHE_TTL) {
-      console.log(`[NewsService] Cache hit for ${symbol} news (age: ${getCacheAge(cacheKey)}ms)`);
+    const cached = await this.cache.get<NewsResponse>(cacheKey);
+    if (cached) {
+      const age = await this.cache.getAge(cacheKey);
+      console.log(`[NewsService] Cache hit for ${symbol} news (age: ${age}ms)`);
       return {
         ...cached,
         cached: true
       };
     }
 
-    console.log(`[NewsService] Fetching company news for ${symbol}`);
+    console.log(`[NewsService] Cache miss for ${symbol} news`);
 
     const articles: NewsArticle[] = [];
     const sources: string[] = [];
@@ -132,7 +155,7 @@ export class NewsService {
     };
 
     // Save to cache
-    saveToCache(cacheKey, response);
+    await this.cache.set(cacheKey, response, ttl);
 
     console.log(`[NewsService] Returning ${limited.length} articles for ${symbol} from sources: ${response.sources.join(', ')}`);
     return response;
@@ -145,14 +168,16 @@ export class NewsService {
    *
    * @param query - Search query (e.g., "stock market crash", "Fed interest rates")
    * @param limit - Maximum number of articles
+   * @param tier - User tier for TTL selection
    * @returns News articles matching query
    */
-  async searchMarketNews(query: string, limit: number = 20): Promise<NewsResponse> {
-    const cacheKey = `market-news-${query}`;
+  async searchMarketNews(query: string, limit: number = 20, tier?: TierName): Promise<NewsResponse> {
+    const cacheKey = `market-news:${query}:v1`;
+    const ttl = this.getCacheTTL(tier);
 
     // Check cache
-    const cached = loadFromCache<NewsResponse>(cacheKey);
-    if (cached && getCacheAge(cacheKey) < this.CACHE_TTL) {
+    const cached = await this.cache.get<NewsResponse>(cacheKey);
+    if (cached) {
       console.log(`[NewsService] Cache hit for market news query: ${query}`);
       return {
         ...cached,
@@ -180,7 +205,7 @@ export class NewsService {
         timestamp: Date.now()
       };
 
-      saveToCache(cacheKey, response);
+      await this.cache.set(cacheKey, response, ttl);
 
       console.log(`[NewsService] Found ${articles.length} market news articles for query: ${query}`);
       return response;
@@ -189,10 +214,11 @@ export class NewsService {
       console.error(`[NewsService] Market news search failed for "${query}": ${errorMsg}`);
 
       // Return cached data if available
-      if (cached) {
+      const staleCache = await this.cache.get<NewsResponse>(cacheKey);
+      if (staleCache) {
         console.log(`[NewsService] Returning stale cache for query: ${query}`);
         return {
-          ...cached,
+          ...staleCache,
           cached: true
         };
       }
@@ -207,14 +233,16 @@ export class NewsService {
    * Fetches news for popular sectors and returns aggregated results.
    *
    * @param sectors - Array of sectors to fetch (e.g., ['tech', 'finance'])
+   * @param tier - User tier for TTL selection
    * @returns Aggregated trending news
    */
-  async getTrendingNews(sectors: string[] = ['technology', 'finance', 'energy']): Promise<NewsResponse> {
-    const cacheKey = `trending-news-${sectors.join('-')}`;
+  async getTrendingNews(sectors: string[] = ['technology', 'finance', 'energy'], tier?: TierName): Promise<NewsResponse> {
+    const cacheKey = `trending-news:${sectors.join('-')}:v1`;
+    const ttl = this.getCacheTTL(tier);
 
     // Check cache
-    const cached = loadFromCache<NewsResponse>(cacheKey);
-    if (cached && getCacheAge(cacheKey) < this.CACHE_TTL) {
+    const cached = await this.cache.get<NewsResponse>(cacheKey);
+    if (cached) {
       console.log(`[NewsService] Cache hit for trending news`);
       return {
         ...cached,
@@ -260,7 +288,7 @@ export class NewsService {
       timestamp: Date.now()
     };
 
-    saveToCache(cacheKey, response);
+    await this.cache.set(cacheKey, response, ttl);
 
     console.log(`[NewsService] Returning ${limited.length} trending articles across ${sectors.length} sectors`);
     return response;
@@ -293,7 +321,7 @@ export class NewsService {
    * @param portfolio - Portfolio with holdings to analyze
    * @returns Optimized NewsAPI query string
    */
-  static async generateNewsQueryForPortfolio(portfolio: any): Promise<string> {
+  async generateNewsQueryForPortfolio(portfolio: any): Promise<string> {
     const holdings = portfolio.holdings || [];
     const portfolioType = portfolio.type || 'general';
     const portfolioId = portfolio.id;
@@ -305,11 +333,11 @@ export class NewsService {
         .map((h: any) => `${h.symbol}:${h.shares}`)
         .sort()
         .join('|');
-      const cacheKey = `ai-news-query-${portfolioId}-${holdingsHash}`;
+      const cacheKey = `ai-news-query:${portfolioId}:${holdingsHash}:v1`;
 
       // Check cache for existing AI-generated query
-      const cached = loadFromCache<string>(cacheKey);
-      if (cached && getCacheAge(cacheKey) < 7 * 24 * 60 * 60 * 1000) { // 7 days TTL
+      const cached = await this.cache.get<string>(cacheKey);
+      if (cached) {
         console.log(`[NewsService] Cache hit for AI query: ${cached}`);
         return cached;
       }
@@ -369,7 +397,7 @@ Generate a similar query for this portfolio:`;
       }
 
       // Cache successful AI response
-      saveToCache(cacheKey, validatedQuery);
+      await this.cache.set(cacheKey, validatedQuery, this.AI_QUERY_CACHE_TTL);
       console.log(`[NewsService] AI generated and cached query (${validatedQuery.length} chars): ${validatedQuery}`);
       return validatedQuery;
 
@@ -416,8 +444,8 @@ Generate a similar query for this portfolio:`;
    */
   async getNewsAPI(query: string, cacheKey: string, pageSize: number = 10): Promise<NewsAPIArticle[]> {
     // Check cache
-    const cached = loadFromCache<NewsAPIArticle[]>(cacheKey);
-    if (cached && getCacheAge(cacheKey) < this.MARKET_NEWS_CACHE_TTL) {
+    const cached = await this.cache.get<NewsAPIArticle[]>(cacheKey);
+    if (cached) {
       console.log(`[NewsService] Cache hit for ${cacheKey}`);
       return cached;
     }
@@ -432,7 +460,7 @@ Generate a similar query for this portfolio:`;
       const articles = await this.newsDAO.fetchNews(query, pageSize);
 
       // Save to cache
-      saveToCache(cacheKey, articles);
+      await this.cache.set(cacheKey, articles, this.MARKET_NEWS_CACHE_TTL);
 
       return articles;
     } catch (error) {

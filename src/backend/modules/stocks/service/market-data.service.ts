@@ -3,9 +3,13 @@
  *
  * Business logic layer for commodities and market data.
  * Handles caching, fallback, and error handling for commodity prices.
+ *
+ * Phase 1: Migrated to distributed cache (Vercel KV / Upstash Redis)
  */
 import { alphaVantageDAO, CommodityPrice } from '@backend/modules/stocks/dao/alpha-vantage.dao';
-import { loadFromCache, saveToCache, getCacheAge } from '@lib/utils/serverCache';
+import { getCacheAdapter, type CacheAdapter } from '@lib/cache/adapter';
+import { getCacheTTL } from '@lib/config/cache-ttl.config';
+import type { TierName } from '@lib/config/types';
 
 // ============================================================================
 // INTERFACES
@@ -28,31 +32,51 @@ export interface EnergyCommodities {
 // ============================================================================
 
 export class MarketDataService {
-  private readonly CACHE_TTL = 4 * 60 * 60 * 1000; // 4 hours (commodities update slowly)
+  private readonly cache: CacheAdapter;
+  private readonly DEFAULT_TTL = 4 * 60 * 60 * 1000; // 4 hours fallback
+
+  constructor() {
+    this.cache = getCacheAdapter();
+  }
+
+  /**
+   * Get cache TTL based on user tier
+   */
+  private getCacheTTL(tier?: TierName): number {
+    if (tier) {
+      return getCacheTTL('commodities', tier);
+    }
+    return this.DEFAULT_TTL;
+  }
 
   /**
    * Get WTI crude oil price
    *
    * Strategy:
-   * 1. Check cache (4hr TTL)
+   * 1. Check cache (TTL based on tier)
    * 2. Try Alpha Vantage
    * 3. Return stale cache if available
    * 4. Return fallback demo data
    *
+   * @param tier - User tier for TTL selection
    * @returns Oil price data
    */
-  async getOilPrice(): Promise<CommodityData> {
-    const cacheKey = 'commodity-oil';
+  async getOilPrice(tier?: TierName): Promise<CommodityData> {
+    const cacheKey = 'commodity:oil:v1';
+    const ttl = this.getCacheTTL(tier);
 
     // 1. Check cache
-    const cached = loadFromCache<CommodityData>(cacheKey);
-    if (cached && getCacheAge(cacheKey) < this.CACHE_TTL) {
-      console.log(`[MarketDataService] Cache hit for oil (age: ${getCacheAge(cacheKey)}ms)`);
+    const cached = await this.cache.get<CommodityData>(cacheKey);
+    if (cached) {
+      const age = await this.cache.getAge(cacheKey);
+      console.log(`[MarketDataService] Cache hit for oil (age: ${age}ms)`);
       return {
         ...cached,
         source: 'cache'
       };
     }
+
+    console.log('[MarketDataService] Cache miss for oil');
 
     // 2. Try Alpha Vantage
     try {
@@ -66,7 +90,7 @@ export class MarketDataService {
         source: 'alphavantage'
       };
 
-      saveToCache(cacheKey, result);
+      await this.cache.set(cacheKey, result, ttl);
       console.log(`[MarketDataService] Oil price: $${result.price}`);
       return result;
     } catch (error) {
@@ -74,10 +98,11 @@ export class MarketDataService {
       console.warn(`[MarketDataService] Alpha Vantage failed for oil: ${errorMsg}`);
 
       // 3. Return stale cache if available
-      if (cached) {
+      const staleCache = await this.cache.get<CommodityData>(cacheKey);
+      if (staleCache) {
         console.log('[MarketDataService] Returning stale cache for oil');
         return {
-          ...cached,
+          ...staleCache,
           source: 'cache'
         };
       }
@@ -91,20 +116,25 @@ export class MarketDataService {
   /**
    * Get natural gas price
    *
+   * @param tier - User tier for TTL selection
    * @returns Natural gas price data
    */
-  async getGasPrice(): Promise<CommodityData> {
-    const cacheKey = 'commodity-gas';
+  async getGasPrice(tier?: TierName): Promise<CommodityData> {
+    const cacheKey = 'commodity:gas:v1';
+    const ttl = this.getCacheTTL(tier);
 
     // 1. Check cache
-    const cached = loadFromCache<CommodityData>(cacheKey);
-    if (cached && getCacheAge(cacheKey) < this.CACHE_TTL) {
-      console.log(`[MarketDataService] Cache hit for gas (age: ${getCacheAge(cacheKey)}ms)`);
+    const cached = await this.cache.get<CommodityData>(cacheKey);
+    if (cached) {
+      const age = await this.cache.getAge(cacheKey);
+      console.log(`[MarketDataService] Cache hit for gas (age: ${age}ms)`);
       return {
         ...cached,
         source: 'cache'
       };
     }
+
+    console.log('[MarketDataService] Cache miss for gas');
 
     // 2. Try Alpha Vantage
     try {
@@ -118,7 +148,7 @@ export class MarketDataService {
         source: 'alphavantage'
       };
 
-      saveToCache(cacheKey, result);
+      await this.cache.set(cacheKey, result, ttl);
       console.log(`[MarketDataService] Gas price: $${result.price}`);
       return result;
     } catch (error) {
@@ -126,10 +156,11 @@ export class MarketDataService {
       console.warn(`[MarketDataService] Alpha Vantage failed for gas: ${errorMsg}`);
 
       // 3. Return stale cache if available
-      if (cached) {
+      const staleCache = await this.cache.get<CommodityData>(cacheKey);
+      if (staleCache) {
         console.log('[MarketDataService] Returning stale cache for gas');
         return {
-          ...cached,
+          ...staleCache,
           source: 'cache'
         };
       }
@@ -143,20 +174,25 @@ export class MarketDataService {
   /**
    * Get copper price
    *
+   * @param tier - User tier for TTL selection
    * @returns Copper price data
    */
-  async getCopperPrice(): Promise<CommodityData> {
-    const cacheKey = 'commodity-copper';
+  async getCopperPrice(tier?: TierName): Promise<CommodityData> {
+    const cacheKey = 'commodity:copper:v1';
+    const ttl = this.getCacheTTL(tier);
 
     // 1. Check cache
-    const cached = loadFromCache<CommodityData>(cacheKey);
-    if (cached && getCacheAge(cacheKey) < this.CACHE_TTL) {
-      console.log(`[MarketDataService] Cache hit for copper (age: ${getCacheAge(cacheKey)}ms)`);
+    const cached = await this.cache.get<CommodityData>(cacheKey);
+    if (cached) {
+      const age = await this.cache.getAge(cacheKey);
+      console.log(`[MarketDataService] Cache hit for copper (age: ${age}ms)`);
       return {
         ...cached,
         source: 'cache'
       };
     }
+
+    console.log('[MarketDataService] Cache miss for copper');
 
     // 2. Try Alpha Vantage
     try {
@@ -170,7 +206,7 @@ export class MarketDataService {
         source: 'alphavantage'
       };
 
-      saveToCache(cacheKey, result);
+      await this.cache.set(cacheKey, result, ttl);
       console.log(`[MarketDataService] Copper price: $${result.price}`);
       return result;
     } catch (error) {
@@ -178,10 +214,11 @@ export class MarketDataService {
       console.warn(`[MarketDataService] Alpha Vantage failed for copper: ${errorMsg}`);
 
       // 3. Return stale cache if available
-      if (cached) {
+      const staleCache = await this.cache.get<CommodityData>(cacheKey);
+      if (staleCache) {
         console.log('[MarketDataService] Returning stale cache for copper');
         return {
-          ...cached,
+          ...staleCache,
           source: 'cache'
         };
       }
@@ -195,14 +232,15 @@ export class MarketDataService {
   /**
    * Get energy commodities (oil + gas) in parallel
    *
+   * @param tier - User tier for TTL selection
    * @returns Energy commodities data
    */
-  async getEnergyCommodities(): Promise<EnergyCommodities> {
+  async getEnergyCommodities(tier?: TierName): Promise<EnergyCommodities> {
     console.log('[MarketDataService] Fetching energy commodities');
 
     const [oil, gas] = await Promise.all([
-      this.getOilPrice(),
-      this.getGasPrice()
+      this.getOilPrice(tier),
+      this.getGasPrice(tier)
     ]);
 
     return { oil, gas };

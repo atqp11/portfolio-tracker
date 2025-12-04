@@ -23,7 +23,7 @@ export async function GET(request: Request) {
       const portfolio = await portfolioResponse.json();
 
       // Generate AI-powered query based on portfolio holdings
-      query = await NewsService.generateNewsQueryForPortfolio(portfolio);
+      query = await newsService.generateNewsQueryForPortfolio(portfolio);
       cacheKey = `market-news-copper-${portfolioId}`;
     } else {
       // Default copper market news

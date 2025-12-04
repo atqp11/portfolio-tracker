@@ -3,26 +3,27 @@
  *
  * Handles AI content generation with caching and smart model routing.
  * Follows MVC pattern: Route → Controller → Service → AI Provider
+ *
+ * Phase 1: Migrated to distributed cache (Vercel KV / Upstash Redis)
  */
 
 import { GoogleGenAI } from '@google/genai';
 import crypto from 'crypto';
 import { routeQuery } from '@lib/ai/router';
+import { getCacheAdapter, type CacheAdapter } from '@lib/cache/adapter';
+import { getCacheTTL } from '@lib/config/cache-ttl.config';
 
 const API_KEY = process.env.AI_API_KEY || process.env.NEXT_PUBLIC_AI_API_KEY;
 const ai = new GoogleGenAI({ apiKey: API_KEY });
 
-// Server-side in-memory cache for AI responses
-interface ServerCacheEntry {
+// Cache entry structure for AI responses
+interface AICacheEntry {
   text: string;
   timestamp: number;
   requestHash: string;
   model: string;
   tier: string;
 }
-
-const serverCache = new Map<string, ServerCacheEntry>();
-const SERVER_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
 // Track AI rate limits
 let aiRateLimitResetTime: number | null = null;
@@ -43,6 +44,14 @@ export interface GenerateResponse {
 }
 
 class GenerateService {
+  private cache: CacheAdapter;
+  private aiRateLimitResetTime: number | null = null;
+  private readonly DEFAULT_TTL = getCacheTTL('aiChat', 'free'); // Use config TTL
+
+  constructor() {
+    this.cache = getCacheAdapter();
+  }
+
   /**
    * Generate a hash for the request to use as cache key
    */
@@ -62,14 +71,14 @@ class GenerateService {
    * Check if AI is rate limited
    */
   isRateLimited(): { limited: boolean; resetTime: number | null } {
-    if (!aiRateLimitResetTime) return { limited: false, resetTime: null };
+    if (!this.aiRateLimitResetTime) return { limited: false, resetTime: null };
     
     const now = Date.now();
-    if (now < aiRateLimitResetTime) {
-      return { limited: true, resetTime: aiRateLimitResetTime };
+    if (now < this.aiRateLimitResetTime) {
+      return { limited: true, resetTime: this.aiRateLimitResetTime };
     }
     
-    aiRateLimitResetTime = null;
+    this.aiRateLimitResetTime = null;
     return { limited: false, resetTime: null };
   }
 
@@ -77,31 +86,27 @@ class GenerateService {
    * Mark AI as rate limited
    */
   markRateLimited(retryAfterSeconds: number = 60): void {
-    aiRateLimitResetTime = Date.now() + (retryAfterSeconds * 1000);
+    this.aiRateLimitResetTime = Date.now() + (retryAfterSeconds * 1000);
     console.log(`AI rate limited. Resets in ${retryAfterSeconds} seconds`);
   }
 
   /**
    * Check cache for existing response
    */
-  checkCache(body: GenerateRequest): GenerateResponse | null {
-    const cacheKey = this.generateCacheKey(body);
-    const cached = serverCache.get(cacheKey);
+  async checkCache(body: GenerateRequest): Promise<GenerateResponse | null> {
+    const cacheKey = `ai:generate:${this.generateCacheKey(body)}`;
+    const cached = await this.cache.get<AICacheEntry>(cacheKey);
     
     if (cached) {
       const age = Date.now() - cached.timestamp;
-      if (age < SERVER_CACHE_TTL) {
-        console.log(`♻️ Returning cached AI response (age: ${Math.floor(age / 1000)}s, size: ${cached.text.length} chars)`);
-        return {
-          text: cached.text,
-          cached: true,
-          cacheAge: age,
-          model: cached.model,
-          tier: cached.tier,
-        };
-      } else {
-        serverCache.delete(cacheKey);
-      }
+      console.log(`♻️ Returning cached AI response (age: ${Math.floor(age / 1000)}s, size: ${cached.text.length} chars)`);
+      return {
+        text: cached.text,
+        cached: true,
+        cacheAge: age,
+        model: cached.model,
+        tier: cached.tier,
+      };
     }
     
     return null;
@@ -119,7 +124,7 @@ class GenerateService {
 
     // Check cache first (unless bypassing)
     if (!body.bypassCache) {
-      const cachedResponse = this.checkCache(body);
+      const cachedResponse = await this.checkCache(body);
       if (cachedResponse) {
         return cachedResponse;
       }
@@ -144,15 +149,17 @@ class GenerateService {
       const responseText = response.text || '';
       
       // Cache the response
-      const cacheKey = this.generateCacheKey(body);
-      serverCache.set(cacheKey, {
+      const cacheKey = `ai:generate:${this.generateCacheKey(body)}`;
+      const cacheEntry: AICacheEntry = {
         text: responseText,
         timestamp: Date.now(),
-        requestHash: cacheKey,
+        requestHash: this.generateCacheKey(body),
         model: selectedModel,
         tier: routingResult.tier,
-      });
-      console.log(`✅ Cached new Gemini AI response from ${routingResult.model.name} (key: ${cacheKey.substring(0, 8)}..., entries: ${serverCache.size})`);
+      };
+      
+      await this.cache.set(cacheKey, cacheEntry, this.DEFAULT_TTL);
+      console.log(`✅ Cached new Gemini AI response from ${routingResult.model.name} (key: ${cacheKey.substring(0, 20)}...)`);
       
       return {
         text: responseText,
@@ -164,35 +171,16 @@ class GenerateService {
       // Handle rate limit errors
       if (err.status === 429 || err.code === 429) {
         this.markRateLimited(60);
-        throw new RateLimitError('AI rate limit exceeded. Please wait a minute and try again.', aiRateLimitResetTime);
+        throw new RateLimitError('AI rate limit exceeded. Please wait a minute and try again.', this.aiRateLimitResetTime);
       }
       
       // Handle quota errors
       if (err.message?.includes('quota') || err.message?.includes('RESOURCE_EXHAUSTED')) {
         this.markRateLimited(3600);
-        throw new RateLimitError('AI quota exhausted. Please try again later.', aiRateLimitResetTime);
+        throw new RateLimitError('AI quota exhausted. Please try again later.', this.aiRateLimitResetTime);
       }
       
       throw err;
-    }
-  }
-
-  /**
-   * Clean up expired cache entries
-   */
-  cleanExpiredCache(): void {
-    const now = Date.now();
-    let cleaned = 0;
-    
-    for (const [key, entry] of serverCache.entries()) {
-      if (now - entry.timestamp > SERVER_CACHE_TTL) {
-        serverCache.delete(key);
-        cleaned++;
-      }
-    }
-    
-    if (cleaned > 0) {
-      console.log(`🧹 Cleaned ${cleaned} expired server cache entries`);
     }
   }
 }
@@ -212,6 +200,3 @@ export class RateLimitError extends Error {
 
 // Singleton instance
 export const generateService = new GenerateService();
-
-// Clean expired cache every 10 minutes
-setInterval(() => generateService.cleanExpiredCache(), 10 * 60 * 1000);

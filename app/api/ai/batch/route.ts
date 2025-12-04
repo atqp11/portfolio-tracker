@@ -42,7 +42,7 @@ export const POST = withErrorHandler(
         const body = await req.json();
 
         // Check cache first - cached responses are free
-        const cached = generateService.checkCache(body);
+        const cached = await generateService.checkCache(body);
         if (cached) {
           return NextResponse.json({
             text: cached.text,

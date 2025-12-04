@@ -3,10 +3,14 @@
  *
  * Business logic layer for stock quotes and pricing data.
  * Implements fallback logic, caching, and error handling.
+ *
+ * Phase 1: Migrated to distributed cache (Vercel KV / Upstash Redis)
  */
 import { alphaVantageDAO, AlphaVantageQuoteResponse } from '@backend/modules/stocks/dao/alpha-vantage.dao';
 import { fmpDAO, FMPQuoteResponse } from '@backend/modules/stocks/dao/fmp.dao';
-import { loadFromCache, saveToCache, getCacheAge } from '@lib/utils/serverCache';
+import { getCacheAdapter, type CacheAdapter } from '@lib/cache/adapter';
+import { getCacheTTL } from '@lib/config/cache-ttl.config';
+import type { TierName } from '@lib/config/types';
 
 // ============================================================================
 // INTERFACES
@@ -33,32 +37,52 @@ export interface BatchQuoteResult {
 // ============================================================================
 
 export class StockDataService {
-  private readonly CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+  private readonly cache: CacheAdapter;
+  private readonly DEFAULT_TTL = 5 * 60 * 1000; // 5 minutes fallback
+
+  constructor() {
+    this.cache = getCacheAdapter();
+  }
+
+  /**
+   * Get cache TTL based on user tier
+   */
+  private getCacheTTL(tier?: TierName): number {
+    if (tier) {
+      return getCacheTTL('quotes', tier);
+    }
+    return this.DEFAULT_TTL;
+  }
 
   /**
    * Get stock quote with intelligent fallback
    *
    * Strategy:
-   * 1. Check cache (5min TTL)
+   * 1. Check cache (TTL based on tier)
    * 2. Try Alpha Vantage (primary)
    * 3. Fallback to FMP
    * 4. Return stale cache if all fail
    *
    * @param symbol - Stock ticker symbol
+   * @param tier - User tier for TTL selection
    * @returns Stock quote with source indicator
    */
-  async getQuote(symbol: string): Promise<StockQuote> {
-    const cacheKey = `quote-${symbol}`;
+  async getQuote(symbol: string, tier?: TierName): Promise<StockQuote> {
+    const cacheKey = `quote:${symbol}:v1`;
+    const ttl = this.getCacheTTL(tier);
 
     // 1. Check cache
-    const cached = loadFromCache<StockQuote>(cacheKey);
-    if (cached && getCacheAge(cacheKey) < this.CACHE_TTL) {
-      console.log(`[StockDataService] Cache hit for ${symbol} (age: ${getCacheAge(cacheKey)}ms)`);
+    const cached = await this.cache.get<StockQuote>(cacheKey);
+    if (cached) {
+      const age = await this.cache.getAge(cacheKey);
+      console.log(`[StockDataService] Cache hit for ${symbol} (age: ${age}ms)`);
       return {
         ...cached,
         source: 'cache'
       };
     }
+
+    console.log(`[StockDataService] Cache miss for ${symbol}`);
 
     // 2. Try Alpha Vantage (primary provider)
     try {
@@ -71,19 +95,22 @@ export class StockDataService {
         timestamp: Date.now()
       };
 
-      saveToCache(cacheKey, quote);
+      await this.cache.set(cacheKey, quote, ttl);
       return quote;
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Unknown error';
       console.warn(`[StockDataService] Alpha Vantage failed for ${symbol}: ${errorMsg}`);
 
-      // If rate limited, try cache immediately
-      if (errorMsg.includes('RATE_LIMIT') && cached) {
-        console.log(`[StockDataService] Rate limited, returning stale cache for ${symbol}`);
-        return {
-          ...cached,
-          source: 'cache'
-        };
+      // If rate limited, try to get stale cache
+      if (errorMsg.includes('RATE_LIMIT')) {
+        const staleCache = await this.cache.get<StockQuote>(cacheKey);
+        if (staleCache) {
+          console.log(`[StockDataService] Rate limited, returning stale cache for ${symbol}`);
+          return {
+            ...staleCache,
+            source: 'cache'
+          };
+        }
       }
     }
 
@@ -98,18 +125,19 @@ export class StockDataService {
         timestamp: Date.now()
       };
 
-      saveToCache(cacheKey, quote);
+      await this.cache.set(cacheKey, quote, ttl);
       return quote;
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Unknown error';
       console.error(`[StockDataService] FMP also failed for ${symbol}: ${errorMsg}`);
     }
 
-    // 4. Return stale cache if available
-    if (cached) {
+    // 4. Return stale cache if available (check again for any cached value)
+    const staleCache = await this.cache.get<StockQuote>(cacheKey);
+    if (staleCache) {
       console.log(`[StockDataService] All providers failed, returning stale cache for ${symbol}`);
       return {
-        ...cached,
+        ...staleCache,
         source: 'cache'
       };
     }
@@ -131,9 +159,10 @@ export class StockDataService {
    * Fetches quotes in parallel with individual error handling.
    *
    * @param symbols - Array of stock ticker symbols
+   * @param tier - User tier for TTL selection
    * @returns Object with quotes, errors, and statistics
    */
-  async getBatchQuotes(symbols: string[]): Promise<BatchQuoteResult> {
+  async getBatchQuotes(symbols: string[], tier?: TierName): Promise<BatchQuoteResult> {
     console.log(`[StockDataService] Fetching batch quotes for: ${symbols.join(', ')}`);
 
     const results: Record<string, StockQuote> = {};
@@ -144,7 +173,7 @@ export class StockDataService {
     // Fetch all quotes in parallel
     const promises = symbols.map(async (symbol) => {
       try {
-        const quote = await this.getQuote(symbol);
+        const quote = await this.getQuote(symbol, tier);
 
         if (quote.source === 'cache') {
           cachedCount++;

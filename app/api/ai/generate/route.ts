@@ -27,7 +27,7 @@ export const POST = withErrorHandler(
     quotaType: 'chatQuery',
     checkCache: async (body) => {
       // Always check cache first - cached responses are free
-      const cached = generateService.checkCache(body);
+      const cached = await generateService.checkCache(body);
       if (cached) {
         return {
           text: cached.text,

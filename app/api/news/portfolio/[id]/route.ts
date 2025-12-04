@@ -34,7 +34,7 @@ export async function GET(
     const portfolio = await portfolioController.getPortfolioById(portfolioId);
 
     // Generate AI-powered query based on portfolio holdings
-    const query = await NewsService.generateNewsQueryForPortfolio(portfolio);
+    const query = await newsService.generateNewsQueryForPortfolio(portfolio);
     const cacheKey = `market-news-portfolio-${portfolioId}`;
 
     const articles = await newsService.getNewsAPI(query, cacheKey, 10);
