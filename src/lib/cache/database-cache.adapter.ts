@@ -262,10 +262,13 @@ export class DatabaseCacheAdapter {
         return null;
       }
 
-      // Check if expired
-      if (data.expires_at && new Date(data.expires_at) < new Date()) {
-        console.log(`[L3 Cache] Filing summary expired: ${ticker} ${filingType}`);
-        return null;
+      // Check if expired (ensure UTC parsing for timestamp without timezone)
+      if (data.expires_at) {
+        const expiresAtStr = data.expires_at.endsWith('Z') ? data.expires_at : `${data.expires_at}Z`;
+        if (new Date(expiresAtStr) < new Date()) {
+          console.log(`[L3 Cache] Filing summary expired: ${ticker} ${filingType}`);
+          return null;
+        }
       }
 
       console.log(`[L3 Cache] Filing summary hit: ${ticker} ${filingType}`);

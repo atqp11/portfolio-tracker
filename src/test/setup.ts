@@ -4,7 +4,13 @@
  * Global test configuration and setup for Jest.
  */
 
-// Mock environment variables (NODE_ENV already set by Jest)
+import * as dotenv from 'dotenv';
+import * as path from 'path';
+
+// Load environment variables from .env.local for integration tests
+dotenv.config({ path: path.resolve(process.cwd(), '.env.local') });
+
+// Fallback mock environment variables only if not set
 process.env.NEXT_PUBLIC_SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'http://localhost:54321';
 process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY || 'test-key';
 process.env.SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || 'test-service-key';

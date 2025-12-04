@@ -381,8 +381,9 @@ describeOrSkip('DatabaseCacheAdapter', () => {
     });
 
     test('should handle duplicate news sentiment gracefully', async () => {
+      const dupeTicker = 'TESTDUPE';
       const sentiment: NewsSentimentCache = {
-        ticker: testTicker,
+        ticker: dupeTicker,
         news_date: '2024-12-01',
         news_url: 'https://example.com/same-news',
         news_title: 'Duplicate News',
@@ -394,11 +395,14 @@ describeOrSkip('DatabaseCacheAdapter', () => {
       };
 
       await cache.setNewsSentiment(sentiment);
-      await cache.setNewsSentiment(sentiment); // Duplicate
+      await cache.setNewsSentiment(sentiment); // Duplicate - should not throw
 
-      // Should not throw, just log
-      const retrieved = await cache.getNewsSentiment(testTicker);
+      // Should not throw, just log. First insert should still exist.
+      const retrieved = await cache.getNewsSentiment(dupeTicker);
       expect(retrieved.length).toBeGreaterThan(0);
+
+      // Cleanup
+      await cache.clearTickerCache(dupeTicker);
     });
   });
 
