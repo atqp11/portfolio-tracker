@@ -127,6 +127,20 @@ export const AI_MODEL_CONFIG = {
         input: 0.0004,
         output: 0.0008,
       },
+      fallback: {
+        provider: 'gemini' as const,
+        model: 'gemini-1.5-flash-8b',
+        priority: 2,
+        endpoint: 'https://generativelanguage.googleapis.com/v1beta',
+        apiKey: process.env.GEMINI_API_KEY!,
+        maxTokens: 512,
+        temperature: 0.3,
+        timeout: 30000,
+        costPerToken: {
+          input: 0.0001,
+          output: 0.0003,
+        },
+      },
     },
 
     // Balanced summarization
@@ -143,6 +157,20 @@ export const AI_MODEL_CONFIG = {
         input: 0.00015,
         output: 0.0006,
       },
+      fallback: {
+        provider: 'gemini' as const,
+        model: 'gemini-1.5-flash-8b',
+        priority: 2,
+        endpoint: 'https://generativelanguage.googleapis.com/v1beta',
+        apiKey: process.env.GEMINI_API_KEY!,
+        maxTokens: 1024,
+        temperature: 0.5,
+        timeout: 30000,
+        costPerToken: {
+          input: 0.0001,
+          output: 0.0003,
+        },
+      },
     },
 
     // High-quality complex analysis
@@ -158,6 +186,20 @@ export const AI_MODEL_CONFIG = {
       costPerToken: {
         input: 0.00125,
         output: 0.005,
+      },
+      fallback: {
+        provider: 'gemini' as const,
+        model: 'gemini-1.5-flash',
+        priority: 2,
+        endpoint: 'https://generativelanguage.googleapis.com/v1beta',
+        apiKey: process.env.GEMINI_API_KEY!,
+        maxTokens: 4096,
+        temperature: 0.7,
+        timeout: 40000,
+        costPerToken: {
+          input: 0.00015,
+          output: 0.0006,
+        },
       },
     },
   },

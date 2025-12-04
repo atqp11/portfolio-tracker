@@ -333,14 +333,19 @@ import type { AIModelConfig, TierName } from './types';
  * AI Model Configuration
  *
  * Tier-Based Model Selection:
- * - Free: Cheapest models (Gemini Flash 8B)
- * - Basic: Balanced performance (Gemini Flash)
- * - Premium: Best quality (Gemini Pro)
+ * - Free: Cheapest models (Gemini Flash 8B) → Fallback to Groq Llama
+ * - Basic: Balanced performance (Gemini Flash) → Fallback to Groq Llama
+ * - Premium: Best quality (Gemini Pro) → Fallback to Gemini Flash
  *
- * Task-Specific Overrides:
- * - Sentiment: Fast, cheap model (Groq Llama)
- * - Summarization: Balanced (Gemini Flash)
- * - Complex Analysis: High quality (Gemini Pro)
+ * Task-Specific Overrides (All with fallbacks):
+ * - Sentiment: Fast, cheap model (Groq Llama) → Fallback to Gemini Flash 8B
+ * - Summarization: Balanced (Gemini Flash) → Fallback to Gemini Flash 8B
+ * - Complex Analysis: High quality (Gemini Pro) → Fallback to Gemini Flash
+ *
+ * Fallback Strategy:
+ * Every model configuration includes a fallback to ensure reliability.
+ * If the primary model fails or is unavailable, the system automatically
+ * switches to the fallback model without user intervention.
  */
 
 export const AI_MODEL_CONFIG = {
@@ -507,11 +512,32 @@ export function estimateCost(
 }
 ```
 
+**Complete Fallback Strategy:**
+
+All tier models and task models now have fallback configurations:
+
+| Tier/Task | Primary Model | Fallback Model | Strategy |
+|-----------|---------------|----------------|----------|
+| **Free Tier** | Gemini Flash 8B ($0.10/1M) | Groq Llama 3.3 ($0.40/1M) | Cheapest → Fast alternative |
+| **Basic Tier** | Gemini Flash ($0.15/1M) | Groq Llama 3.3 ($0.40/1M) | Balanced → Fast alternative |
+| **Premium Tier** | Gemini Pro ($1.25/1M) | Gemini Flash ($0.15/1M) | Best → Balanced fallback |
+| **Sentiment Task** | Groq Llama 3.3 | Gemini Flash 8B | Speed → Cost optimization |
+| **Summarization Task** | Gemini Flash | Gemini Flash 8B | Quality → Cost optimization |
+| **Complex Analysis Task** | Gemini Pro | Gemini Flash | Best → Balanced fallback |
+
+**How Fallbacks Work:**
+1. System tries primary model first
+2. If primary fails → Circuit breaker tracks failure
+3. Automatically switches to fallback model
+4. After 5 consecutive failures → Circuit opens (skips provider for 60s)
+5. No manual intervention required
+
 **Success Criteria:**
 - ✅ Tier-based model selection configured
 - ✅ Task-specific overrides defined
-- ✅ Fallback chains for each tier
+- ✅ Fallback chains for ALL tiers and tasks (100% coverage)
 - ✅ Cost tracking per model
+- ✅ Automatic failover without user intervention
 
 ---
 

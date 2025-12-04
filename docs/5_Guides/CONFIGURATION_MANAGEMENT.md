@@ -357,11 +357,11 @@ rateLimit: {
 
 ### Task-Specific Overrides
 
-For certain tasks, use specialized models:
+For certain tasks, use specialized models (all with fallbacks):
 
-- **Sentiment Analysis:** Groq (fast & cheap)
-- **Summarization:** Gemini Flash (balanced)
-- **Complex Analysis:** Gemini Pro (high quality)
+- **Sentiment Analysis:** Groq Llama 3.3 → Fallback to Gemini Flash 8B
+- **Summarization:** Gemini Flash → Fallback to Gemini Flash 8B
+- **Complex Analysis:** Gemini Pro → Fallback to Gemini Flash
 
 **Usage:**
 
@@ -375,6 +375,146 @@ const config = getAIModelConfig('free');
 const sentimentConfig = getAIModelConfig('free', 'sentiment');
 ```
 
+### Complete Fallback Strategy
+
+Every AI model configuration includes a fallback to ensure maximum reliability:
+
+| Tier/Task | Primary Model | Fallback Model | Strategy |
+|-----------|---------------|----------------|----------|
+| **Free Tier** | Gemini Flash 8B<br>($0.10 per 1M tokens) | Groq Llama 3.3 70B<br>($0.40 per 1M tokens) | Cheapest → Fast alternative |
+| **Basic Tier** | Gemini Flash<br>($0.15 per 1M tokens) | Groq Llama 3.3 70B<br>($0.40 per 1M tokens) | Balanced → Fast alternative |
+| **Premium Tier** | Gemini Pro<br>($1.25 per 1M tokens) | Gemini Flash<br>($0.15 per 1M tokens) | Best quality → Balanced fallback |
+| **Sentiment Task** | Groq Llama 3.3<br>(Fast & cheap) | Gemini Flash 8B<br>(Even cheaper) | Speed → Cost optimization |
+| **Summarization Task** | Gemini Flash<br>(Balanced) | Gemini Flash 8B<br>(Cheaper alternative) | Quality → Cost optimization |
+| **Complex Analysis Task** | Gemini Pro<br>(Highest quality) | Gemini Flash<br>(Still good) | Best → Balanced fallback |
+
+### How Fallbacks Work in Practice
+
+When you request an AI model, the system follows this fallback chain:
+
+**1. Try Primary Model First**
+
+```typescript
+const config = getAIModelConfig('free', 'sentiment');
+// Primary: Groq Llama 3.3 70B
+console.log(config.model); // 'llama-3.3-70b-versatile'
+console.log(config.provider); // 'groq'
+```
+
+**2. Automatic Fallback on Failure**
+
+If the primary model fails (API error, timeout, rate limit):
+
+```typescript
+// System automatically tries fallback
+console.log(config.fallback?.model); // 'gemini-1.5-flash-8b'
+console.log(config.fallback?.provider); // 'gemini'
+```
+
+**3. Circuit Breaker Protection**
+
+The system tracks failures and automatically skips failing providers:
+
+- **After 5 consecutive failures** → Circuit opens
+- **Skip failed provider for 60 seconds**
+- **Automatically use fallback model**
+- **After 60 seconds** → Test primary model again (half-open state)
+- **If successful** → Close circuit, resume normal operation
+- **If still failing** → Keep circuit open
+
+### Fallback Chain Logic
+
+```
+User Request for AI Response
+        ↓
+    Get Model Config
+    (tier + task type)
+        ↓
+  Check Circuit Breaker
+        ↓
+   ┌────────────────┐
+   │ Circuit Closed?│
+   └────┬───────────┘
+        │ YES
+        ↓
+   Try Primary Model
+        ↓
+   ┌────────────────┐
+   │   Successful?  │
+   └────┬───────┬───┘
+        │ YES   │ NO
+        ↓       ↓
+    Return   Track Failure
+    Result   (Circuit Breaker)
+                ↓
+         Try Fallback Model
+                ↓
+           Successful?
+             ↓     ↓
+           YES     NO
+            ↓       ↓
+         Return   Return Error
+         Result   (Both failed)
+```
+
+**Example Scenario:**
+
+```typescript
+// User: Free tier, requesting sentiment analysis
+const config = getAIModelConfig('free', 'sentiment');
+
+// Step 1: Try Groq Llama 3.3
+// → Groq API is down (500 error)
+// → Circuit breaker records failure (1/5)
+
+// Step 2: Automatically try fallback (Gemini Flash 8B)
+// → Gemini API responds successfully
+// → Return result to user
+
+// Step 3: Next request
+// → Try Groq again (circuit still closed)
+// → Groq still down (2/5 failures)
+// → Fallback to Gemini again
+
+// Step 4: After 5 failures
+// → Circuit OPENS for Groq
+// → Skip Groq entirely for 60 seconds
+// → Use Gemini Flash 8B directly
+
+// Step 5: After 60 seconds
+// → Circuit enters HALF-OPEN state
+// → Try Groq with 1 test request
+// → If successful → Circuit CLOSES
+// → If fails → Circuit stays OPEN for another 60s
+```
+
+### Benefits of This Approach
+
+✅ **100% Fallback Coverage**
+- Every tier model has a fallback
+- Every task model has a fallback
+- Never completely fail if one provider is down
+
+✅ **Automatic Failover**
+- No manual intervention required
+- Seamless user experience
+- System handles provider outages gracefully
+
+✅ **Cost Optimization**
+- Fallback to cheaper models when possible
+- Avoid expensive models during outages
+- Smart cost management during failures
+
+✅ **Performance Protection**
+- Circuit breaker prevents cascading failures
+- Automatic recovery when provider comes back
+- Prevents overwhelming failing providers
+
+✅ **Reliability**
+- Multiple AI providers configured
+- Automatic provider switching
+- Graceful degradation (premium → basic models)
+
 ### Cost Estimation
 
 ```typescript
@@ -382,6 +522,10 @@ import { estimateCost } from '@/lib/config/ai-models.config';
 
 const cost = estimateCost(1000, 500, 'free');
 console.log(`Estimated cost: $${cost.toFixed(4)}`); // $0.0003
+
+// Estimate with task override
+const sentimentCost = estimateCost(1000, 500, 'free', 'sentiment');
+console.log(`Sentiment cost: $${sentimentCost.toFixed(4)}`); // $0.0008
 ```
 
 ---
