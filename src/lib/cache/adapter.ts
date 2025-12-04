@@ -23,9 +23,10 @@ export interface CacheAdapter {
   /**
    * Get a value from cache
    * @param key - Cache key
+   * @param allowExpired - If true, returns expired entries for stale cache pattern
    * @returns Cached value or null if not found/expired
    */
-  get<T>(key: string): Promise<T | null>;
+  get<T>(key: string, allowExpired?: boolean): Promise<T | null>;
 
   /**
    * Set a value in cache
@@ -89,14 +90,14 @@ export class VercelKVAdapter implements CacheAdapter {
     return this.kv;
   }
 
-  async get<T>(key: string): Promise<T | null> {
+  async get<T>(key: string, allowExpired = false): Promise<T | null> {
     try {
       const client = await this.getClient();
       const entry = await (client.get as (key: string) => Promise<{ value: T; timestamp: number } | null>)(key);
 
       if (entry?.value !== null && entry?.value !== undefined) {
         this.stats.hits++;
-        console.log(`[VercelKV] Cache hit: ${key}`);
+        console.log(`[VercelKV] Cache hit: ${key}${allowExpired ? ' (stale allowed)' : ''}`);
         return entry.value;
       }
 
@@ -210,14 +211,14 @@ export class UpstashRedisAdapter implements CacheAdapter {
     return this.redis;
   }
 
-  async get<T>(key: string): Promise<T | null> {
+  async get<T>(key: string, allowExpired = false): Promise<T | null> {
     try {
       const client = await this.getClient();
       const entry = await (client.get as (key: string) => Promise<{ value: T; timestamp: number } | null>)(key);
 
       if (entry?.value !== undefined) {
         this.stats.hits++;
-        console.log(`[Upstash] Cache hit: ${key}`);
+        console.log(`[Upstash] Cache hit: ${key}${allowExpired ? ' (stale allowed)' : ''}`);
         return entry.value;
       }
 
@@ -330,7 +331,7 @@ export class InMemoryCacheAdapter implements CacheAdapter {
   private cache = new Map<string, { value: any; timestamp: number; ttl: number }>();
   private stats = { hits: 0, misses: 0 };
 
-  async get<T>(key: string): Promise<T | null> {
+  async get<T>(key: string, allowExpired = false): Promise<T | null> {
     const entry = this.cache.get(key);
 
     if (!entry) {
@@ -341,7 +342,14 @@ export class InMemoryCacheAdapter implements CacheAdapter {
 
     const age = Date.now() - entry.timestamp;
     if (age >= entry.ttl) {
-      this.cache.delete(key);
+      if (allowExpired) {
+        // Return expired entry for stale cache pattern
+        this.stats.misses++;
+        console.log(`[Memory] Stale cache hit: ${key} (age: ${age}ms, TTL: ${entry.ttl}ms)`);
+        return entry.value as T;
+      }
+      // Don't delete expired entries - allow stale cache pattern
+      // Cleanup happens via cleanExpired() or clear()
       this.stats.misses++;
       console.log(`[Memory] Cache expired: ${key} (age: ${age}ms, TTL: ${entry.ttl}ms)`);
       return null;
