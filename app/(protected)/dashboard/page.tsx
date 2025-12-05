@@ -298,7 +298,7 @@ export default function Home() {
   if (portfolios.length === 0) {
     return (
       <>
-        <div className={`max-w-5xl mx-auto p-6 ${portfolioTheme.containerHover}`}>
+        <div className={`max-w-5xl mx-auto p-6 ${portfolioTheme.containerHover}`} data-testid="content">
           <div className="text-center">
             <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-4">
               Welcome to Portfolio Tracker
@@ -336,7 +336,7 @@ export default function Home() {
   // Apply portfolioTheme to other relevant sections
   return (
     <div className={`dashboard-container ${portfolioTheme.containerHover}`}>
-      <div className="max-w-5xl mx-auto">
+      <div className="max-w-5xl mx-auto" data-testid="content">
         {/* Portfolio Selector */}
         <PortfolioSelector
           portfolios={portfolios}

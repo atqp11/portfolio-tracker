@@ -85,11 +85,34 @@ npm install  # Already includes Playwright
 npm run dev  # Start dev server in another terminal
 ```
 
+### Authentication Setup
+
+E2E tests require authentication. Set up test credentials:
+
+**Option 1: Environment Variables (Recommended)**
+```bash
+# Add to .env.local
+E2E_TEST_EMAIL=your-test-email@example.com
+E2E_TEST_PASSWORD=your-test-password
+```
+
+**Option 2: Create a Test User**
+1. Run the app: `npm run dev`
+2. Sign up at http://localhost:3000/auth/signup
+3. Use email: `test@example.com` and password: `testpassword123`
+
+The authentication setup runs automatically before tests and saves the session state to `playwright/.auth/user.json`.
+
 ### Run All E2E Tests
 
 ```bash
 npm run e2e
 ```
+
+This will:
+1. Run authentication setup first
+2. Save authenticated state
+3. Run all tests using the authenticated session
 
 ### Run Specific Test File
 

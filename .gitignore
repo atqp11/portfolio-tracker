@@ -190,3 +190,15 @@ nul
 
 # Next.js TypeScript definitions
 next-env.d.ts
+
+# Playwright test reports
+playwright-report/
+# Playwright test screenshots
+playwright-screenshots/
+# Playwright test videos
+playwright-videos/
+# Playwright auth state (contains session cookies)
+playwright/.auth/
+
+# test-results
+test-results/

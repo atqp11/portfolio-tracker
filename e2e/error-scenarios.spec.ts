@@ -8,15 +8,21 @@
  * - Data is stale or missing
  *
  * Uses Playwright for cross-browser E2E testing
+ * 
+ * AUTHENTICATION:
+ * Tests use authenticated state from auth.setup.ts which runs before all tests.
+ * The setup saves session cookies to playwright/.auth/user.json which is reused.
+ * Configure test credentials via E2E_TEST_EMAIL and E2E_TEST_PASSWORD env vars.
  */
 
 import { test, expect, Page } from "@playwright/test";
+import { waitForServer } from './utils/serverReady';
 
 // ============================================================================
 // TEST CONFIGURATION
 // ============================================================================
 
-const BASE_URL = process.env.E2E_TEST_URL || "http://localhost:3000";
+const BASE_URL = process.env.E2E_TEST_URL || "http://localhost:3000/";
 
 // Helper to wait for API stability after navigation
 async function waitForPageStable(page: Page, timeoutMs = 5000) {
@@ -43,6 +49,10 @@ async function getPageState(page: Page) {
 // ============================================================================
 
 test.describe("E2E: Cache Failure & Graceful Degradation", () => {
+  test.beforeEach(async ({ page }) => {
+    // Make sure the dev server is responding before running these tests
+    await waitForServer(page, BASE_URL, 60_000);
+  });
   test("should display cached data when cache is unavailable", async ({ page }) => {
     // Navigate to dashboard
     await page.goto(`${BASE_URL}/dashboard`);
