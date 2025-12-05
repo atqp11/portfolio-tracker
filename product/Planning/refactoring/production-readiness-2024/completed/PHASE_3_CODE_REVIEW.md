@@ -253,20 +253,20 @@
 
 ## Remaining Work
 
-### Old Provider Cleanup (IN PROGRESS)
+### Old Provider Cleanup (COMPLETE)
 - [x] Delete FMP DAO and service files
 - [x] Delete Finnhub DAO and service files
 - [x] Delete old test files (fmp.spec.ts, finnhub.spec.ts)
-- [ ] Remove imports from provider-adapters.ts
-- [ ] Remove FMP and Finnhub provider classes
-- [ ] Remove from PROVIDER_GROUPS
-- [ ] Check NewsAPI usage (used by news services - keep for now)
-- [ ] Update .env.local.example
-- [ ] Verify no remaining references
+- [x] Remove imports from provider-adapters.ts
+- [x] Remove FMP and Finnhub provider classes
+- [x] Remove from PROVIDER_GROUPS
+- [x] Check NewsAPI usage (used by news services - keep for now)
+- [x] Update .env.local.example
+- [x] Verify no remaining references
 
 ### Documentation
-- [ ] Update DATA_SOURCE_ORCHESTRATOR.md with Tiingo info
-- [ ] Update PRODUCTION_READINESS_PLAN.md (mark Phase 3 complete)
+- [x] Update DATA_SOURCE_ORCHESTRATOR.md with Tiingo info
+- [x] Update PRODUCTION_READINESS_PLAN.md (mark Phase 3 complete)
 
 ## Summary
 

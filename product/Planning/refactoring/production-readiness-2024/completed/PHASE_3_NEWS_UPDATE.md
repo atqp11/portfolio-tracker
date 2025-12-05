@@ -112,10 +112,11 @@ https://news.google.com/rss/search?q={QUERY}
 ## Testing Needed
 
 ### Manual UI Tests
-- [ ] Navigate to dashboard with energy portfolio
-- [ ] Check `/api/news/energy` returns RSS articles
-- [ ] Check `/api/news/copper` returns RSS articles
-- [ ] Verify news articles have:
+### Manual UI Tests
+- [x] Navigate to dashboard with energy portfolio
+- [x] Check `/api/news/energy` returns RSS articles
+- [x] Check `/api/news/copper` returns RSS articles
+- [x] Verify news articles have:
   - Title
   - Description
   - URL
@@ -154,7 +155,7 @@ npm test
 - ❌ `src/backend/modules/news/service/brave-search.service.ts`
 - ❌ `BraveNewsProvider` class (from provider-adapters.ts)
 
-## Next Steps
+### Next Steps
 
 1. ✅ Run build verification: `npm run build`
 2. ✅ Run tests: `npm test`

@@ -1868,15 +1868,15 @@ async getPortfolioNews(
 **3.2.4 Final Verification - Provider Cleanup Complete**
 
 **Verification Checklist:**
-- [ ] All FMP files deleted (grep search returns empty)
-- [ ] All Finnhub files deleted (grep search returns empty)
-- [ ] All NewsAPI files deleted (grep search returns empty)
-- [ ] No import statements remain for these providers
-- [ ] `package.json` has no unused dependencies
-- [ ] `.env.local.example` updated
-- [ ] TypeScript compiles without errors
-- [ ] All tests pass
-- [ ] Build succeeds: `npm run build`
+- [x] All FMP files deleted (grep search returns empty)
+- [x] All Finnhub files deleted (grep search returns empty)
+- [x] All NewsAPI files deleted (grep search returns empty)
+- [x] No import statements remain for these providers
+- [x] `package.json` has no unused dependencies
+- [x] `.env.local.example` updated
+- [x] TypeScript compiles without errors
+- [x] All tests pass
+- [x] Build succeeds: `npm run build`
 
 **Verification Commands:**
 ```bash
@@ -2247,10 +2247,10 @@ scenarios:
 ### Deployment Checklist
 
 **Pre-Deployment:**
-- [ ] All tests passing (unit + integration)
-- [ ] Code review completed
+- [x] All tests passing (unit + integration)
+- [x] Code review completed
 - [ ] Environment variables configured in Vercel
-- [ ] Vercel KV enabled
+- [x] Vercel KV enabled
 - [ ] Feature flags ready
 - [ ] Monitoring dashboards created
 

@@ -40,19 +40,22 @@ export class TiingoDAO extends BaseDAO {
         changePercent: ((item.close - item.prevClose) / item.prevClose * 100).toFixed(2),
         timestamp: new Date(item.date).getTime(),
         source: 'tiingo'
-      });
     }
     return quotes;
   }
+      ---
 
-  async getQuote(symbol: string): Promise<StockQuote> {
-    const quotes = await this.batchGetQuotes([symbol]);
-    return quotes.get(symbol)!;
-  }
-}
-```
+      ## Success Criteria
 
-**Create:** `src/lib/data-sources/provider-adapters.ts`
+      - [x] Tiingo DAO created and tested
+      - [x] Provider adapters created
+      - [x] StockDataService migrated (58 lines → 15 lines)
+      - [x] FMP, Finnhub, NewsAPI files deleted
+      - [x] All imports removed
+      - [x] Environment variables cleaned up
+      - [x] TypeScript compiles without errors
+      - [x] All tests pass (81+ tests)
+      - [x] Build succeeds
 
 ```typescript
 import { DataProvider, BatchDataProvider } from './types';
@@ -289,15 +292,15 @@ console.log('Telemetry:', stats.telemetry);
 
 ## Success Criteria
 
-- [ ] Tiingo DAO created and tested
-- [ ] Provider adapters created
-- [ ] StockDataService migrated (58 lines → 15 lines)
-- [ ] FMP, Finnhub, NewsAPI files deleted
-- [ ] All imports removed
-- [ ] Environment variables cleaned up
-- [ ] TypeScript compiles without errors
-- [ ] All tests pass (81+ tests)
-- [ ] Build succeeds
+- [x] Tiingo DAO created and tested
+- [x] Provider adapters created
+- [x] StockDataService migrated (58 lines → 15 lines)
+- [x] FMP, Finnhub, NewsAPI files deleted
+- [x] All imports removed
+- [x] Environment variables cleaned up
+- [x] TypeScript compiles without errors
+- [x] All tests pass (81+ tests)
+- [x] Build succeeds
 
 ---
 
