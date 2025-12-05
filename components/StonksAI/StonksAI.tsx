@@ -137,19 +137,28 @@ function getRateLimitMessage(response: any): string {
             return null;
         };
         
+        // Handle incomplete sentiment data
+        const isIncomplete = !summary;
+        
         return (
             <div className={`sentiment-card ${sentimentClass}`}>
                 <div className="sentiment-header">
                     <h3 className="sentiment-ticker">{stockTicker}</h3>
                     <span className={`sentiment-badge ${sentimentClass}`}>{sentimentClass}</span>
                 </div>
-                <p className="sentiment-summary">{summary}</p>
-                {key_points && key_points.length > 0 && (
+                {isIncomplete ? (
+                    <p className="sentiment-summary">Unable to load detailed analysis. Please try again.</p>
+                ) : (
                     <>
-                        <h4 className="key-points-heading">Key Points:</h4>
-                        <ul className="key-points-list">
-                            {key_points.map(renderKeyPoint)}
-                        </ul>
+                        <p className="sentiment-summary">{summary}</p>
+                        {key_points && key_points.length > 0 && (
+                            <>
+                                <h4 className="key-points-heading">Key Points:</h4>
+                                <ul className="key-points-list">
+                                    {key_points.map(renderKeyPoint)}
+                                </ul>
+                            </>
+                        )}
                     </>
                 )}
             </div>
@@ -367,8 +376,9 @@ function getRateLimitMessage(response: any): string {
             const tickerUpper = stockTicker.toUpperCase();
             
             // Check portfolio cache first (from TanStack Query batch)
+            // Only use cache if it has valid content (summary is required for display)
             const cachedSentiment = sentimentMap?.get(tickerUpper);
-            if (cachedSentiment) {
+            if (cachedSentiment && cachedSentiment.summary) {
                 setMessages((prev) => [...prev, { sender: 'bot', type: 'sentiment', content: cachedSentiment, stockTicker }]);
                 setIsLoading(false);
                 return;

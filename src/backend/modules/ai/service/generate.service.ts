@@ -99,6 +99,18 @@ class GenerateService {
     
     if (cached) {
       const age = Date.now() - cached.timestamp;
+      
+      // Validate cached response for sentiment queries
+      // If response is incomplete (missing summary), invalidate cache and refetch
+      if (this.isSentimentQuery(body.contents)) {
+        const isValid = this.isValidSentimentResponse(cached.text);
+        if (!isValid) {
+          console.log(`⚠️ Cached sentiment response is incomplete, invalidating cache`);
+          await this.cache.delete(cacheKey);
+          return null;
+        }
+      }
+      
       console.log(`♻️ Returning cached AI response (age: ${Math.floor(age / 1000)}s, size: ${cached.text.length} chars)`);
       return {
         text: cached.text,
@@ -110,6 +122,37 @@ class GenerateService {
     }
     
     return null;
+  }
+  
+  /**
+   * Check if a query is a sentiment analysis query
+   */
+  private isSentimentQuery(contents: string): boolean {
+    return contents.toLowerCase().includes('sentiment analysis') || 
+           contents.toLowerCase().includes('perform a sentiment');
+  }
+  
+  /**
+   * Validate that a sentiment response has required fields
+   */
+  private isValidSentimentResponse(text: string): boolean {
+    try {
+      const data = JSON.parse(text);
+      
+      // For batch sentiment responses
+      if (data.sentiments && Array.isArray(data.sentiments)) {
+        return data.sentiments.every((s: any) => s.summary && typeof s.summary === 'string');
+      }
+      
+      // For individual sentiment responses
+      if (data.summary && typeof data.summary === 'string') {
+        return true;
+      }
+      
+      return false;
+    } catch {
+      return false;
+    }
   }
 
   /**

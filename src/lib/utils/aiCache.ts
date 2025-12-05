@@ -504,9 +504,12 @@ export function parseBatchAndCacheIndividual<T extends { ticker?: string }>(
     // For news/filings, we expect multiple items per ticker
     if (batchType === 'batch_sentiment') {
       const data = tickerItems[0] || null;
-      if (data) {
+      // Only cache sentiment if it has valid content (summary is required)
+      if (data && (data as any).summary) {
         saveAICache(individualType, tickerUpper, data);
         stockDataMap.set(tickerUpper, data);
+      } else if (data) {
+        console.warn(`⚠️ Skipping incomplete sentiment cache for ${tickerUpper}: missing summary`);
       }
     } else {
       // News/filings: store array of items

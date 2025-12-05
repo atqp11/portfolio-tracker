@@ -10,7 +10,8 @@ import {
   isProviderAvailable,
   PROVIDER_GROUPS,
   getProvidersForDataType,
-} from '../providers.config';
+} from '@lib/config/providers.config';
+import type { ProviderConfig } from '@lib/config/types';
 
 describe('Provider Configuration', () => {
   const originalEnv = process.env;
@@ -85,7 +86,7 @@ describe('Provider Configuration', () => {
       const { getProvidersByPriority } = require('../providers.config');
 
       const providers = getProvidersByPriority(['tiingo', 'yahooFinance']);
-      const names = providers.map(p => p.name);
+      const names = providers.map((p: ProviderConfig) => p.name);
 
       expect(names).not.toContain('tiingo');
 

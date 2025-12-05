@@ -30,12 +30,23 @@ interface UsersResponse {
   total: number;
 }
 
+interface CacheClearResult {
+  success: boolean;
+  timestamp: string;
+  message: string;
+  stats: {
+    before: any;
+    after: any;
+  };
+}
+
 export default function AdminPage() {
   const router = useRouter();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [cacheClearResult, setCacheClearResult] = useState<CacheClearResult | null>(null);
 
   useEffect(() => {
     fetchUsers();
@@ -147,6 +158,33 @@ export default function AdminPage() {
     }
   }
 
+  async function clearCache() {
+    if (!confirm('Are you sure you want to clear the Redis cache?\n\nThis will remove all cached data and may temporarily slow down the application until cache is rebuilt.')) {
+      return;
+    }
+
+    try {
+      setActionLoading('clear-cache');
+      setCacheClearResult(null);
+
+      const response = await fetch('/api/admin/clear-cache', {
+        method: 'POST',
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to clear cache');
+      }
+
+      const result = await response.json();
+      setCacheClearResult(result);
+    } catch (err) {
+      console.error('Error clearing cache:', err);
+      alert('Failed to clear cache');
+    } finally {
+      setActionLoading(null);
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -220,6 +258,37 @@ export default function AdminPage() {
             {users.filter((u) => u.tier === 'premium').length}
           </p>
         </div>
+      </div>
+
+      {/* Cache Management */}
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
+              Cache Management
+            </h2>
+            <p className="text-gray-600 dark:text-gray-400 text-sm mt-1">
+              Clear Redis cache manually (L2 cache layer)
+            </p>
+          </div>
+          <button
+            onClick={clearCache}
+            disabled={actionLoading === 'clear-cache'}
+            className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {actionLoading === 'clear-cache' ? 'Clearing...' : 'Clear Cache'}
+          </button>
+        </div>
+        {cacheClearResult && (
+          <div className="mt-4 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+            <p className="text-green-800 dark:text-green-200 text-sm">
+              ✅ {cacheClearResult.message}
+            </p>
+            <p className="text-green-600 dark:text-green-400 text-xs mt-1">
+              Completed at {new Date(cacheClearResult.timestamp).toLocaleString()}
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Users Table */}
