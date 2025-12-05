@@ -2246,10 +2246,13 @@ scenarios:
 
 ### Deployment Checklist
 
-**Pre-Deployment:**
+- **Pre-Deployment:**
 - [x] All tests passing (unit + integration)
 - [x] Code review completed
-- [ ] Environment variables configured in Vercel
++ [ ] Environment variables configured in Vercel
+  - How to verify locally: run `npm run check:env` (exits non-zero if required keys missing)
+  - Vercel CLI verification: `vercel env ls` (to list) and `vercel env add <NAME> <environment>` to add
+  - Note: Required keys include `TIINGO_API_KEY` and `GEMINI_API_KEY` (see `src/lib/config/api-keys.config.ts`)
 - [x] Vercel KV enabled
 - [ ] Feature flags ready
 - [ ] Monitoring dashboards created

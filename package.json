@@ -10,6 +10,7 @@
     "start": "next start",
     "prepare": "husky",
     "test": "jest --runInBand",
+    "check:env": "node ./scripts/verify-env.js",
     "test:all": "jest --runInBand",
     "test:db": "SET SKIP_DB_TESTS=false&& jest --runInBand database-cache.adapter.test",
     "db:pull": "prisma db pull",
