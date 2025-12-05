@@ -2,14 +2,18 @@
  * News Service
  *
  * Business logic layer for company and market news.
- * Aggregates news from multiple sources (RSS feeds, NewsAPI fallback).
+ * Aggregates news from multiple sources (RSS feeds, NewsAPI fallback) via Data Source Orchestrator.
  *
  * Phase 1: Migrated to distributed cache (Vercel KV / Upstash Redis)
+ * Phase 2: Migrated to Data Source Orchestrator (RSS feeds → Stale fallback)
  * Phase 3: Removed Finnhub and Brave Search (not free), using RSS feeds as primary
  */
-import { rssFeedDAO, type RSSArticle } from '../dao/rss-feed.dao';
+import { DataSourceOrchestrator } from '@lib/data-sources';
+import {
+  rssNewsProvider,
+  type NewsArticle as ProviderNewsArticle,
+} from '@lib/data-sources/provider-adapters';
 import { getCacheAdapter, type CacheAdapter } from '@lib/cache/adapter';
-import { getCacheTTL } from '@lib/config/cache-ttl.config';
 import type { TierName } from '@lib/config/types';
 import { NewsDAO } from '../dao/news.dao';
 import { NewsArticle as NewsAPIArticle } from '@lib/types/news.dto';
@@ -40,33 +44,24 @@ export interface NewsResponse {
 // ============================================================================
 
 export class NewsService {
+  private readonly orchestrator: DataSourceOrchestrator;
   private readonly cache: CacheAdapter;
-  private readonly DEFAULT_TTL = 15 * 60 * 1000; // 15 minutes fallback
   private readonly MARKET_NEWS_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours for market news
   private readonly AI_QUERY_CACHE_TTL = 7 * 24 * 60 * 60 * 1000; // 7 days for AI queries
   private newsDAO: NewsDAO | null = null;
 
   constructor() {
+    this.orchestrator = DataSourceOrchestrator.getInstance();
     this.cache = getCacheAdapter();
   }
 
   /**
-   * Get cache TTL based on user tier
-   */
-  private getCacheTTL(tier?: TierName): number {
-    if (tier) {
-      return getCacheTTL('news', tier);
-    }
-    return this.DEFAULT_TTL;
-  }
-
-  /**
-   * Get company news from multiple sources
+   * Get company news from RSS feeds with intelligent fallback via orchestrator
    *
-   * Strategy:
+   * Strategy (managed by orchestrator):
    * 1. Check cache (TTL based on tier)
    * 2. Fetch from RSS feeds (primary - free, no API key needed)
-   * 3. Fallback to NewsAPI if RSS fails
+   * 3. Return stale cache if RSS fails
    * 4. Deduplicate and sort by recency
    *
    * @param symbol - Stock ticker symbol
@@ -75,68 +70,51 @@ export class NewsService {
    * @returns Aggregated news articles
    */
   async getCompanyNews(symbol: string, limit: number = 20, tier?: TierName): Promise<NewsResponse> {
-    const cacheKey = `company-news:${symbol}:v2`; // v2 for RSS change
-    const ttl = this.getCacheTTL(tier);
+    const result = await this.orchestrator.fetchWithFallback<ProviderNewsArticle[]>({
+      key: symbol,
+      providers: [rssNewsProvider],
+      cacheKeyPrefix: 'news',
+      tier: tier || 'free',
+      allowStale: true,
+      context: { limit }, // Pass limit to provider
+    });
 
-    // 1. Check cache
-    const cached = await this.cache.get<NewsResponse>(cacheKey);
-    if (cached) {
-      const age = await this.cache.getAge(cacheKey);
-      console.log(`[NewsService] Cache hit for ${symbol} news (age: ${age}ms)`);
-      return {
-        ...cached,
-        cached: true
-      };
-    }
+    // Transform provider news articles to service format
+    const articles: NewsArticle[] = (result.data || []).map((article) => ({
+      headline: article.headline,
+      summary: article.summary || '',
+      url: article.link,
+      source: article.source,
+      publishedAt: article.datetime,
+    }));
 
-    console.log(`[NewsService] Cache miss for ${symbol} news`);
-
-    const articles: NewsArticle[] = [];
-    const sources: string[] = [];
-
-    // 2. Try RSS feeds (primary source - free)
-    try {
-      console.log(`[NewsService] Fetching RSS news for ${symbol}`);
-      const rssResults = await rssFeedDAO.getCompanyNews(symbol, limit);
-
-      const mapped = rssResults.map((result) => ({
-        headline: result.title,
-        summary: result.description || '',
-        url: result.url,
-        source: result.source,
-        publishedAt: result.publishedAt
-      }));
-
-      articles.push(...mapped);
-      sources.push('rss');
-
-      console.log(`[NewsService] RSS feeds returned ${mapped.length} articles for ${symbol}`);
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-      console.warn(`[NewsService] RSS feeds failed for ${symbol}: ${errorMsg}`);
-    }
-
-    // 3. Deduplicate by URL and sort by recency
+    // Deduplicate and sort
     const uniqueArticles = this.deduplicateByUrl(articles);
     const sorted = uniqueArticles.sort((a, b) => b.publishedAt - a.publishedAt);
     const limited = sorted.slice(0, limit);
 
-    const response: NewsResponse = {
+    // Log result
+    if (result.cached) {
+      const ageMinutes = Math.round((result.age || 0) / 60000);
+      console.log(`[NewsService] Cache hit for ${symbol} news (age: ${ageMinutes}m, ${limited.length} articles)`);
+    } else {
+      console.log(`[NewsService] Fresh fetch for ${symbol} news (${limited.length} articles)`);
+    }
+
+    if (result.data === null) {
+      console.error(`[NewsService] Failed to fetch news for ${symbol}:`, result.errors);
+    }
+
+    return {
       articles: limited,
-      sources: [...new Set(sources)],
-      cached: false,
-      timestamp: Date.now()
+      sources: ['rss'],
+      cached: result.cached,
+      timestamp: result.timestamp,
     };
-
-    // Save to cache
-    await this.cache.set(cacheKey, response, ttl);
-
-    console.log(`[NewsService] Returning ${limited.length} articles for ${symbol} from sources: ${response.sources.join(', ')}`);
-    return response;
   }
 
   /**
-   * Search general market news
+   * Search general market news with intelligent fallback via orchestrator
    *
    * Uses RSS feeds for broad market topics.
    *
@@ -146,13 +124,16 @@ export class NewsService {
    * @returns News articles matching query
    */
   async searchMarketNews(query: string, limit: number = 20, tier?: TierName): Promise<NewsResponse> {
-    const cacheKey = `market-news:${query}:v2`; // v2 for RSS change
-    const ttl = this.getCacheTTL(tier);
+    // For market news search, we need to use the cache directly since the RSS provider
+    // doesn't support search queries - it only supports company news by symbol
+    const cacheKey = `market-news:${query}:v2`;
 
-    // Check cache
+    // Check cache first
     const cached = await this.cache.get<NewsResponse>(cacheKey);
     if (cached) {
-      console.log(`[NewsService] Cache hit for market news query: ${query}`);
+      const age = await this.cache.getAge(cacheKey);
+      const ageMinutes = Math.round(age / 60000);
+      console.log(`[NewsService] Cache hit for market news query: ${query} (age: ${ageMinutes}m)`);
       return {
         ...cached,
         cached: true
@@ -162,6 +143,8 @@ export class NewsService {
     console.log(`[NewsService] Searching market news: ${query}`);
 
     try {
+      // Import rssFeedDAO directly for search functionality
+      const { rssFeedDAO } = await import('../dao/rss-feed.dao');
       const rssResults = await rssFeedDAO.searchNews(query, limit);
 
       const articles = rssResults.map((result) => ({
@@ -179,7 +162,8 @@ export class NewsService {
         timestamp: Date.now()
       };
 
-      await this.cache.set(cacheKey, response, ttl);
+      // Use market news TTL for caching
+      await this.cache.set(cacheKey, response, this.MARKET_NEWS_CACHE_TTL);
 
       console.log(`[NewsService] Found ${articles.length} market news articles for query: ${query}`);
       return response;
@@ -187,7 +171,7 @@ export class NewsService {
       const errorMsg = error instanceof Error ? error.message : 'Unknown error';
       console.error(`[NewsService] Market news search failed for "${query}": ${errorMsg}`);
 
-      // Return cached data if available
+      // Return stale cache if available
       const staleCache = await this.cache.get<NewsResponse>(cacheKey);
       if (staleCache) {
         console.log(`[NewsService] Returning stale cache for query: ${query}`);
@@ -211,13 +195,14 @@ export class NewsService {
    * @returns Aggregated trending news
    */
   async getTrendingNews(sectors: string[] = ['technology', 'finance', 'energy'], tier?: TierName): Promise<NewsResponse> {
-    const cacheKey = `trending-news:${sectors.join('-')}:v2`; // v2 for RSS change
-    const ttl = this.getCacheTTL(tier);
+    const cacheKey = `trending-news:${sectors.join('-')}:v2`;
 
     // Check cache
     const cached = await this.cache.get<NewsResponse>(cacheKey);
     if (cached) {
-      console.log(`[NewsService] Cache hit for trending news`);
+      const age = await this.cache.getAge(cacheKey);
+      const ageMinutes = Math.round(age / 60000);
+      console.log(`[NewsService] Cache hit for trending news (age: ${ageMinutes}m)`);
       return {
         ...cached,
         cached: true
@@ -229,6 +214,7 @@ export class NewsService {
     const allArticles: NewsArticle[] = [];
 
     // Fetch news for each sector in parallel
+    const { rssFeedDAO } = await import('../dao/rss-feed.dao');
     const promises = sectors.map(async (sector) => {
       try {
         const query = `${sector} stocks news`;
@@ -262,7 +248,8 @@ export class NewsService {
       timestamp: Date.now()
     };
 
-    await this.cache.set(cacheKey, response, ttl);
+    // Use market news TTL
+    await this.cache.set(cacheKey, response, this.MARKET_NEWS_CACHE_TTL);
 
     console.log(`[NewsService] Returning ${limited.length} trending articles across ${sectors.length} sectors`);
     return response;

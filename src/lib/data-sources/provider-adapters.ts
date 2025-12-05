@@ -23,6 +23,7 @@ import { tiingoDAO, type TiingoQuoteResponse, type StockQuote as TiingoStockQuot
 import { yahooFinanceDAO, type YahooQuoteResponse, type YahooFundamentals } from '@backend/modules/stocks/dao/yahoo-finance.dao';
 import { alphaVantageDAO, type AlphaVantageQuoteResponse, type CompanyOverview } from '@backend/modules/stocks/dao/alpha-vantage.dao';
 import { secEdgarDAO, type SECFilingsResponse } from '@backend/modules/stocks/dao/sec-edgar.dao';
+import { rssFeedDAO, type RSSArticle } from '@backend/modules/news/dao/rss-feed.dao';
 
 // NOTE: FMP and Finnhub providers removed in Phase 3 - replaced by Tiingo (primary) + Yahoo Finance (fallback)
 
@@ -572,6 +573,148 @@ export class SECEdgarProvider implements DataProvider<SECFiling> {
 }
 
 // ============================================================================
+// COMMODITY PROVIDERS
+// ============================================================================
+
+/**
+ * Standard commodity data format
+ */
+export interface CommodityData {
+  name: string;
+  price: number;
+  timestamp: string;
+  source: string;
+}
+
+/**
+ * Alpha Vantage Commodity Provider
+ *
+ * Provides commodity prices (WTI Oil, Natural Gas, Copper) from Alpha Vantage API.
+ */
+export class AlphaVantageCommodityProvider implements DataProvider<CommodityData> {
+  readonly name = 'alphaVantage';
+
+  async fetch(commodityType: string, options?: FetchOptions): Promise<CommodityData> {
+    try {
+      let rawData;
+
+      switch (commodityType.toLowerCase()) {
+        case 'oil':
+        case 'wti':
+          rawData = await alphaVantageDAO.getWTIOil();
+          break;
+        case 'gas':
+        case 'naturalgas':
+          rawData = await alphaVantageDAO.getNaturalGas();
+          break;
+        case 'copper':
+          rawData = await alphaVantageDAO.getCopper();
+          break;
+        default:
+          throw new Error(`Unknown commodity type: ${commodityType}`);
+      }
+
+      return {
+        name: rawData.name,
+        price: rawData.value,
+        timestamp: `${rawData.date} (Alpha Vantage)`,
+        source: 'alphaVantage',
+      };
+    } catch (error) {
+      throw this.handleError(error);
+    }
+  }
+
+  private handleError(error: unknown): ProviderError {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+
+    if (message.includes('RATE_LIMIT')) {
+      return new ProviderError(this.name, ProviderErrorCode.RATE_LIMIT, message, error as Error);
+    }
+
+    if (message.includes('API_ERROR')) {
+      return new ProviderError(this.name, ProviderErrorCode.INVALID_RESPONSE, message, error as Error);
+    }
+
+    if (message.includes('timeout')) {
+      return new ProviderError(this.name, ProviderErrorCode.TIMEOUT, message, error as Error);
+    }
+
+    if (message.includes('No') || message.includes('not found')) {
+      return new ProviderError(this.name, ProviderErrorCode.NOT_FOUND, message, error as Error);
+    }
+
+    return new ProviderError(this.name, ProviderErrorCode.UNKNOWN, message, error as Error);
+  }
+
+  async healthCheck(): Promise<boolean> {
+    try {
+      await this.fetch('oil');
+      return true;
+    } catch {
+      return false;
+    }
+  }
+}
+
+// ============================================================================
+// NEWS PROVIDERS
+// ============================================================================
+
+/**
+ * RSS Feed News Provider
+ *
+ * Provides news from RSS feeds (free, no API key required).
+ */
+export class RSSNewsProvider implements DataProvider<NewsArticle[]> {
+  readonly name = 'rssFeed';
+
+  async fetch(symbol: string, options?: FetchOptions): Promise<NewsArticle[]> {
+    try {
+      const limit = (options?.context?.limit as number | undefined) ?? 20;
+      const rssResults = await rssFeedDAO.getCompanyNews(symbol, limit);
+
+      return rssResults.map((result) => ({
+        headline: result.title,
+        summary: result.description || '',
+        link: result.url,
+        datetime: result.publishedAt,
+        source: result.source,
+      }));
+    } catch (error) {
+      throw this.handleError(error);
+    }
+  }
+
+  private handleError(error: unknown): ProviderError {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+
+    if (message.includes('timeout')) {
+      return new ProviderError(this.name, ProviderErrorCode.TIMEOUT, message, error as Error);
+    }
+
+    if (message.includes('Network error') || message.includes('fetch')) {
+      return new ProviderError(this.name, ProviderErrorCode.NETWORK_ERROR, message, error as Error);
+    }
+
+    if (message.includes('No news found')) {
+      return new ProviderError(this.name, ProviderErrorCode.NOT_FOUND, message, error as Error);
+    }
+
+    return new ProviderError(this.name, ProviderErrorCode.UNKNOWN, message, error as Error);
+  }
+
+  async healthCheck(): Promise<boolean> {
+    try {
+      await this.fetch('AAPL', { context: { limit: 1 } });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+}
+
+// ============================================================================
 // PROVIDER INSTANCES (Singletons)
 // ============================================================================
 
@@ -586,6 +729,12 @@ export const alphaVantageFundamentalsProvider = new AlphaVantageFundamentalsProv
 
 // Filing Providers
 export const secEdgarProvider = new SECEdgarProvider();
+
+// Commodity Providers
+export const alphaVantageCommodityProvider = new AlphaVantageCommodityProvider();
+
+// News Providers
+export const rssNewsProvider = new RSSNewsProvider();
 
 // ============================================================================
 // PROVIDER GROUPS
@@ -602,4 +751,6 @@ export const PROVIDER_GROUPS = {
   quotes: [tiingoQuoteProvider, yahooFinanceQuoteProvider, alphaVantageQuoteProvider],
   fundamentals: [yahooFinanceFundamentalsProvider, alphaVantageFundamentalsProvider],
   filings: [secEdgarProvider],
+  commodities: [alphaVantageCommodityProvider],
+  news: [rssNewsProvider],
 } as const;

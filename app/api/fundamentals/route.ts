@@ -1,15 +1,26 @@
 // app/api/fundamentals/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { financialDataService } from '@backend/modules/stocks/service/financial-data.service';
+import { financialDataService, type CompanyFundamentals } from '@backend/modules/stocks/service/financial-data.service';
 import { stockDataService } from '@backend/modules/stocks/service/stock-data.service';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
+interface FallbackFundamentals extends CompanyFundamentals {
+  timestamp: number;
+  description?: string;
+  sector?: string;
+  industry?: string;
+  debtToEquity?: number | null;
+  currentRatio?: number | null;
+  fiftyTwoWeekHigh?: number | null;
+  fiftyTwoWeekLow?: number | null;
+}
+
 interface FundamentalsResponse {
   ticker: string;
   price: number;
-  fundamentals: any;
+  fundamentals: FallbackFundamentals;
   source: 'yahoo' | 'alphavantage' | 'merged' | 'cache' | 'none';
   timestamp: number;
   debugRouteHit?: boolean;
@@ -51,24 +62,86 @@ export async function GET(request: NextRequest) {
     }
 
     // Try to fetch fundamentals, but don't fail if it's an ETF or not available
-    let fundamentals;
+    let fundamentals: FallbackFundamentals;
     try {
-      fundamentals = await financialDataService.getFundamentals(ticker);
-    } catch (error: any) {
-      console.warn(`[/api/fundamentals] Could not fetch fundamentals for ${ticker} (might be ETF/Fund): ${error.message}`);
+      const result = await financialDataService.getFundamentals(ticker);
+
+      // Handle null response (all providers failed)
+      if (!result) {
+        console.warn(`[/api/fundamentals] All providers failed for ${ticker} (might be ETF/Fund or temporary outage)`);
+        fundamentals = {
+          symbol: ticker,
+          source: 'none',
+          timestamp: Date.now(),
+          description: 'Fundamental data not available for this security (may be an ETF, commodity, or fund)',
+          marketCap: null,
+          trailingPE: null,
+          forwardPE: null,
+          pegRatio: null,
+          priceToBook: null,
+          priceToSales: null,
+          profitMargins: null,
+          operatingMargins: null,
+          returnOnAssets: null,
+          returnOnEquity: null,
+          earningsGrowth: null,
+          revenueGrowth: null,
+          earningsQuarterlyGrowth: null,
+          epsTrailing: null,
+          epsForward: null,
+          revenuePerShare: null,
+          beta: null,
+          dividendYield: null,
+          totalRevenue: null,
+          grossProfits: null,
+          freeCashflow: null,
+          operatingCashflow: null,
+        };
+      } else {
+        // Add timestamp to the result
+        fundamentals = {
+          ...result,
+          timestamp: Date.now(),
+        };
+      }
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.warn(`[/api/fundamentals] Error fetching fundamentals for ${ticker}: ${errorMessage}`);
       // Return basic response with quote only (for ETFs, commodities, etc.)
       fundamentals = {
         symbol: ticker,
         source: 'none',
         timestamp: Date.now(),
         description: 'Fundamental data not available for this security (may be an ETF, commodity, or fund)',
+        marketCap: null,
+        trailingPE: null,
+        forwardPE: null,
+        pegRatio: null,
+        priceToBook: null,
+        priceToSales: null,
+        profitMargins: null,
+        operatingMargins: null,
+        returnOnAssets: null,
+        returnOnEquity: null,
+        earningsGrowth: null,
+        revenueGrowth: null,
+        earningsQuarterlyGrowth: null,
+        epsTrailing: null,
+        epsForward: null,
+        revenuePerShare: null,
+        beta: null,
+        dividendYield: null,
+        totalRevenue: null,
+        grossProfits: null,
+        freeCashflow: null,
+        operatingCashflow: null,
       };
     }
 
     // Transform fundamentals data to match expected format for stock detail page
     const metrics = {
-      pe: fundamentals.trailingPE,
-      pb: fundamentals.priceToBook,
+      pe: fundamentals.trailingPE ?? null,
+      pb: fundamentals.priceToBook ?? null,
       evToEbitda: null, // Not available in current data
       grahamNumber: null, // Would need to calculate
       roe: fundamentals.returnOnEquity ? fundamentals.returnOnEquity * 100 : null,
@@ -76,8 +149,8 @@ export async function GET(request: NextRequest) {
       roa: fundamentals.returnOnAssets ? fundamentals.returnOnAssets * 100 : null,
       netMargin: fundamentals.profitMargins ? fundamentals.profitMargins * 100 : null,
       operatingMargin: fundamentals.operatingMargins ? fundamentals.operatingMargins * 100 : null,
-      debtToEquity: fundamentals.debtToEquity,
-      currentRatio: fundamentals.currentRatio,
+      debtToEquity: fundamentals.debtToEquity ?? null,
+      currentRatio: fundamentals.currentRatio ?? null,
       marginOfSafety: null, // Would need to calculate
     };
 
@@ -90,8 +163,8 @@ export async function GET(request: NextRequest) {
       Industry: fundamentals.industry || 'N/A',
       MarketCapitalization: fundamentals.marketCap?.toString() || '0',
       Beta: fundamentals.beta?.toString() || 'N/A',
-      '52WeekHigh': fundamentals.fiftyTwoWeekHigh || null,
-      '52WeekLow': fundamentals.fiftyTwoWeekLow || null,
+      '52WeekHigh': fundamentals.fiftyTwoWeekHigh ?? null,
+      '52WeekLow': fundamentals.fiftyTwoWeekLow ?? null,
     };
 
     const response: FundamentalsResponse = {

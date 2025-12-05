@@ -35,12 +35,12 @@
    - Deployment & rollback plans
    - **Best for:** Technical lead, senior engineers
 
-5. **[Phase 1 Quick Start](./PHASE_1_QUICK_START.md)** 🚀
-   - Day-by-day implementation guide
-   - Week 1 tasks (cache + security)
-   - Step-by-step instructions
-   - Verification checklists
-   - **Best for:** Developer implementing Phase 1
+5. **[Phase Completion Documentation](./phase-3-completion/README.md)** ✅
+   - Phase 1: Cache & security (COMPLETE)
+   - Phase 3: Provider migration (COMPLETE)
+   - Implementation summaries
+   - Test results & metrics
+   - **Best for:** Understanding what's been completed
 
 ---
 
@@ -242,6 +242,43 @@ Your quota system is **excellent** ✅. Rate limiting is:
 - Rollback plan
 
 **Who should read:** Developer implementing Phase 1
+
+---
+
+## 📚 Architecture Documentation
+
+**Note:** Detailed architecture documentation has been moved to the main docs folder for better organization:
+
+### Cache Strategy
+- **Location:** `docs/3_Architecture/CACHE_STRATEGY.md`
+- **Content:** 
+  - 3-level cache architecture (L1/L2/L3)
+  - Cache providers (Vercel KV, Upstash, In-Memory)
+  - TTL strategies per data type & tier
+  - Cache key design patterns
+  - Invalidation strategies
+  - Performance metrics & monitoring
+  - Best practices & troubleshooting
+
+### Configuration Management
+- **Location:** `docs/4_Feature_Deep_Dives/CONFIGURATION_MANAGEMENT.md`
+- **Content:**
+  - Provider configuration (Tiingo, Yahoo, Alpha Vantage)
+  - AI model configuration per tier
+  - Cache provider auto-detection
+  - API key mapping & validation
+  - Startup validation
+  - Adding new providers guide
+
+### Data Source Orchestrator
+- **Location:** `docs/4_Feature_Deep_Dives/DATA_SOURCE_ORCHESTRATOR.md`
+- **Content:**
+  - Orchestrator architecture & design
+  - Three fetch strategies (fallback, merge, batch)
+  - Provider implementation guide
+  - Circuit breaker pattern
+  - Migration from manual fallback logic
+  - Best practices & monitoring
 
 ---
 

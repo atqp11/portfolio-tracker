@@ -10,6 +10,8 @@
     "start": "next start",
     "prepare": "husky",
     "test": "jest --runInBand",
+    "test:all": "jest --runInBand",
+    "test:db": "SET SKIP_DB_TESTS=false&& jest --runInBand database-cache.adapter.test",
     "db:pull": "prisma db pull",
     "db:generate": "prisma generate",
     "db:sync": "prisma db pull && prisma generate",

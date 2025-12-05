@@ -15,6 +15,10 @@ process.env.NEXT_PUBLIC_SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || '
 process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY || 'test-key';
 process.env.SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || 'test-service-key';
 
+// Database integration tests enabled by default
+// Set SKIP_DB_TESTS=true to skip tests if no database connection
+process.env.SKIP_DB_TESTS = process.env.SKIP_DB_TESTS || 'false';
+
 // Set test timeout
 jest.setTimeout(30000);
 

@@ -2,12 +2,19 @@
  * Financial Data Service
  *
  * Business logic layer for company fundamentals and financial statements.
- * Aggregates data from multiple sources with intelligent fallback.
+ * Aggregates data from multiple sources with intelligent fallback via Data Source Orchestrator.
  *
  * Phase 1: Migrated to distributed cache (Vercel KV / Upstash Redis)
+ * Phase 2: Migrated to Data Source Orchestrator (Yahoo Finance + Alpha Vantage merge)
  */
+import { DataSourceOrchestrator } from '@lib/data-sources';
+import {
+  yahooFinanceFundamentalsProvider,
+  alphaVantageFundamentalsProvider,
+  type CompanyFundamentals,
+} from '@lib/data-sources/provider-adapters';
+import { DataResult } from '@lib/data-sources/types';
 import { alphaVantageDAO } from '@backend/modules/stocks/dao/alpha-vantage.dao';
-import { yahooFinanceDAO, YahooFundamentals } from '@backend/modules/stocks/dao/yahoo-finance.dao';
 import { getCacheAdapter, type CacheAdapter } from '@lib/cache/adapter';
 import { getCacheTTL } from '@lib/config/cache-ttl.config';
 import type { TierName } from '@lib/config/types';
@@ -15,69 +22,6 @@ import type { TierName } from '@lib/config/types';
 // ============================================================================
 // INTERFACES
 // ============================================================================
-
-export interface CompanyFundamentals {
-  symbol: string;
-
-  // Valuation metrics
-  marketCap?: number | null;
-  enterpriseValue?: number | null;
-  trailingPE?: number | null;
-  forwardPE?: number | null;
-  pegRatio?: number | null;
-  priceToBook?: number | null;
-  priceToSales?: number | null;
-
-  // Profitability metrics
-  profitMargins?: number | null;
-  operatingMargins?: number | null;
-  returnOnAssets?: number | null;
-  returnOnEquity?: number | null;
-
-  // Growth metrics
-  earningsGrowth?: number | null;
-  revenueGrowth?: number | null;
-  earningsQuarterlyGrowth?: number | null;
-
-  // Per-share metrics
-  epsTrailing?: number | null;
-  epsForward?: number | null;
-  revenuePerShare?: number | null;
-  bookValuePerShare?: number | null;
-
-  // Dividend metrics
-  dividendYield?: number | null;
-  dividendRate?: number | null;
-  payoutRatio?: number | null;
-
-  // Financial health
-  beta?: number | null;
-  totalRevenue?: number | null;
-  grossProfits?: number | null;
-  freeCashflow?: number | null;
-  operatingCashflow?: number | null;
-  totalCash?: number | null;
-  totalDebt?: number | null;
-  debtToEquity?: number | null;
-  currentRatio?: number | null;
-  quickRatio?: number | null;
-
-  // Price range
-  fiftyTwoWeekHigh?: number | null;
-  fiftyTwoWeekLow?: number | null;
-
-  // Additional metrics
-  roic?: number | null;
-  evToEbitda?: number | null;
-
-  // Company info
-  sector?: string | null;
-  industry?: string | null;
-  description?: string | null;
-
-  source: 'yahoo' | 'alphavantage' | 'merged' | 'cache';
-  timestamp: number;
-}
 
 export interface FinancialStatement {
   fiscalDateEnding: string;
@@ -94,15 +38,20 @@ export interface FinancialStatements {
   timestamp: number;
 }
 
+// Re-export CompanyFundamentals for backward compatibility
+export type { CompanyFundamentals };
+
 // ============================================================================
 // SERVICE CLASS
 // ============================================================================
 
 export class FinancialDataService {
+  private readonly orchestrator: DataSourceOrchestrator;
   private readonly cache: CacheAdapter;
   private readonly DEFAULT_TTL = 60 * 60 * 1000; // 1 hour fallback
 
   constructor() {
+    this.orchestrator = DataSourceOrchestrator.getInstance();
     this.cache = getCacheAdapter();
   }
 
@@ -117,153 +66,111 @@ export class FinancialDataService {
   }
 
   /**
-   * Get company fundamentals with intelligent source merging
+   * Get company fundamentals with intelligent multi-source merging via orchestrator
    *
-   * Strategy:
+   * Strategy (managed by orchestrator):
    * 1. Check cache (TTL based on tier)
-   * 2. Try Yahoo Finance (faster, more complete)
-   * 3. Fallback to Alpha Vantage
-   * 4. Merge both sources if available
-   * 5. Return stale cache if all fail
+   * 2. Fetch from Yahoo Finance (faster, more complete)
+   * 3. Fetch from Alpha Vantage in parallel
+   * 4. Merge both sources using merge strategy
+   * 5. Return stale cache if all fail (if allowStale: true)
    *
    * @param symbol - Stock ticker symbol
    * @param tier - User tier for TTL selection
    * @returns Comprehensive fundamentals data
    */
-  async getFundamentals(symbol: string, tier?: TierName): Promise<CompanyFundamentals> {
-    const cacheKey = `fundamentals:${symbol}:v1`;
-    const ttl = this.getCacheTTL(tier);
+  async getFundamentals(symbol: string, tier?: TierName): Promise<CompanyFundamentals | null> {
+    const result = await this.orchestrator.fetchWithMerge<CompanyFundamentals>({
+      key: symbol,
+      providers: [yahooFinanceFundamentalsProvider, alphaVantageFundamentalsProvider],
+      mergeStrategy: this.mergeFundamentalsStrategy,
+      minProviders: 1, // At least one provider must succeed
+      cacheKeyPrefix: 'fundamentals',
+      tier: tier || 'free',
+      allowStale: true,
+    });
 
-    // 1. Check cache
-    const cached = await this.cache.get<CompanyFundamentals>(cacheKey);
-    if (cached) {
-      const age = await this.cache.getAge(cacheKey);
-      console.log(`[FinancialDataService] Cache hit for ${symbol} (age: ${age}ms)`);
-      return {
-        ...cached,
-        source: 'cache'
-      };
+    if (result.data === null) {
+      console.error(`[FinancialDataService] Failed to fetch fundamentals for ${symbol}:`, result.errors);
+      return null;
     }
 
-    console.log(`[FinancialDataService] Cache miss for ${symbol}`);
-
-    let yahooData: YahooFundamentals | null = null;
-    let alphaVantageData: any | null = null;
-
-    // 2. Try Yahoo Finance (primary for fundamentals)
-    try {
-      console.log(`[FinancialDataService] Fetching ${symbol} fundamentals from Yahoo Finance`);
-      yahooData = await yahooFinanceDAO.getFundamentals(symbol);
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-      console.warn(`[FinancialDataService] Yahoo Finance failed for ${symbol}: ${errorMsg}`);
+    // Log cache/staleness info
+    if (result.cached) {
+      const ageMinutes = Math.round((result.age || 0) / 60000);
+      console.log(`[FinancialDataService] Cache hit for ${symbol} fundamentals (age: ${ageMinutes}m)`);
+    } else {
+      console.log(`[FinancialDataService] Fresh fetch for ${symbol} fundamentals from ${result.source}`);
     }
 
-    // 3. Try Alpha Vantage (fallback for company overview)
-    try {
-      console.log(`[FinancialDataService] Fetching ${symbol} overview from Alpha Vantage`);
-      alphaVantageData = await alphaVantageDAO.getCompanyOverview(symbol);
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-      console.warn(`[FinancialDataService] Alpha Vantage failed for ${symbol}: ${errorMsg}`);
-    }
-
-    // 4. Merge data from both sources if available
-    if (yahooData || alphaVantageData) {
-      const merged = this.mergeFundamentals(symbol, yahooData, alphaVantageData);
-      await this.cache.set(cacheKey, merged, ttl);
-      return merged;
-    }
-
-    // 5. Return stale cache if available
-    const staleCache = await this.cache.get<CompanyFundamentals>(cacheKey);
-    if (staleCache) {
-      console.log(`[FinancialDataService] All providers failed, returning stale cache for ${symbol}`);
-      return {
-        ...staleCache,
-        source: 'cache'
-      };
-    }
-
-    throw new Error(`Failed to fetch fundamentals for ${symbol} from all providers`);
+    return result.data;
   }
 
   /**
-   * Merge fundamentals from multiple sources
+   * Merge strategy for combining fundamentals from multiple providers
    * Prioritizes Yahoo Finance data, fills gaps with Alpha Vantage
    */
-  private mergeFundamentals(
-    symbol: string,
-    yahoo: YahooFundamentals | null,
-    alphaVantage: any | null
-  ): CompanyFundamentals {
-    const fundamentals: CompanyFundamentals = {
+  private mergeFundamentalsStrategy = (
+    results: Array<DataResult<CompanyFundamentals>>
+  ): CompanyFundamentals | null => {
+    // Extract successful results
+    const yahoo = results.find(r => r.source === 'yahooFinance' && r.data !== null)?.data;
+    const alphaVantage = results.find(r => r.source === 'alphaVantage' && r.data !== null)?.data;
+
+    // Need at least one source
+    if (!yahoo && !alphaVantage) {
+      console.warn('[FinancialDataService] Merge strategy: No successful providers');
+      return null;
+    }
+
+    const symbol = yahoo?.symbol || alphaVantage?.symbol || '';
+
+    // Merge data with priority to Yahoo Finance
+    const merged: CompanyFundamentals = {
       symbol,
-      source: yahoo && alphaVantage ? 'merged' : yahoo ? 'yahoo' : 'alphavantage',
-      timestamp: Date.now()
+      source: yahoo && alphaVantage ? 'merged' : yahoo ? 'yahooFinance' : 'alphaVantage',
+
+      // Valuation metrics (Yahoo preferred)
+      marketCap: yahoo?.marketCap ?? alphaVantage?.marketCap ?? null,
+      trailingPE: yahoo?.trailingPE ?? alphaVantage?.trailingPE ?? null,
+      forwardPE: yahoo?.forwardPE ?? alphaVantage?.forwardPE ?? null,
+      pegRatio: yahoo?.pegRatio ?? alphaVantage?.pegRatio ?? null,
+      priceToBook: yahoo?.priceToBook ?? alphaVantage?.priceToBook ?? null,
+      priceToSales: yahoo?.priceToSales ?? alphaVantage?.priceToSales ?? null,
+
+      // Profitability metrics
+      profitMargins: yahoo?.profitMargins ?? alphaVantage?.profitMargins ?? null,
+      operatingMargins: yahoo?.operatingMargins ?? alphaVantage?.operatingMargins ?? null,
+      returnOnAssets: yahoo?.returnOnAssets ?? alphaVantage?.returnOnAssets ?? null,
+      returnOnEquity: yahoo?.returnOnEquity ?? alphaVantage?.returnOnEquity ?? null,
+
+      // Growth metrics
+      earningsGrowth: yahoo?.earningsGrowth ?? alphaVantage?.earningsGrowth ?? null,
+      revenueGrowth: yahoo?.revenueGrowth ?? alphaVantage?.revenueGrowth ?? null,
+      earningsQuarterlyGrowth: yahoo?.earningsQuarterlyGrowth ?? alphaVantage?.earningsQuarterlyGrowth ?? null,
+
+      // Per-share metrics
+      epsTrailing: yahoo?.epsTrailing ?? alphaVantage?.epsTrailing ?? null,
+      epsForward: yahoo?.epsForward ?? alphaVantage?.epsForward ?? null,
+      revenuePerShare: yahoo?.revenuePerShare ?? alphaVantage?.revenuePerShare ?? null,
+
+      // Financial health
+      beta: yahoo?.beta ?? alphaVantage?.beta ?? null,
+      dividendYield: yahoo?.dividendYield ?? alphaVantage?.dividendYield ?? null,
+      totalRevenue: yahoo?.totalRevenue ?? alphaVantage?.totalRevenue ?? null,
+      grossProfits: yahoo?.grossProfits ?? alphaVantage?.grossProfits ?? null,
+      freeCashflow: yahoo?.freeCashflow ?? alphaVantage?.freeCashflow ?? null,
+      operatingCashflow: yahoo?.operatingCashflow ?? alphaVantage?.operatingCashflow ?? null,
     };
 
-    // Priority 1: Yahoo Finance data
-    if (yahoo) {
-      fundamentals.marketCap = yahoo.marketCap;
-      fundamentals.trailingPE = yahoo.trailingPE;
-      fundamentals.forwardPE = yahoo.forwardPE;
-      fundamentals.pegRatio = yahoo.pegRatio;
-      fundamentals.priceToBook = yahoo.priceToBook;
-      fundamentals.priceToSales = yahoo.priceToSales;
-      fundamentals.beta = yahoo.beta;
-      fundamentals.dividendYield = yahoo.dividendYield;
-      fundamentals.epsTrailing = yahoo.epsTrailing;
-      fundamentals.epsForward = yahoo.epsForward;
-      fundamentals.revenuePerShare = yahoo.revenuePerShare;
-      fundamentals.profitMargins = yahoo.profitMargins;
-      fundamentals.operatingMargins = yahoo.operatingMargins;
-      fundamentals.returnOnAssets = yahoo.returnOnAssets;
-      fundamentals.returnOnEquity = yahoo.returnOnEquity;
-      fundamentals.totalRevenue = yahoo.totalRevenue;
-      fundamentals.grossProfits = yahoo.grossProfits;
-      fundamentals.freeCashflow = yahoo.freeCashflow;
-      fundamentals.operatingCashflow = yahoo.operatingCashflow;
-      fundamentals.earningsGrowth = yahoo.earningsGrowth;
-      fundamentals.revenueGrowth = yahoo.revenueGrowth;
-      fundamentals.earningsQuarterlyGrowth = yahoo.earningsQuarterlyGrowth;
-    }
-
-    // Priority 2: Fill gaps with Alpha Vantage data
-    if (alphaVantage) {
-      fundamentals.marketCap = fundamentals.marketCap ?? alphaVantage.MarketCapitalization;
-      fundamentals.trailingPE = fundamentals.trailingPE ?? alphaVantage.TrailingPE;
-      fundamentals.forwardPE = fundamentals.forwardPE ?? alphaVantage.ForwardPE;
-      fundamentals.pegRatio = fundamentals.pegRatio ?? alphaVantage.PEGRatio;
-      fundamentals.priceToBook = fundamentals.priceToBook ?? alphaVantage.PriceToBookRatio;
-      fundamentals.priceToSales = fundamentals.priceToSales ?? alphaVantage.PriceToSalesRatioTTM;
-      fundamentals.beta = fundamentals.beta ?? alphaVantage.Beta;
-      fundamentals.dividendYield = fundamentals.dividendYield ?? alphaVantage.DividendYield;
-      fundamentals.epsTrailing = fundamentals.epsTrailing ?? alphaVantage.EPS;
-      fundamentals.profitMargins = fundamentals.profitMargins ?? alphaVantage.ProfitMargin;
-      fundamentals.operatingMargins = fundamentals.operatingMargins ?? alphaVantage.OperatingMarginTTM;
-      fundamentals.returnOnAssets = fundamentals.returnOnAssets ?? alphaVantage.ReturnOnAssetsTTM;
-      fundamentals.returnOnEquity = fundamentals.returnOnEquity ?? alphaVantage.ReturnOnEquityTTM;
-      fundamentals.revenuePerShare = fundamentals.revenuePerShare ?? alphaVantage.RevenuePerShareTTM;
-      fundamentals.bookValuePerShare = alphaVantage.BookValue;
-      fundamentals.dividendRate = alphaVantage.DividendPerShare;
-      fundamentals.payoutRatio = alphaVantage.PayoutRatio;
-      fundamentals.sector = alphaVantage.Sector;
-      fundamentals.industry = alphaVantage.Industry;
-      fundamentals.description = alphaVantage.Description;
-      fundamentals.debtToEquity = alphaVantage.DebtToEquityRatio;
-      fundamentals.currentRatio = alphaVantage.CurrentRatio;
-      fundamentals.quickRatio = alphaVantage.QuickRatio;
-      fundamentals.earningsQuarterlyGrowth = fundamentals.earningsQuarterlyGrowth ?? alphaVantage.QuarterlyEarningsGrowthYOY;
-      fundamentals.revenueGrowth = fundamentals.revenueGrowth ?? alphaVantage.QuarterlyRevenueGrowthYOY;
-    }
-
-    console.log(`[FinancialDataService] Merged fundamentals for ${symbol} (source: ${fundamentals.source})`);
-    return fundamentals;
-  }
+    console.log(`[FinancialDataService] Merged fundamentals for ${symbol} (source: ${merged.source})`);
+    return merged;
+  };
 
   /**
    * Get income statement (annual)
+   *
+   * Uses cache + Alpha Vantage (single provider, simple fallback).
    *
    * @param symbol - Stock ticker symbol
    * @param tier - User tier for TTL selection

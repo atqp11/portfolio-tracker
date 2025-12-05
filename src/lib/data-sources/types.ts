@@ -96,7 +96,12 @@ export interface FetchOptions {
   /**
    * Additional provider-specific parameters
    */
-  params?: Record<string, any>;
+  params?: Record<string, unknown>;
+
+  /**
+   * Additional context data passed to providers (e.g., limit, offset)
+   */
+  context?: Record<string, unknown>;
 
   /**
    * Skip cache and force fresh fetch

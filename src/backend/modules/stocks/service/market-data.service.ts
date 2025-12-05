@@ -2,231 +2,139 @@
  * Market Data Service
  *
  * Business logic layer for commodities and market data.
- * Handles caching, fallback, and error handling for commodity prices.
+ * Handles caching, fallback, and error handling via Data Source Orchestrator.
  *
  * Phase 1: Migrated to distributed cache (Vercel KV / Upstash Redis)
+ * Phase 2: Migrated to Data Source Orchestrator (Alpha Vantage → Stale → Demo fallback)
  */
-import { alphaVantageDAO, CommodityPrice } from '@backend/modules/stocks/dao/alpha-vantage.dao';
-import { getCacheAdapter, type CacheAdapter } from '@lib/cache/adapter';
-import { getCacheTTL } from '@lib/config/cache-ttl.config';
+import { DataSourceOrchestrator } from '@lib/data-sources';
+import {
+  alphaVantageCommodityProvider,
+  type CommodityData,
+} from '@lib/data-sources/provider-adapters';
 import type { TierName } from '@lib/config/types';
 
 // ============================================================================
 // INTERFACES
 // ============================================================================
 
-export interface CommodityData {
-  name: string;
-  price: number;
-  timestamp: string;
-  source: 'alphavantage' | 'cache' | 'fallback';
-}
-
 export interface EnergyCommodities {
   oil: CommodityData;
   gas: CommodityData;
 }
+
+// Re-export CommodityData for backward compatibility
+export type { CommodityData };
 
 // ============================================================================
 // SERVICE CLASS
 // ============================================================================
 
 export class MarketDataService {
-  private readonly cache: CacheAdapter;
-  private readonly DEFAULT_TTL = 4 * 60 * 60 * 1000; // 4 hours fallback
+  private readonly orchestrator: DataSourceOrchestrator;
 
   constructor() {
-    this.cache = getCacheAdapter();
+    this.orchestrator = DataSourceOrchestrator.getInstance();
   }
 
   /**
-   * Get cache TTL based on user tier
-   */
-  private getCacheTTL(tier?: TierName): number {
-    if (tier) {
-      return getCacheTTL('commodities', tier);
-    }
-    return this.DEFAULT_TTL;
-  }
-
-  /**
-   * Get WTI crude oil price
+   * Get WTI crude oil price with intelligent fallback via orchestrator
    *
-   * Strategy:
+   * Strategy (managed by orchestrator):
    * 1. Check cache (TTL based on tier)
    * 2. Try Alpha Vantage
    * 3. Return stale cache if available
-   * 4. Return fallback demo data
+   * 4. If all fail, return demo fallback data (service-level)
    *
    * @param tier - User tier for TTL selection
    * @returns Oil price data
    */
   async getOilPrice(tier?: TierName): Promise<CommodityData> {
-    const cacheKey = 'commodity:oil:v1';
-    const ttl = this.getCacheTTL(tier);
+    const result = await this.orchestrator.fetchWithFallback<CommodityData>({
+      key: 'oil',
+      providers: [alphaVantageCommodityProvider],
+      cacheKeyPrefix: 'commodities',
+      tier: tier || 'free',
+      allowStale: true, // Use stale cache before falling back to demo
+    });
 
-    // 1. Check cache
-    const cached = await this.cache.get<CommodityData>(cacheKey);
-    if (cached) {
-      const age = await this.cache.getAge(cacheKey);
-      console.log(`[MarketDataService] Cache hit for oil (age: ${age}ms)`);
-      return {
-        ...cached,
-        source: 'cache'
-      };
-    }
-
-    console.log('[MarketDataService] Cache miss for oil');
-
-    // 2. Try Alpha Vantage
-    try {
-      console.log('[MarketDataService] Fetching oil price from Alpha Vantage');
-      const oilData = await alphaVantageDAO.getWTIOil();
-
-      const result: CommodityData = {
-        name: oilData.name,
-        price: oilData.value,
-        timestamp: `${oilData.date} (Alpha Vantage)`,
-        source: 'alphavantage'
-      };
-
-      await this.cache.set(cacheKey, result, ttl);
-      console.log(`[MarketDataService] Oil price: $${result.price}`);
-      return result;
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-      console.warn(`[MarketDataService] Alpha Vantage failed for oil: ${errorMsg}`);
-
-      // 3. Return stale cache if available
-      const staleCache = await this.cache.get<CommodityData>(cacheKey);
-      if (staleCache) {
-        console.log('[MarketDataService] Returning stale cache for oil');
-        return {
-          ...staleCache,
-          source: 'cache'
-        };
+    // Log cache/staleness info
+    if (result.data !== null) {
+      if (result.cached) {
+        const ageMinutes = Math.round((result.age || 0) / 60000);
+        console.log(`[MarketDataService] Cache hit for oil (age: ${ageMinutes}m)`);
+      } else {
+        console.log(`[MarketDataService] Fresh fetch for oil from ${result.data.source}`);
       }
 
-      // 4. Return fallback demo data
-      console.log('[MarketDataService] Returning fallback data for oil');
-      return this.getFallbackOilPrice();
+      return result.data;
     }
+
+    // All providers failed - return demo fallback
+    console.log('[MarketDataService] All providers failed for oil, returning demo fallback');
+    return this.getFallbackOilPrice();
   }
 
   /**
-   * Get natural gas price
+   * Get natural gas price with intelligent fallback via orchestrator
    *
    * @param tier - User tier for TTL selection
    * @returns Natural gas price data
    */
   async getGasPrice(tier?: TierName): Promise<CommodityData> {
-    const cacheKey = 'commodity:gas:v1';
-    const ttl = this.getCacheTTL(tier);
+    const result = await this.orchestrator.fetchWithFallback<CommodityData>({
+      key: 'gas',
+      providers: [alphaVantageCommodityProvider],
+      cacheKeyPrefix: 'commodities',
+      tier: tier || 'free',
+      allowStale: true,
+    });
 
-    // 1. Check cache
-    const cached = await this.cache.get<CommodityData>(cacheKey);
-    if (cached) {
-      const age = await this.cache.getAge(cacheKey);
-      console.log(`[MarketDataService] Cache hit for gas (age: ${age}ms)`);
-      return {
-        ...cached,
-        source: 'cache'
-      };
-    }
-
-    console.log('[MarketDataService] Cache miss for gas');
-
-    // 2. Try Alpha Vantage
-    try {
-      console.log('[MarketDataService] Fetching gas price from Alpha Vantage');
-      const gasData = await alphaVantageDAO.getNaturalGas();
-
-      const result: CommodityData = {
-        name: gasData.name,
-        price: gasData.value,
-        timestamp: `${gasData.date} (Alpha Vantage)`,
-        source: 'alphavantage'
-      };
-
-      await this.cache.set(cacheKey, result, ttl);
-      console.log(`[MarketDataService] Gas price: $${result.price}`);
-      return result;
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-      console.warn(`[MarketDataService] Alpha Vantage failed for gas: ${errorMsg}`);
-
-      // 3. Return stale cache if available
-      const staleCache = await this.cache.get<CommodityData>(cacheKey);
-      if (staleCache) {
-        console.log('[MarketDataService] Returning stale cache for gas');
-        return {
-          ...staleCache,
-          source: 'cache'
-        };
+    if (result.data !== null) {
+      if (result.cached) {
+        const ageMinutes = Math.round((result.age || 0) / 60000);
+        console.log(`[MarketDataService] Cache hit for gas (age: ${ageMinutes}m)`);
+      } else {
+        console.log(`[MarketDataService] Fresh fetch for gas from ${result.data.source}`);
       }
 
-      // 4. Return fallback demo data
-      console.log('[MarketDataService] Returning fallback data for gas');
-      return this.getFallbackGasPrice();
+      return result.data;
     }
+
+    // All providers failed - return demo fallback
+    console.log('[MarketDataService] All providers failed for gas, returning demo fallback');
+    return this.getFallbackGasPrice();
   }
 
   /**
-   * Get copper price
+   * Get copper price with intelligent fallback via orchestrator
    *
    * @param tier - User tier for TTL selection
    * @returns Copper price data
    */
   async getCopperPrice(tier?: TierName): Promise<CommodityData> {
-    const cacheKey = 'commodity:copper:v1';
-    const ttl = this.getCacheTTL(tier);
+    const result = await this.orchestrator.fetchWithFallback<CommodityData>({
+      key: 'copper',
+      providers: [alphaVantageCommodityProvider],
+      cacheKeyPrefix: 'commodities',
+      tier: tier || 'free',
+      allowStale: true,
+    });
 
-    // 1. Check cache
-    const cached = await this.cache.get<CommodityData>(cacheKey);
-    if (cached) {
-      const age = await this.cache.getAge(cacheKey);
-      console.log(`[MarketDataService] Cache hit for copper (age: ${age}ms)`);
-      return {
-        ...cached,
-        source: 'cache'
-      };
-    }
-
-    console.log('[MarketDataService] Cache miss for copper');
-
-    // 2. Try Alpha Vantage
-    try {
-      console.log('[MarketDataService] Fetching copper price from Alpha Vantage');
-      const copperData = await alphaVantageDAO.getCopper();
-
-      const result: CommodityData = {
-        name: copperData.name,
-        price: copperData.value,
-        timestamp: `${copperData.date} (Alpha Vantage)`,
-        source: 'alphavantage'
-      };
-
-      await this.cache.set(cacheKey, result, ttl);
-      console.log(`[MarketDataService] Copper price: $${result.price}`);
-      return result;
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-      console.warn(`[MarketDataService] Alpha Vantage failed for copper: ${errorMsg}`);
-
-      // 3. Return stale cache if available
-      const staleCache = await this.cache.get<CommodityData>(cacheKey);
-      if (staleCache) {
-        console.log('[MarketDataService] Returning stale cache for copper');
-        return {
-          ...staleCache,
-          source: 'cache'
-        };
+    if (result.data !== null) {
+      if (result.cached) {
+        const ageMinutes = Math.round((result.age || 0) / 60000);
+        console.log(`[MarketDataService] Cache hit for copper (age: ${ageMinutes}m)`);
+      } else {
+        console.log(`[MarketDataService] Fresh fetch for copper from ${result.data.source}`);
       }
 
-      // 4. Return fallback demo data
-      console.log('[MarketDataService] Returning fallback data for copper');
-      return this.getFallbackCopperPrice();
+      return result.data;
     }
+
+    // All providers failed - return demo fallback
+    console.log('[MarketDataService] All providers failed for copper, returning demo fallback');
+    return this.getFallbackCopperPrice();
   }
 
   /**
