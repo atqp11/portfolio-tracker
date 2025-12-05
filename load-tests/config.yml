@@ -1,0 +1,96 @@
+# Artillery Load Testing Configuration
+# Used for Phase 4 hardening: stress testing cache, circuit breaker, and API providers
+
+config:
+  target: "{{ $processEnvironment.API_BASE_URL | default('http://localhost:3000') }}"
+  phases:
+    - duration: 60
+      arrivalRate: 10
+      name: "Warm up phase"
+    - duration: 120
+      arrivalRate: 50
+      name: "Ramp up to medium load"
+    - duration: 60
+      arrivalRate: 100
+      name: "Peak load"
+    - duration: 60
+      arrivalRate: 10
+      name: "Cool down"
+
+  processor: "./processor.js"
+  variables:
+    baseUrl: "{{ $processEnvironment.API_BASE_URL | default('http://localhost:3000') }}"
+  
+  # Timeout and retry configuration
+  timeout: 10
+  http:
+    timeout: 10000
+    max: 100  # Max concurrent connections
+
+  # Setup environment
+  variables:
+    symbols:
+      - "AAPL"
+      - "MSFT"
+      - "GOOGL"
+      - "TSLA"
+      - "AMZN"
+    commodities:
+      - "gold"
+      - "silver"
+      - "oil"
+      - "copper"
+
+scenarios:
+  - name: "Cache Hit - Quote API"
+    weight: 30
+    flow:
+      - get:
+          url: "/api/quote?symbol={{ symbols[0] }}"
+          capture:
+            json: "$.price"
+            as: "price"
+          expect:
+            - statusCode: [200]
+            - contentType: json
+          timeout: 5000
+
+  - name: "Cache Miss - Fresh Quote"
+    weight: 20
+    flow:
+      - get:
+          url: "/api/quote?symbol={{ symbols | random }}&fresh=true"
+          expect:
+            - statusCode: [200]
+            - contentType: json
+          timeout: 10000
+
+  - name: "Fundamental Metrics"
+    weight: 25
+    flow:
+      - get:
+          url: "/api/fundamentals/{{ symbols | random }}"
+          expect:
+            - statusCode: [200, 404]  # 404 if fundamentals not available
+            - contentType: json
+          timeout: 8000
+
+  - name: "Commodities Data"
+    weight: 15
+    flow:
+      - get:
+          url: "/api/commodities/{{ commodities | random }}"
+          expect:
+            - statusCode: [200]
+            - contentType: json
+          timeout: 5000
+
+  - name: "Portfolio Risk Metrics"
+    weight: 10
+    flow:
+      - get:
+          url: "/api/risk-metrics?symbols={{ symbols | random }},{{ symbols | random }}"
+          expect:
+            - statusCode: [200, 400]  # 400 if symbols invalid
+            - contentType: json
+          timeout: 10000
