@@ -13,6 +13,8 @@ Your portfolio tracker has **excellent quota enforcement** ✅ but is **missing 
 
 **Verdict:** Rate limiting is **MEDIUM priority** (not critical) since your quota system already prevents catastrophic costs. However, it's **recommended** for better UX and DDoS protection.
 
+> NOTE: User-level rate limiting is intended as a later-phase / post‑MVP enhancement — it's documented here for planning and prioritization but is not required for an immediate MVP rollout.
+
 ---
 
 ## What You Already Have ✅
@@ -92,7 +94,7 @@ Example:
 
 **Implementation (From Docs):**
 - Documented in `docs/4_Feature_Deep_Dives/AI_SYSTEM_DESIGN_MVP.md:167`
-- **Status:** ❌ Not Implemented
+- **Status:** ❌ Not Implemented (targeted for later phase / post‑MVP)
 - **Designed:** Upstash rate limiter (20 req/min per user)
 
 ---
@@ -289,6 +291,16 @@ export async function POST(request: NextRequest) {
 2. **Decide on tier strategy** (will you offer unlimited plans?)
 3. **If unlimited planned:** Add rate limiting to Week 1 of production readiness plan
 4. **If finite quotas only:** Keep rate limiting as Month 2 nice-to-have
+
+---
+
+## Roadmap / Scheduling
+
+User-level rate limiting is planned as a later-phase enhancement (post‑MVP). Linking and prioritization are intentionally deferred so MVP launch focuses on cache refactor and quota enforcement.
+
+- Target: Post‑MVP / Month 2 (unless unlimited-tier is introduced earlier) 
+- Docs: Details and implementation notes live in `docs/4_Feature_Deep_Dives/AI_SYSTEM_DESIGN_MVP.md`
+
 
 ---
 

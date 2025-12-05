@@ -164,16 +164,18 @@ These features are **required** before launching to real users:
 
 ---
 
-#### 2. ⚠️ Rate Limiting (TODO - CRITICAL)
+#### 2. ⚠️ Rate Limiting (TODO - TARGETED POST‑MVP)
 
-**Status**: ❌ Not Implemented
-**Priority**: 🔴 Critical (prevents abuse)
-**Timeline**: 4 hours
+**Status**: ❌ Not Implemented (targeted for later phase / post‑MVP — see roadmap)
+**Priority**: 🔴 Critical if unlimited tier is planned; otherwise Medium for MVP
+**Timeline**: 4 hours (deferred unless unlimited tier is introduced)
 
 **Requirements**:
 - 20 requests per minute per user
 - Return 429 with clear error message
 - Frontend already handles rate limit errors
+
+> NOTE: Product planning (see `product/Planning/refactoring/production-readiness-2024/QUOTA_VS_RATE_LIMITING.md`) marks user-level rate limiting as a later-phase/post‑MVP enhancement for current rollout. Implement as early as Week 1 if you plan an unlimited tier; otherwise schedule for Month 2 to improve UX and burst protection.
 
 **Implementation**:
 
