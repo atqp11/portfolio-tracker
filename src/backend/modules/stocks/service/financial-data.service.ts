@@ -62,6 +62,14 @@ export interface CompanyFundamentals {
   currentRatio?: number | null;
   quickRatio?: number | null;
 
+  // Price range
+  fiftyTwoWeekHigh?: number | null;
+  fiftyTwoWeekLow?: number | null;
+
+  // Additional metrics
+  roic?: number | null;
+  evToEbitda?: number | null;
+
   // Company info
   sector?: string | null;
   industry?: string | null;

@@ -70,6 +70,12 @@ export default function FundamentalsPage() {
             const data = await response.json();
             const fundamentals = data.fundamentals || {};
 
+            // Check if this is an ETF/Fund with no fundamental data
+            const isETF = fundamentals.source === 'none' || 
+                         fundamentals.description?.includes('not available') ||
+                         fundamentals.description?.includes('ETF') ||
+                         fundamentals.description?.includes('fund');
+
             // Helper to parse string or number values
             const parseValue = (val: any): number | undefined => {
               if (val === null || val === undefined) return undefined;
@@ -81,9 +87,9 @@ export default function FundamentalsPage() {
               symbol: stock.symbol,
               name: stock.name || stock.symbol,
               price: stock.currentPrice || data.price || 0,
-              pe: parseValue(fundamentals.pe || fundamentals.peRatio || fundamentals.trailingPE),
-              eps: parseValue(fundamentals.eps || fundamentals.epsTrailing),
-              marketCap: parseValue(fundamentals.marketCap),
+              pe: isETF ? undefined : parseValue(fundamentals.pe || fundamentals.peRatio || fundamentals.trailingPE),
+              eps: isETF ? undefined : parseValue(fundamentals.eps || fundamentals.epsTrailing),
+              marketCap: isETF ? undefined : parseValue(fundamentals.marketCap),
               dividend: parseValue(fundamentals.dividendYield || fundamentals.dividend),
               beta: parseValue(fundamentals.beta),
               week52High: parseValue(fundamentals.week52High || fundamentals.fiftyTwoWeekHigh),

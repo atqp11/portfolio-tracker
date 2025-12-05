@@ -36,6 +36,12 @@ export interface YahooFundamentals {
   earningsGrowth?: number | null;
   revenueGrowth?: number | null;
   earningsQuarterlyGrowth?: number | null;
+  fiftyTwoWeekHigh?: number | null;
+  fiftyTwoWeekLow?: number | null;
+  currentRatio?: number | null;
+  debtToEquity?: number | null;
+  roic?: number | null;
+  evToEbitda?: number | null;
   [key: string]: any;
 }
 
@@ -191,7 +197,13 @@ export class YahooFinanceDAO extends BaseDAO {
       operatingCashflow: financialData.operatingCashflow?.raw || null,
       earningsGrowth: financialData.earningsGrowth?.raw || null,
       revenueGrowth: financialData.revenueGrowth?.raw || null,
-      earningsQuarterlyGrowth: defaultKeyStats.earningsQuarterlyGrowth?.raw || null
+      earningsQuarterlyGrowth: defaultKeyStats.earningsQuarterlyGrowth?.raw || null,
+      fiftyTwoWeekHigh: summaryDetail.fiftyTwoWeekHigh?.raw || null,
+      fiftyTwoWeekLow: summaryDetail.fiftyTwoWeekLow?.raw || null,
+      currentRatio: financialData.currentRatio?.raw || null,
+      debtToEquity: financialData.debtToEquity?.raw || null,
+      roic: financialData.returnOnInvestedCapital?.raw || null,
+      evToEbitda: defaultKeyStats.enterpriseToEbitda?.raw || null
     };
 
     console.log(`Yahoo Finance fundamentals for ${symbol}:`, fundamentals);

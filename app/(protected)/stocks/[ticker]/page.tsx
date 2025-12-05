@@ -9,6 +9,7 @@ import Navigation from '@/components/Navigation';
 interface FundamentalsData {
   ticker: string;
   price: number;
+  fundamentals: any;
   metrics: any;
   overview: any;
   income: any;
@@ -27,6 +28,13 @@ export default function StockDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Helper to parse string or number values
+  const parseValue = (val: any): number | undefined => {
+    if (val === null || val === undefined) return undefined;
+    const num = typeof val === 'string' ? parseFloat(val) : val;
+    return isNaN(num) ? undefined : num;
+  };
+
   useEffect(() => {
     if (!ticker) return;
 
@@ -35,7 +43,12 @@ export default function StockDetailPage() {
       setError(null);
 
       try {
-        const response = await fetch(`/api/fundamentals?ticker=${ticker.toUpperCase()}`);
+        const response = await fetch(`/api/fundamentals?ticker=${ticker.toUpperCase()}`, {
+          cache: 'no-store',
+          headers: {
+            'Cache-Control': 'no-cache',
+          }
+        });
         
         if (!response.ok) {
           const errorData = await response.json();
@@ -43,6 +56,9 @@ export default function StockDetailPage() {
         }
 
         const data = await response.json();
+        console.log('[Stock Detail] API Response:', data);
+        console.log('[Stock Detail] Fundamentals:', data.fundamentals);
+        console.log('[Stock Detail] TrailingPE:', data.fundamentals?.trailingPE);
         setFundamentals(data);
       } catch (err: any) {
         console.error('Error fetching fundamentals:', err);
@@ -160,13 +176,17 @@ export default function StockDetailPage() {
                   <div>
                     <div className="text-[#71717A] text-sm mb-1">52W High</div>
                     <div className="text-[#10B981] font-semibold">
-                      ${parseFloat(fundamentals.overview?.['52WeekHigh'] || 0).toFixed(2)}
+                      {parseValue(fundamentals.overview?.['52WeekHigh']) !== undefined 
+                        ? `$${parseValue(fundamentals.overview?.['52WeekHigh'])!.toFixed(2)}` 
+                        : 'N/A'}
                     </div>
                   </div>
                   <div>
                     <div className="text-[#71717A] text-sm mb-1">52W Low</div>
                     <div className="text-[#EF4444] font-semibold">
-                      ${parseFloat(fundamentals.overview?.['52WeekLow'] || 0).toFixed(2)}
+                      {parseValue(fundamentals.overview?.['52WeekLow']) !== undefined 
+                        ? `$${parseValue(fundamentals.overview?.['52WeekLow'])!.toFixed(2)}` 
+                        : 'N/A'}
                     </div>
                   </div>
                 </div>
@@ -180,25 +200,25 @@ export default function StockDetailPage() {
                 {/* Valuation Metrics */}
                 <FundamentalMetricCard
                   name="P/E Ratio"
-                  value={fundamentals.metrics?.pe ?? "N/A"}
+                  value={parseValue(fundamentals.fundamentals?.trailingPE ?? fundamentals.fundamentals?.pe) ?? null}
                   indicator={fundamentals.metrics?.peIndicator}
                   description="Price-to-Earnings ratio. Lower is generally better for value investors."
                 />
                 <FundamentalMetricCard
                   name="P/B Ratio"
-                  value={fundamentals.metrics?.pb ?? "N/A"}
+                  value={parseValue(fundamentals.fundamentals?.priceToBook ?? fundamentals.fundamentals?.pb) ?? null}
                   indicator={fundamentals.metrics?.pbIndicator}
                   description="Price-to-Book ratio. Below 1.0 suggests stock may be undervalued."
                 />
                 <FundamentalMetricCard
                   name="EV/EBITDA"
-                  value={fundamentals.metrics?.evToEbitda ?? "N/A"}
+                  value={parseValue(fundamentals.fundamentals?.evToEbitda) ?? null}
                   indicator={fundamentals.metrics?.evEbitdaIndicator}
                   description="Enterprise Value to EBITDA. Measures company value relative to earnings."
                 />
                 <FundamentalMetricCard
                   name="Graham Number"
-                  value={fundamentals.metrics?.grahamNumber ?? "N/A"}
+                  value={parseValue(fundamentals.metrics?.grahamNumber) ?? null}
                   unit=""
                   description="Intrinsic value estimate using Benjamin Graham's formula."
                 />
@@ -206,25 +226,25 @@ export default function StockDetailPage() {
                 {/* Profitability Metrics */}
                 <FundamentalMetricCard
                   name="ROE"
-                  value={fundamentals.metrics?.roe ?? "N/A"}
+                  value={parseValue(fundamentals.fundamentals?.returnOnEquity) !== undefined ? parseValue(fundamentals.fundamentals?.returnOnEquity)! * 100 : null}
                   unit="%"
                   description="Return on Equity. Measures profitability relative to shareholder equity."
                 />
                 <FundamentalMetricCard
                   name="ROIC"
-                  value={fundamentals.metrics?.roic ?? "N/A"}
+                  value={parseValue(fundamentals.fundamentals?.roic) !== undefined ? parseValue(fundamentals.fundamentals?.roic)! * 100 : null}
                   unit="%"
                   description="Return on Invested Capital. Warren Buffett's preferred metric."
                 />
                 <FundamentalMetricCard
                   name="ROA"
-                  value={fundamentals.metrics?.roa ?? "N/A"}
+                  value={parseValue(fundamentals.fundamentals?.returnOnAssets) !== undefined ? parseValue(fundamentals.fundamentals?.returnOnAssets)! * 100 : null}
                   unit="%"
                   description="Return on Assets. Measures how efficiently company uses assets."
                 />
                 <FundamentalMetricCard
                   name="Net Margin"
-                  value={fundamentals.metrics?.netMargin ?? "N/A"}
+                  value={parseValue(fundamentals.fundamentals?.profitMargins) !== undefined ? parseValue(fundamentals.fundamentals?.profitMargins)! * 100 : null}
                   unit="%"
                   description="Net profit margin. Higher margins indicate better profitability."
                 />
@@ -232,25 +252,25 @@ export default function StockDetailPage() {
                 {/* Leverage & Liquidity */}
                 <FundamentalMetricCard
                   name="Debt/Equity"
-                  value={fundamentals.metrics?.debtToEquity ?? "N/A"}
+                  value={parseValue(fundamentals.fundamentals?.debtToEquity) ?? null}
                   description="Debt-to-Equity ratio. Lower values indicate less financial risk."
                 />
                 <FundamentalMetricCard
                   name="Current Ratio"
-                  value={fundamentals.metrics?.currentRatio ?? "N/A"}
+                  value={parseValue(fundamentals.fundamentals?.currentRatio) ?? null}
                   description="Current assets / Current liabilities. Above 1.5 is healthy."
                 />
                 
                 {/* Value Investing */}
                 <FundamentalMetricCard
                   name="Margin of Safety"
-                  value={fundamentals.metrics?.marginOfSafety ?? "N/A"}
+                  value={fundamentals.metrics?.marginOfSafety ?? null}
                   unit="%"
                   description="Difference between intrinsic value and current price. Higher is better."
                 />
                 <FundamentalMetricCard
                   name="Operating Margin"
-                  value={fundamentals.metrics?.operatingMargin ?? "N/A"}
+                  value={parseValue(fundamentals.fundamentals?.operatingMargins) !== undefined ? parseValue(fundamentals.fundamentals?.operatingMargins)! * 100 : null}
                   unit="%"
                   description="Operating profit margin. Indicates operational efficiency."
                 />

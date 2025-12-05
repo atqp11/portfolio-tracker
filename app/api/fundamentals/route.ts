@@ -90,8 +90,8 @@ export async function GET(request: NextRequest) {
       Industry: fundamentals.industry || 'N/A',
       MarketCapitalization: fundamentals.marketCap?.toString() || '0',
       Beta: fundamentals.beta?.toString() || 'N/A',
-      '52WeekHigh': null, // Not in fundamentals
-      '52WeekLow': null, // Not in fundamentals
+      '52WeekHigh': fundamentals.fiftyTwoWeekHigh || null,
+      '52WeekLow': fundamentals.fiftyTwoWeekLow || null,
     };
 
     const response: FundamentalsResponse = {
