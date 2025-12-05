@@ -34,6 +34,123 @@ src/
 ```
 **Why:** Enhances discoverability, reduces coupling, and simplifies maintenance for larger teams and complex applications.
 
+## Architecture Patterns
+
+### Layer Separation and Responsibilities
+
+All API endpoints must follow this standardized 5-layer architecture:
+
+```
+API Route → Middleware Stack → Controller Class → Service Layer → DAO Layer
+```
+
+#### Layer Responsibilities (Authoritative)
+
+**Middleware Layer** (`src/backend/common/middleware/`)
+- ✅ Authentication checks (`withAuth`)
+- ✅ Request validation using Zod (`withValidation`)
+- ✅ Quota/rate limiting (`withQuota`)
+- ✅ Top-level error handling (`withErrorHandler`)
+- Applied via composition in route handlers
+
+**Controller Layer** (`src/backend/modules/[feature]/[feature].controller.ts`)
+- ✅ Extract data from NextRequest/query params
+- ✅ Call appropriate service method
+- ✅ Format service response into NextResponse
+- ✅ Set HTTP status codes
+- ❌ NO business logic
+- ❌ NO validation (middleware's job)
+- ❌ NO quota checks (middleware's job)
+- ❌ NO error handling (middleware's job)
+- ❌ NO direct database access
+
+**Service Layer** (`src/backend/modules/[feature]/service/[feature].service.ts`)
+- ✅ Business rules and orchestration
+- ✅ Usage tracking
+- ✅ Data transformation
+- ✅ External API calls
+- ✅ Multi-step operations
+- ✅ Domain-specific logic
+- ❌ NO HTTP concerns (req/res)
+- ❌ NO direct database queries (use DAO)
+
+**DAO Layer** (`src/backend/modules/[feature]/dao/[feature].dao.ts`)
+- ✅ Database queries
+- ✅ ORM operations (Prisma/Supabase)
+- ✅ Data mapping
+- ❌ NO business logic
+
+#### Anti-Pattern: Bloated Controllers
+
+**Critical Rule:** Controllers must be thin. If your controller has significant logic beyond "extract → call service → format response", that logic belongs in the service layer.
+
+```typescript
+// ✅ GOOD - Thin controller
+export class StockController {
+  async getQuote(req: NextRequest, { query }: { query: { symbol: string } }) {
+    const quote = await stockService.getQuote(query.symbol);
+    return NextResponse.json({ success: true, data: quote });
+  }
+}
+
+// ❌ BAD - Controller with business logic
+export class StockController {
+  async getQuote(req: NextRequest, { query }: { query: { symbol: string } }) {
+    // ❌ Quota check belongs in middleware
+    const quotaCheck = await checkQuota(userId, 'quote');
+    if (!quotaCheck.allowed) throw new Error('Quota exceeded');
+    
+    // ❌ Data fetching and transformation belongs in service
+    const quote = await alphavantageDao.fetchQuote(query.symbol);
+    const enriched = this.enrichQuoteWithMetrics(quote);
+    await trackUsage(userId, 'quote');
+    
+    return NextResponse.json({ success: true, data: enriched });
+  }
+}
+```
+
+**Example: Complete Stack**
+
+```typescript
+// app/api/portfolio/route.ts (Thin wrapper)
+export const GET = withErrorHandler(
+  withAuth(
+    withValidation(undefined, getPortfolioQuerySchema)(
+      (req: NextRequest, context: any) => portfolioController.get(req, context)
+    )
+  )
+);
+
+// src/backend/modules/portfolio/portfolio.controller.ts (HTTP concerns)
+export class PortfolioController {
+  async get(request: NextRequest, { query }: { query: { id?: string } }) {
+    if (query.id) {
+      const portfolio = await portfolioService.findById(query.id);
+      return NextResponse.json({ success: true, data: portfolio });
+    }
+    const portfolios = await portfolioService.findAll();
+    return NextResponse.json({ success: true, data: portfolios });
+  }
+}
+
+// src/backend/modules/portfolio/service/portfolio.service.ts (Business logic)
+class PortfolioService {
+  async findById(id: string): Promise<Portfolio> {
+    const portfolio = await portfolioDao.findById(id);
+    if (!portfolio) throw new NotFoundError('Portfolio');
+    return this.enrichWithMetrics(portfolio);
+  }
+}
+
+// src/backend/modules/portfolio/dao/portfolio.dao.ts (Data access)
+class PortfolioDao {
+  async findById(id: string): Promise<Portfolio | null> {
+    return await db.portfolio.findUnique({ where: { id } });
+  }
+}
+```
+
 ## Code Conventions
 
 ### Import Patterns

@@ -54,12 +54,106 @@ This list highlights the most important files and directories for understanding 
 
 ### 3.1. Layer Separation
 
-The application is designed with distinct layers to ensure maintainability and scalability.
+The application follows a strict 5-layer architecture with clear separation of concerns:
 
-- **Presentation Layer (Frontend):** Located in `app/` and `components/`. This layer is responsible for the user interface and user experience. It is built with React and Next.js, following a client-first rendering strategy.
-- **API Layer (Backend For Frontend):** Located in `app/api/`. These are Next.js API routes that act as a gateway between the frontend and backend services. They handle request validation, authentication, and data transformation.
-- **Business Logic Layer:** Located in `src/backend/modules/`. This layer contains the core business logic of the application, independent of the web framework.
-- **Data Access Layer:** This layer is responsible for all database interactions. It employs a hybrid strategy, using both Supabase's RLS-protected client and Prisma.
+```
+API Route → Middleware Stack → Controller Class → Service Layer → DAO Layer
+   ↓            ↓                    ↓                 ↓            ↓
+  HTTP      Auth/Quota/         HTTP Logic       Business      Database
+  Entry     Validation                           Logic         Access
+```
+
+#### Layer Responsibilities
+
+**1. Presentation Layer (Frontend)**
+- **Location:** `app/` and `components/`
+- **Purpose:** User interface and user experience
+- **Technology:** React and Next.js with Server Components
+
+**2. API Route Layer**
+- **Location:** `app/api/*`
+- **Purpose:** HTTP entry point - delegates to middleware and controllers
+- **Rules:** Must be thin wrappers with NO business logic
+
+**3. Middleware Layer**
+- **Location:** `src/backend/common/middleware/`
+- **Handles:**
+  - ✅ Authentication (`withAuth`)
+  - ✅ Request validation (`withValidation` using Zod)
+  - ✅ Quota/rate limiting (`withQuota`)
+  - ✅ Top-level error handling (`withErrorHandler`)
+
+**4. Controller Layer (HTTP Concerns)**
+- **Location:** `src/backend/modules/[feature]/[feature].controller.ts`
+- **Responsibilities:**
+  - ✅ Extract data from NextRequest/query params
+  - ✅ Call appropriate service method
+  - ✅ Format service response into NextResponse
+  - ✅ Set HTTP status codes
+- **Anti-patterns (What NOT to do):**
+  - ❌ NO business logic
+  - ❌ NO validation (done by middleware)
+  - ❌ NO quota checks (done by middleware)
+  - ❌ NO error handling (done by middleware)
+  - ❌ NO direct database access
+  - ❌ NO significant logic beyond extract → delegate → format
+
+**5. Service Layer (Business Logic)**
+- **Location:** `src/backend/modules/[feature]/service/[feature].service.ts`
+- **Responsibilities:**
+  - ✅ Business rules and orchestration
+  - ✅ Usage tracking
+  - ✅ Data transformation
+  - ✅ External API calls
+  - ✅ Multi-step operations
+  - ✅ Domain-specific logic
+- **Anti-patterns:**
+  - ❌ NO HTTP concerns (req/res)
+  - ❌ NO direct database queries (use DAO)
+
+**6. DAO Layer (Data Access)**
+- **Location:** `src/backend/modules/[feature]/dao/[feature].dao.ts`
+- **Responsibilities:**
+  - ✅ Database queries
+  - ✅ ORM operations (Prisma/Supabase)
+  - ✅ Data mapping
+- **Anti-patterns:**
+  - ❌ NO business logic
+
+#### Critical Rule: Controllers Must Be Thin
+
+**Warning:** If your controller has significant logic beyond "extract → call service → format response", that logic belongs in the service layer. Controllers should be thin wrappers, NOT boilerplate duplicates of service code.
+
+**Example of Proper Separation:**
+
+```typescript
+// ✅ GOOD - Controller is thin
+class PortfolioController {
+  async get(request: NextRequest, { query }: { query: { id?: string } }) {
+    if (query.id) {
+      const portfolio = await portfolioService.findById(query.id);
+      return NextResponse.json({ success: true, data: portfolio });
+    }
+    const portfolios = await portfolioService.findAll();
+    return NextResponse.json({ success: true, data: portfolios });
+  }
+}
+
+// ❌ BAD - Controller has business logic
+class PortfolioController {
+  async get(request: NextRequest, { query }: { query: { id?: string } }) {
+    // ❌ Quota check belongs in middleware or service
+    const quotaCheck = await checkQuota(userId, 'portfolio');
+    if (!quotaCheck.allowed) throw new Error('Quota exceeded');
+    
+    // ❌ Data transformation belongs in service
+    const portfolio = await portfolioDao.findById(query.id);
+    const enriched = await this.enrichWithMarketData(portfolio);
+    
+    return NextResponse.json({ success: true, data: enriched });
+  }
+}
+```
 
 ### 3.2. Data Strategy
 
