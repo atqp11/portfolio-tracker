@@ -5,7 +5,7 @@ jest.mock('@backend/modules/stocks/repository/stock.repository');
 jest.mock('@backend/modules/portfolio/service/portfolio.service');
 jest.mock('@backend/modules/stocks/service/stock.service');
 
-import { createMockRequest, extractJSON, mockUserSession } from '../helpers/test-utils';
+import { createMockRequest, extractJSON, mockUserSession } from '@test/helpers/test-utils';
 import * as authSession from '@lib/auth/session';
 import { portfolioRepository } from '@backend/modules/portfolio/repository/portfolio.repository';
 import { stockRepository } from '@backend/modules/stocks/repository/stock.repository';

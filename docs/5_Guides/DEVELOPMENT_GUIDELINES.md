@@ -2630,6 +2630,20 @@ export function reportWebVitals(metric: any) {
 
 ## Testing Approach
 
+### Test File Organization
+
+Follow Jest's standard convention for organizing test files. Place test files in a `__tests__` directory under the code being tested. This ensures a clear association between the test files and the code they validate.
+
+**Example:**
+```
+api/
+├── auth/
+│   ├── index.ts
+│   └── __tests__/
+│       └── auth.test.ts
+```
+**Why:** This structure improves test discoverability and aligns with widely accepted best practices.
+
 ### 1. Unit Tests (Jest)
 
 **Test business logic and utilities:**

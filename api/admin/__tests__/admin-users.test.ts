@@ -5,7 +5,7 @@
  */
 
 import { GET } from '@app/api/admin/users/route';
-import { createMockRequest, extractJSON } from '../helpers/test-utils';
+import { createMockRequest, extractJSON } from '@test/helpers/test-utils';
 import * as adminAuth from '@lib/auth/admin';
 import * as supabaseDb from '@lib/supabase/db';
 import { NextResponse } from 'next/server';

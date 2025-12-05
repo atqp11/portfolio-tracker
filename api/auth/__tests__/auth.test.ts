@@ -7,7 +7,7 @@
 import { POST as SignOut } from '@app/api/auth/signout/route';
 import { GET as GetUser } from '@app/api/auth/user/route';
 import { POST as CreateUser } from '@app/api/auth/create-user/route';
-import { createMockRequest, extractJSON } from '../helpers/test-utils';
+import { createMockRequest, extractJSON } from '@test/helpers/test-utils';
 import * as supabaseDb from '@lib/supabase/db';
 
 // Mock dependencies

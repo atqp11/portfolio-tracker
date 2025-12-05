@@ -20,6 +20,20 @@
 - The app is currently forced to use Alpha Vantage for stock quotes (see `app/api/quote/route.ts`).
 - The FMP client remains in the codebase (`lib/api/fmp.ts`) as a reference; it uses the `/stable` endpoints and per-symbol `/quote?symbol=` requests to support free-tier accounts.
 
+### Developer testing organization
+
+Tests are organized using Jest's standard convention: place test files in a `__tests__` folder next to the code being tested. This keeps tests close to the implementation and improves discoverability.
+
+Examples:
+
+```
+api/auth/__tests__/auth.test.ts
+src/lib/__tests__/calculator.spec.ts
+src/__tests__/helpers/test-utils.ts
+```
+
+The project maps the `@test/*` import alias to `src/__tests__/*` in `jest.config.cjs` so shared test helpers can be imported consistently.
+
 ## Portfolio Change Quota (AI batch refresh)
 
 - Purpose: Track client-initiated portfolio batch refreshes when the user's portfolio changes.

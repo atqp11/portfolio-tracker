@@ -14,8 +14,8 @@ jest.mock('@lib/tiers/usage-tracker', () => ({
   trackUsage: jest.fn(),
 }));
 
-import { createMockRequest, extractJSON, mockUserSession } from '../helpers/test-utils';
-import { createMockPortfolio } from '../helpers/mock-data';
+import { createMockRequest, extractJSON, mockUserSession } from '@test/helpers/test-utils';
+import { createMockPortfolio } from '@test/helpers/mock-data';
 import * as authSession from '@lib/auth/session';
 import { portfolioService } from '@backend/modules/portfolio/service/portfolio.service';
 import { portfolioRepository } from '@backend/modules/portfolio/repository/portfolio.repository';

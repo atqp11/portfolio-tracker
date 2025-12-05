@@ -3,7 +3,7 @@
  */
 
 import { POST } from '@app/api/thesis/route';
-import { createMockRequest, extractJSON } from '../helpers/test-utils';
+import { createMockRequest, extractJSON } from '@test/helpers/test-utils';
 import { thesisRepository } from '@backend/modules/thesis/repository/thesis.repository';
 import * as authSession from '@lib/auth/session';
 

@@ -5,7 +5,7 @@
  */
 
 import { GET } from '@app/api/quote/route';
-import { createMockRequest, extractJSON } from '../helpers/test-utils';
+import { createMockRequest, extractJSON } from '@test/helpers/test-utils';
 import { stockDataService } from '@backend/modules/stocks/service/stock-data.service';
 
 // Mock dependencies

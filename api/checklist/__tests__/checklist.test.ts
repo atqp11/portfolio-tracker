@@ -3,7 +3,7 @@
  */
 
 import { GET, POST, PUT, DELETE } from '@app/api/checklist/route';
-import { createMockRequest, extractJSON } from '../helpers/test-utils';
+import { createMockRequest, extractJSON } from '@test/helpers/test-utils';
 import { checklistRepository } from '@backend/modules/checklist/repository/checklist.repository';
 import * as authSession from '@lib/auth/session';
 

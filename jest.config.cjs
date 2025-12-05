@@ -1,8 +1,8 @@
 module.exports = {
   preset: 'ts-jest',
   testEnvironment: 'node',
-  roots: ['<rootDir>/src/test', '<rootDir>/src/backend', '<rootDir>/src/lib'],
-  setupFilesAfterEnv: ['<rootDir>/src/test/setup.ts'],
+  roots: ['<rootDir>/src', '<rootDir>/api', '<rootDir>/src/backend'],
+  setupFilesAfterEnv: ['<rootDir>/src/__tests__/setup.ts'],
   transform: {
     '^.+\\.(ts|tsx)$': ['ts-jest', { tsconfig: 'tsconfig.json', useESM: true }],
   },
@@ -13,7 +13,7 @@ module.exports = {
     '^@lib/(.*)$': '<rootDir>/src/lib/$1',
     '^@app/(.*)$': '<rootDir>/app/$1',
     '^@src/(.*)$': '<rootDir>/src/$1',
-    '^@test/(.*)$': '<rootDir>/src/test/$1',
+    '^@test/(.*)$': '<rootDir>/src/__tests__/$1',
     '^@shared/(.*)$': '<rootDir>/src/shared/$1'
   },
   moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json', 'node'],

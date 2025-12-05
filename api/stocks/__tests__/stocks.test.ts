@@ -5,7 +5,7 @@
  */
 
 import { GET, POST, PUT, DELETE } from '@app/api/stocks/route';
-import { createMockRequest, extractJSON } from '../helpers/test-utils';
+import { createMockRequest, extractJSON } from '@test/helpers/test-utils';
 import { stockService } from '@backend/modules/stocks/service/stock.service';
 import { stockRepository } from '@backend/modules/stocks/repository/stock.repository';
 import { NotFoundError } from '@backend/common/middleware/error-handler.middleware';

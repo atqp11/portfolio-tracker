@@ -5,7 +5,7 @@
  */
 
 import { GET, POST, PUT, DELETE } from '@app/api/tasks/route';
-import { createMockRequest, extractJSON } from '../helpers/test-utils';
+import { createMockRequest, extractJSON } from '@test/helpers/test-utils';
 import { taskService } from '@backend/modules/tasks/service/task.service';
 import { NotFoundError } from '@backend/common/middleware/error-handler.middleware';
 import { getUser, getUserProfile } from '@lib/auth/session';
