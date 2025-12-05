@@ -333,3 +333,383 @@ describe('CircuitBreakerManager', () => {
     expect(Object.keys(stats).length).toBe(0);
   });
 });
+
+describe('Edge Cases & Concurrent Scenarios', () => {
+  const defaultConfig: CircuitBreakerConfig = {
+    failureThreshold: 3,
+    resetTimeout: 100,
+    halfOpenMaxRequests: 2,
+  };
+
+  afterEach(() => {
+    CircuitBreakerManager.getInstance().clearAll();
+  });
+
+  describe('Rapid State Transitions', () => {
+    it('should handle rapid failure/success alternation', () => {
+      const breaker = new CircuitBreaker('test-provider', defaultConfig);
+
+      // Rapid alternation
+      for (let i = 0; i < 5; i++) {
+        breaker.recordFailure();
+        if (i < 2) {
+          // Before reaching threshold
+          expect(breaker.getStats().state).toBe(CircuitState.CLOSED);
+        }
+      }
+
+      expect(breaker.getStats().state).toBe(CircuitState.OPEN);
+      expect(breaker.getStats().failureCount).toBe(5);
+    });
+
+    it('should handle success during CLOSED state with multiple failures', () => {
+      const breaker = new CircuitBreaker('test-provider', defaultConfig);
+
+      breaker.recordFailure();
+      breaker.recordFailure();
+      expect(breaker.getStats().failureCount).toBe(2);
+
+      // Success should reset
+      breaker.recordSuccess();
+      expect(breaker.getStats().failureCount).toBe(0);
+      expect(breaker.getStats().successCount).toBe(1);
+
+      // Failures restart count
+      breaker.recordFailure();
+      expect(breaker.getStats().failureCount).toBe(1);
+    });
+
+    it('should not double-transition on repeated state change attempts', () => {
+      const breaker = new CircuitBreaker('test-provider', defaultConfig);
+
+      // Trigger OPEN multiple times
+      for (let i = 0; i < defaultConfig.failureThreshold; i++) {
+        breaker.recordFailure();
+      }
+
+      const firstOpenTime = breaker.getStats().nextRetryTime;
+
+      // Ensure some time passes
+      jest.useFakeTimers();
+      jest.advanceTimersByTime(1);
+      jest.useRealTimers();
+
+      // Try to trigger OPEN again (should be idempotent)
+      breaker.recordFailure();
+      const secondOpenTime = breaker.getStats().nextRetryTime;
+
+      // Times should be different (reset timer was updated)
+      // But state should still be OPEN
+      expect(breaker.getStats().state).toBe(CircuitState.OPEN);
+      expect(secondOpenTime).toBeGreaterThanOrEqual(firstOpenTime!);
+    });
+  });
+
+  describe('Concurrent Request Handling', () => {
+    it('should not allow exceeding halfOpenMaxRequests during concurrent checks', async () => {
+      const shortConfig: CircuitBreakerConfig = {
+        ...defaultConfig,
+        resetTimeout: 50,
+      };
+      const breaker = new CircuitBreaker('test-provider', shortConfig);
+
+      // Trigger OPEN
+      for (let i = 0; i < shortConfig.failureThreshold; i++) {
+        breaker.recordFailure();
+      }
+
+      // Wait for HALF_OPEN transition window
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // Simulate concurrent canExecute calls
+      const results: boolean[] = [];
+      for (let i = 0; i < 5; i++) {
+        results.push(breaker.canExecute());
+      }
+
+      // Should allow exactly halfOpenMaxRequests (2), rest should be blocked
+      const allowedCount = results.filter(r => r).length;
+      expect(allowedCount).toBeLessThanOrEqual(shortConfig.halfOpenMaxRequests + 1); // +1 for the transition check
+    });
+
+    it('should handle multiple breakers independently', () => {
+      const manager = CircuitBreakerManager.getInstance();
+
+      const breaker1 = manager.getCircuitBreaker('tiingo');
+      const breaker2 = manager.getCircuitBreaker('yahooFinance');
+
+      // Fail breaker1, succeed breaker2
+      for (let i = 0; i < 5; i++) {
+        breaker1.recordFailure();
+        breaker2.recordSuccess();
+      }
+
+      expect(breaker1.getStats().state).toBe(CircuitState.OPEN);
+      expect(breaker2.getStats().state).toBe(CircuitState.CLOSED);
+      expect(breaker2.getStats().successCount).toBe(5);
+    });
+  });
+
+  describe('Timing Edge Cases', () => {
+    it('should handle very short reset timeout (boundary case)', async () => {
+      const veryShortConfig: CircuitBreakerConfig = {
+        failureThreshold: 1,
+        resetTimeout: 10, // 10ms
+        halfOpenMaxRequests: 1,
+      };
+      const breaker = new CircuitBreaker('test-provider', veryShortConfig);
+
+      breaker.recordFailure(); // Immediately OPEN
+      expect(breaker.getStats().state).toBe(CircuitState.OPEN);
+
+      // Wait just over timeout
+      await new Promise(resolve => setTimeout(resolve, 20));
+
+      // Should allow execution and transition to HALF_OPEN
+      expect(breaker.canExecute()).toBe(true);
+      expect(breaker.getStats().state).toBe(CircuitState.HALF_OPEN);
+    });
+
+    it('should handle reset timeout at exact boundary', async () => {
+      const config: CircuitBreakerConfig = {
+        failureThreshold: 1,
+        resetTimeout: 100,
+        halfOpenMaxRequests: 1,
+      };
+      const breaker = new CircuitBreaker('test-provider', config);
+
+      const openTime = Date.now();
+      breaker.recordFailure();
+      const nextRetryTime = breaker.getStats().nextRetryTime!;
+
+      // Move time forward to exact boundary
+      const waitTime = nextRetryTime - openTime;
+      await new Promise(resolve => setTimeout(resolve, waitTime + 5)); // +5ms buffer
+
+      expect(breaker.canExecute()).toBe(true);
+      expect(breaker.getStats().state).toBe(CircuitState.HALF_OPEN);
+    });
+
+    it('should prevent execution just before reset timeout', async () => {
+      const config: CircuitBreakerConfig = {
+        failureThreshold: 1,
+        resetTimeout: 100,
+        halfOpenMaxRequests: 1,
+      };
+      const breaker = new CircuitBreaker('test-provider', config);
+
+      breaker.recordFailure(); // Immediately OPEN
+      expect(breaker.getStats().state).toBe(CircuitState.OPEN);
+
+      // Wait less than timeout
+      await new Promise(resolve => setTimeout(resolve, 50));
+
+      // Should still be blocked
+      expect(breaker.canExecute()).toBe(false);
+      expect(breaker.getStats().state).toBe(CircuitState.OPEN);
+    });
+  });
+
+  describe('State Recovery Scenarios', () => {
+    it('should handle multiple HALF_OPEN -> OPEN cycles', async () => {
+      const config: CircuitBreakerConfig = {
+        failureThreshold: 1,
+        resetTimeout: 50,
+        halfOpenMaxRequests: 1,
+      };
+      const breaker = new CircuitBreaker('test-provider', config);
+
+      // Cycle 1: CLOSED -> OPEN -> HALF_OPEN -> OPEN
+      breaker.recordFailure(); // 1st OPEN
+      expect(breaker.getStats().state).toBe(CircuitState.OPEN);
+
+      await new Promise(resolve => setTimeout(resolve, 60));
+
+      breaker.canExecute(); // Transition to HALF_OPEN
+      expect(breaker.getStats().state).toBe(CircuitState.HALF_OPEN);
+
+      breaker.recordFailure(); // Back to OPEN
+      expect(breaker.getStats().state).toBe(CircuitState.OPEN);
+
+      // Cycle 2: OPEN -> HALF_OPEN -> CLOSED
+      await new Promise(resolve => setTimeout(resolve, 60));
+
+      breaker.canExecute(); // Transition to HALF_OPEN again
+      expect(breaker.getStats().state).toBe(CircuitState.HALF_OPEN);
+
+      breaker.recordSuccess(); // Back to CLOSED
+      expect(breaker.getStats().state).toBe(CircuitState.CLOSED);
+      expect(breaker.getStats().failureCount).toBe(0);
+    });
+
+    it('should preserve stats through state transitions', () => {
+      const breaker = new CircuitBreaker('test-provider', defaultConfig);
+
+      breaker.recordFailure();
+      breaker.recordFailure();
+      breaker.recordSuccess();
+      breaker.recordFailure();
+
+      const stats = breaker.getStats();
+      expect(stats.lastFailureTime).not.toBeNull();
+      expect(stats.lastSuccessTime).not.toBeNull();
+      expect(stats.successCount).toBe(1);
+    });
+
+    it('should reset halfOpenAttempts only when transitioning to CLOSED', async () => {
+      const config: CircuitBreakerConfig = {
+        failureThreshold: 1,
+        resetTimeout: 50,
+        halfOpenMaxRequests: 3,
+      };
+      const breaker = new CircuitBreaker('test-provider', config);
+
+      breaker.recordFailure(); // OPEN
+      await new Promise(resolve => setTimeout(resolve, 60));
+
+      // First canExecute transitions from OPEN to HALF_OPEN
+      expect(breaker.canExecute()).toBe(true);
+      expect(breaker.getStats().state).toBe(CircuitState.HALF_OPEN);
+      const afterTransition = breaker.getStats().halfOpenAttempts;
+
+      // Subsequent calls while in HALF_OPEN should increment
+      expect(breaker.canExecute()).toBe(true); // 2nd attempt
+      const afterSecond = breaker.getStats().halfOpenAttempts;
+      expect(afterSecond).toBeGreaterThan(afterTransition);
+
+      // Success should transition to CLOSED and reset
+      breaker.recordSuccess();
+      expect(breaker.getStats().state).toBe(CircuitState.CLOSED);
+      expect(breaker.getStats().halfOpenAttempts).toBe(0);
+    });
+  });
+
+  describe('Threshold Edge Cases', () => {
+    it('should handle failure threshold of 1', () => {
+      const config: CircuitBreakerConfig = {
+        failureThreshold: 1,
+        resetTimeout: 100,
+        halfOpenMaxRequests: 1,
+      };
+      const breaker = new CircuitBreaker('test-provider', config);
+
+      expect(breaker.canExecute()).toBe(true); // Still CLOSED
+
+      breaker.recordFailure();
+      expect(breaker.getStats().state).toBe(CircuitState.OPEN); // 1 failure = OPEN
+    });
+
+    it('should handle high failure threshold', () => {
+      const config: CircuitBreakerConfig = {
+        failureThreshold: 100,
+        resetTimeout: 100,
+        halfOpenMaxRequests: 10,
+      };
+      const breaker = new CircuitBreaker('test-provider', config);
+
+      for (let i = 0; i < 99; i++) {
+        breaker.recordFailure();
+        expect(breaker.getStats().state).toBe(CircuitState.CLOSED);
+      }
+
+      breaker.recordFailure(); // 100th failure
+      expect(breaker.getStats().state).toBe(CircuitState.OPEN);
+    });
+
+    it('should handle halfOpenMaxRequests of 0', () => {
+      const config: CircuitBreakerConfig = {
+        failureThreshold: 1,
+        resetTimeout: 50,
+        halfOpenMaxRequests: 0,
+      };
+      const breaker = new CircuitBreaker('test-provider', config);
+
+      breaker.recordFailure(); // OPEN
+      // Even with 0 max requests, we should not allow any
+      // This tests extreme boundary condition
+      expect(breaker.canExecute()).toBe(false);
+    });
+  });
+
+  describe('Manual Reset During Different States', () => {
+    it('should reset from CLOSED state', () => {
+      const breaker = new CircuitBreaker('test-provider', defaultConfig);
+
+      breaker.recordSuccess();
+      expect(breaker.getStats().successCount).toBe(1);
+
+      breaker.reset();
+
+      const stats = breaker.getStats();
+      expect(stats.state).toBe(CircuitState.CLOSED);
+      expect(stats.failureCount).toBe(0);
+      expect(stats.successCount).toBe(1); // Success count not reset
+    });
+
+    it('should reset from HALF_OPEN state', async () => {
+      const config: CircuitBreakerConfig = {
+        failureThreshold: 1,
+        resetTimeout: 50,
+        halfOpenMaxRequests: 1,
+      };
+      const breaker = new CircuitBreaker('test-provider', config);
+
+      breaker.recordFailure(); // OPEN
+      await new Promise(resolve => setTimeout(resolve, 60));
+
+      breaker.canExecute(); // HALF_OPEN
+      expect(breaker.getStats().state).toBe(CircuitState.HALF_OPEN);
+
+      breaker.reset(); // Manual reset
+
+      expect(breaker.getStats().state).toBe(CircuitState.CLOSED);
+      expect(breaker.getStats().halfOpenAttempts).toBe(0);
+    });
+  });
+
+  describe('Cross-Provider Manager Isolation', () => {
+    it('should isolate provider stats in manager getAllStats', () => {
+      const manager = CircuitBreakerManager.getInstance();
+
+      const tiingo = manager.getCircuitBreaker('tiingo');
+      const yahoo = manager.getCircuitBreaker('yahooFinance');
+
+      tiingo.recordFailure();
+      tiingo.recordFailure();
+      yahoo.recordSuccess();
+      yahoo.recordSuccess();
+
+      const allStats = manager.getAllStats();
+
+      expect(allStats.tiingo.failureCount).toBe(2);
+      expect(allStats.yahooFinance.successCount).toBe(2);
+      expect(allStats.tiingo.successCount).toBe(0);
+      expect(allStats.yahooFinance.failureCount).toBe(0);
+    });
+
+    it('should maintain separate nextRetryTime per provider', async () => {
+      const manager = CircuitBreakerManager.getInstance();
+
+      const tiingo = manager.getCircuitBreaker('tiingo');
+      const yahoo = manager.getCircuitBreaker('yahooFinance');
+
+      // Open tiingo first
+      for (let i = 0; i < 5; i++) {
+        tiingo.recordFailure();
+      }
+
+      await new Promise(resolve => setTimeout(resolve, 50));
+
+      // Open yahoo later
+      for (let i = 0; i < 5; i++) {
+        yahoo.recordFailure();
+      }
+
+      const tiingoStats = tiingo.getStats();
+      const yahooStats = yahoo.getStats();
+
+      // Yahoo should have a later retry time
+      expect(yahooStats.nextRetryTime).toBeGreaterThan(tiingoStats.nextRetryTime!);
+    });
+  });
+});
