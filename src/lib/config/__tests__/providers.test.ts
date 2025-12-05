@@ -74,12 +74,24 @@ describe('Provider Configuration', () => {
     });
 
     test('filters out disabled providers', () => {
+      // Save original value
+      const originalValue = process.env.FEATURE_TIINGO_ENABLED;
+
+      // Temporarily disable Tiingo
       process.env.FEATURE_TIINGO_ENABLED = 'false';
+
+      // Need to reload the module to pick up the new env var
+      jest.resetModules();
+      const { getProvidersByPriority } = require('../providers.config');
 
       const providers = getProvidersByPriority(['tiingo', 'yahooFinance']);
       const names = providers.map(p => p.name);
 
       expect(names).not.toContain('tiingo');
+
+      // Restore original value
+      process.env.FEATURE_TIINGO_ENABLED = originalValue;
+      jest.resetModules();
     });
   });
 
@@ -102,19 +114,45 @@ describe('Provider Configuration', () => {
     });
 
     test('returns undefined for disabled provider', () => {
-      // Tiingo is disabled by default without FEATURE_TIINGO_ENABLED
+      // Save original value
+      const originalValue = process.env.FEATURE_TIINGO_ENABLED;
+
+      // Temporarily disable Tiingo
+      process.env.FEATURE_TIINGO_ENABLED = 'false';
+
+      // Need to reload the module to pick up the new env var
+      jest.resetModules();
+      const { getProviderConfig } = require('../providers.config');
+
       const config = getProviderConfig('tiingo');
 
       expect(config).toBeUndefined();
+
+      // Restore original value
+      process.env.FEATURE_TIINGO_ENABLED = originalValue;
+      jest.resetModules();
     });
   });
 
   describe('isProviderAvailable', () => {
     test('returns false if provider is disabled', () => {
-      // Tiingo is disabled by default without FEATURE_TIINGO_ENABLED
+      // Save original value
+      const originalValue = process.env.FEATURE_TIINGO_ENABLED;
+
+      // Temporarily disable Tiingo
+      process.env.FEATURE_TIINGO_ENABLED = 'false';
+
+      // Need to reload the module to pick up the new env var
+      jest.resetModules();
+      const { isProviderAvailable } = require('../providers.config');
+
       const available = isProviderAvailable('tiingo');
 
       expect(available).toBe(false);
+
+      // Restore original value
+      process.env.FEATURE_TIINGO_ENABLED = originalValue;
+      jest.resetModules();
     });
 
     test('returns true for providers without API key requirement', () => {

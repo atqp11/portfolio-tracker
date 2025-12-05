@@ -2,28 +2,18 @@
  * Stock Data Service
  *
  * Business logic layer for stock quotes and pricing data.
- * Implements fallback logic, caching, and error handling.
+ * Implements fallback logic, caching, and error handling via Data Source Orchestrator.
  *
  * Phase 1: Migrated to distributed cache (Vercel KV / Upstash Redis)
+ * Phase 3: Migrated to Data Source Orchestrator (Tiingo → Yahoo Finance fallback)
  */
-import { alphaVantageDAO, AlphaVantageQuoteResponse } from '@backend/modules/stocks/dao/alpha-vantage.dao';
-import { fmpDAO, FMPQuoteResponse } from '@backend/modules/stocks/dao/fmp.dao';
-import { getCacheAdapter, type CacheAdapter } from '@lib/cache/adapter';
-import { getCacheTTL } from '@lib/config/cache-ttl.config';
+import { DataSourceOrchestrator } from '@lib/data-sources';
+import { tiingoQuoteProvider, yahooFinanceQuoteProvider, type StockQuote } from '@lib/data-sources/provider-adapters';
 import type { TierName } from '@lib/config/types';
 
 // ============================================================================
 // INTERFACES
 // ============================================================================
-
-export interface StockQuote {
-  symbol: string;
-  price: number;
-  change: number;
-  changePercent: string;
-  source: 'alphavantage' | 'fmp' | 'cache';
-  timestamp: number;
-}
 
 export interface BatchQuoteResult {
   quotes: Record<string, StockQuote>;
@@ -37,176 +27,103 @@ export interface BatchQuoteResult {
 // ============================================================================
 
 export class StockDataService {
-  private readonly cache: CacheAdapter;
-  private readonly DEFAULT_TTL = 5 * 60 * 1000; // 5 minutes fallback
+  private readonly orchestrator: DataSourceOrchestrator;
 
   constructor() {
-    this.cache = getCacheAdapter();
+    this.orchestrator = DataSourceOrchestrator.getInstance();
   }
 
   /**
-   * Get cache TTL based on user tier
-   */
-  private getCacheTTL(tier?: TierName): number {
-    if (tier) {
-      return getCacheTTL('quotes', tier);
-    }
-    return this.DEFAULT_TTL;
-  }
-
-  /**
-   * Get stock quote with intelligent fallback
+   * Get stock quote with intelligent fallback via orchestrator
    *
-   * Strategy:
+   * Strategy (managed by orchestrator):
    * 1. Check cache (TTL based on tier)
-   * 2. Try Alpha Vantage (primary)
-   * 3. Fallback to FMP
-   * 4. Return stale cache if all fail
+   * 2. Try Tiingo (primary - batch capable)
+   * 3. Fallback to Yahoo Finance
+   * 4. Return stale cache if all fail (if allowStale: true)
    *
    * @param symbol - Stock ticker symbol
    * @param tier - User tier for TTL selection
    * @returns Stock quote with source indicator
    */
-  async getQuote(symbol: string, tier?: TierName): Promise<StockQuote> {
-    const cacheKey = `quote:${symbol}:v1`;
-    const ttl = this.getCacheTTL(tier);
+  async getQuote(symbol: string, tier?: TierName): Promise<StockQuote | null> {
+    const result = await this.orchestrator.fetchWithFallback<StockQuote>({
+      key: symbol,
+      providers: [tiingoQuoteProvider, yahooFinanceQuoteProvider],
+      cacheKeyPrefix: 'quotes',
+      tier: tier || 'free',
+      allowStale: true, // Graceful degradation
+    });
 
-    // 1. Check cache
-    const cached = await this.cache.get<StockQuote>(cacheKey);
-    if (cached) {
-      const age = await this.cache.getAge(cacheKey);
-      console.log(`[StockDataService] Cache hit for ${symbol} (age: ${age}ms)`);
-      return {
-        ...cached,
-        source: 'cache'
-      };
+    if (result.data === null) {
+      console.error(`[StockDataService] Failed to fetch quote for ${symbol}:`, result.errors);
+      return null;
     }
 
-    console.log(`[StockDataService] Cache miss for ${symbol}`);
-
-    // 2. Try Alpha Vantage (primary provider)
-    try {
-      console.log(`[StockDataService] Fetching ${symbol} from Alpha Vantage`);
-      const avQuote = await alphaVantageDAO.getQuote(symbol);
-
-      const quote: StockQuote = {
-        ...avQuote,
-        source: 'alphavantage',
-        timestamp: Date.now()
-      };
-
-      await this.cache.set(cacheKey, quote, ttl);
-      return quote;
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-      console.warn(`[StockDataService] Alpha Vantage failed for ${symbol}: ${errorMsg}`);
-
-      // If rate limited, try to get stale cache
-      if (errorMsg.includes('RATE_LIMIT')) {
-        const staleCache = await this.cache.get<StockQuote>(cacheKey);
-        if (staleCache) {
-          console.log(`[StockDataService] Rate limited, returning stale cache for ${symbol}`);
-          return {
-            ...staleCache,
-            source: 'cache'
-          };
-        }
-      }
+    // Log cache/staleness info
+    if (result.cached) {
+      const ageMinutes = Math.round((result.age || 0) / 60000);
+      console.log(`[StockDataService] Cache hit for ${symbol} (age: ${ageMinutes}m)`);
+    } else {
+      console.log(`[StockDataService] Fresh fetch for ${symbol} from ${result.data.source}`);
     }
 
-    // 3. Fallback to FMP
-    try {
-      console.log(`[StockDataService] Fetching ${symbol} from FMP (fallback)`);
-      const fmpQuote = await fmpDAO.getQuote(symbol);
-
-      const quote: StockQuote = {
-        ...fmpQuote,
-        source: 'fmp',
-        timestamp: Date.now()
-      };
-
-      await this.cache.set(cacheKey, quote, ttl);
-      return quote;
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-      console.error(`[StockDataService] FMP also failed for ${symbol}: ${errorMsg}`);
-    }
-
-    // 4. Return stale cache if available (check again for any cached value)
-    const staleCache = await this.cache.get<StockQuote>(cacheKey);
-    if (staleCache) {
-      console.log(`[StockDataService] All providers failed, returning stale cache for ${symbol}`);
-      return {
-        ...staleCache,
-        source: 'cache'
-      };
-    }
-
-    // Return a StockQuote with price: null and error info for UI to handle gracefully
-    return {
-      symbol,
-      price: null as any, // UI should check for null
-      change: null as any,
-      changePercent: 'N/A',
-      source: 'cache',
-      timestamp: Date.now(),
-    };
+    return result.data;
   }
 
   /**
    * Get multiple stock quotes in batch
    *
-   * Fetches quotes in parallel with individual error handling.
+   * Uses orchestrator's batchFetch for efficient parallel fetching.
+   * Tiingo supports up to 500 symbols per batch request.
    *
    * @param symbols - Array of stock ticker symbols
    * @param tier - User tier for TTL selection
    * @returns Object with quotes, errors, and statistics
    */
   async getBatchQuotes(symbols: string[], tier?: TierName): Promise<BatchQuoteResult> {
-    console.log(`[StockDataService] Fetching batch quotes for: ${symbols.join(', ')}`);
+    console.log(`[StockDataService] Fetching batch quotes for ${symbols.length} symbols`);
 
-    const results: Record<string, StockQuote> = {};
+    const result = await this.orchestrator.batchFetch<StockQuote>({
+      keys: symbols,
+      provider: tiingoQuoteProvider, // Use batch-capable provider
+      cacheKeyPrefix: 'quotes',
+      tier: tier || 'free',
+    });
+
+    const quotes: Record<string, StockQuote> = {};
     const errors: Record<string, string> = {};
     let cachedCount = 0;
     let freshCount = 0;
 
-    // Fetch all quotes in parallel
-    const promises = symbols.map(async (symbol) => {
-      try {
-        const quote = await this.getQuote(symbol, tier);
+    // Process results
+    Object.entries(result.results).forEach(([symbol, fetchResult]) => {
+      if (fetchResult.data) {
+        quotes[symbol] = fetchResult.data;
 
-        if (quote.source === 'cache') {
+        if (fetchResult.cached) {
           cachedCount++;
         } else {
           freshCount++;
         }
-
-        return { symbol, quote, error: null };
-      } catch (error) {
-        const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-        console.error(`[StockDataService] Failed to fetch ${symbol}:`, errorMsg);
-        return { symbol, quote: null, error: errorMsg };
       }
     });
 
-    const settled = await Promise.all(promises);
-
-    // Process results
-    settled.forEach((result) => {
-      if (result.quote) {
-        results[result.symbol] = result.quote;
-      } else if (result.error) {
-        errors[result.symbol] = result.error;
-      }
+    // Collect errors
+    Object.entries(result.errors).forEach(([symbol, errorList]) => {
+      errors[symbol] = errorList.map(e => `${e.provider}: ${e.message}`).join('; ');
     });
 
-    console.log(`[StockDataService] Batch complete: ${Object.keys(results).length} success, ${Object.keys(errors).length} errors (${cachedCount} cached, ${freshCount} fresh)`);
+    console.log(
+      `[StockDataService] Batch complete: ${result.summary.successful} success, ${result.summary.failed} errors ` +
+      `(${result.summary.cached} cached, ${result.summary.fresh} fresh)`
+    );
 
     return {
-      quotes: results,
+      quotes,
       errors,
       cached: cachedCount,
-      fresh: freshCount
+      fresh: freshCount,
     };
   }
 
@@ -230,33 +147,35 @@ export class StockDataService {
   /**
    * Check if quotes can be fetched (provider health check)
    *
-   * @returns Status of providers
+   * @returns Status of providers and orchestrator statistics
    */
   async healthCheck(): Promise<{
-    alphaVantage: boolean;
-    fmp: boolean;
+    tiingo: boolean;
+    yahooFinance: boolean;
+    orchestratorStats: any;
   }> {
     const testSymbol = 'AAPL'; // Use AAPL for health check
 
     const results = {
-      alphaVantage: false,
-      fmp: false
+      tiingo: false,
+      yahooFinance: false,
+      orchestratorStats: this.orchestrator.getStats(),
     };
 
-    // Test Alpha Vantage
+    // Test Tiingo
     try {
-      await alphaVantageDAO.getQuote(testSymbol);
-      results.alphaVantage = true;
+      await tiingoQuoteProvider.fetch(testSymbol);
+      results.tiingo = true;
     } catch (error) {
-      console.warn('[StockDataService] Alpha Vantage health check failed');
+      console.warn('[StockDataService] Tiingo health check failed');
     }
 
-    // Test FMP
+    // Test Yahoo Finance
     try {
-      await fmpDAO.getQuote(testSymbol);
-      results.fmp = true;
+      await yahooFinanceQuoteProvider.fetch(testSymbol);
+      results.yahooFinance = true;
     } catch (error) {
-      console.warn('[StockDataService] FMP health check failed');
+      console.warn('[StockDataService] Yahoo Finance health check failed');
     }
 
     return results;
@@ -265,3 +184,6 @@ export class StockDataService {
 
 // Export singleton instance
 export const stockDataService = new StockDataService();
+
+// Re-export StockQuote type for backward compatibility
+export type { StockQuote };

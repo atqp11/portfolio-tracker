@@ -41,6 +41,18 @@ export async function GET(request: NextRequest) {
       financialDataService.getFundamentals(ticker)
     ]);
 
+    // Handle null quote (all providers failed) - check BEFORE using quote data
+    if (!quote) {
+      return NextResponse.json(
+        {
+          error: 'Failed to fetch stock quote from all providers',
+          ticker,
+          details: 'All quote providers (Tiingo, Yahoo Finance) are currently unavailable. Please try again later.'
+        },
+        { status: 503 }
+      );
+    }
+
     // Transform fundamentals data to match expected format for stock detail page
     const metrics = {
       pe: fundamentals.trailingPE,

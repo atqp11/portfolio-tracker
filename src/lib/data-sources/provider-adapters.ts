@@ -19,15 +19,13 @@ import {
 } from './types';
 
 // DAOs
+import { tiingoDAO, type TiingoQuoteResponse, type StockQuote as TiingoStockQuote } from '@backend/modules/stocks/dao/tiingo.dao';
 import { yahooFinanceDAO, type YahooQuoteResponse, type YahooFundamentals } from '@backend/modules/stocks/dao/yahoo-finance.dao';
 import { alphaVantageDAO, type AlphaVantageQuoteResponse, type CompanyOverview } from '@backend/modules/stocks/dao/alpha-vantage.dao';
-import { fmpDAO, type FMPQuoteResponse } from '@backend/modules/stocks/dao/fmp.dao';
-import { finnhubDAO } from '@backend/modules/stocks/dao/finnhub.dao';
 import { secEdgarDAO, type SECFilingsResponse } from '@backend/modules/stocks/dao/sec-edgar.dao';
 import { fetchBraveNewsDAO } from '@backend/modules/news/dao/brave-news.dao';
 
-// Types
-import type { FinnhubNews } from '@lib/types/finnhub-news.dto';
+// NOTE: FMP and Finnhub providers removed in Phase 3 - replaced by Tiingo (primary) + Yahoo Finance (fallback)
 
 // ============================================================================
 // STANDARDIZED DATA TYPES
@@ -108,9 +106,79 @@ export interface SECFiling {
 // ============================================================================
 
 /**
+ * Tiingo Quote Provider (BATCH-CAPABLE)
+ *
+ * PRIMARY provider for stock quotes. Supports batch fetching up to 500 symbols.
+ * Commercial redistribution allowed. $10/month for unlimited requests.
+ *
+ * Priority: 1 (use first)
+ */
+export class TiingoQuoteProvider implements BatchDataProvider<StockQuote> {
+  readonly name = 'tiingo';
+  readonly maxBatchSize = 500; // Tiingo supports up to 500 symbols per request
+
+  async fetch(symbol: string, options?: FetchOptions): Promise<StockQuote> {
+    try {
+      const quote = await tiingoDAO.getQuote(symbol);
+
+      // Tiingo DAO already returns standardized StockQuote format
+      return quote;
+    } catch (error) {
+      throw this.handleError(error);
+    }
+  }
+
+  async batchFetch(symbols: string[], options?: FetchOptions): Promise<Record<string, StockQuote>> {
+    try {
+      const quotesMap = await tiingoDAO.batchGetQuotes(symbols);
+
+      // Convert Map to Record for orchestrator compatibility
+      return Object.fromEntries(quotesMap);
+    } catch (error) {
+      throw this.handleError(error);
+    }
+  }
+
+  private handleError(error: unknown): ProviderError {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+
+    if (message.includes('timeout') || message.includes('timed out')) {
+      return new ProviderError(this.name, ProviderErrorCode.TIMEOUT, message, error as Error);
+    }
+
+    if (message.includes('401') || message.includes('403') || message.includes('API key')) {
+      return new ProviderError(this.name, ProviderErrorCode.AUTHENTICATION, message, error as Error);
+    }
+
+    if (message.includes('404') || message.includes('No quote data')) {
+      return new ProviderError(this.name, ProviderErrorCode.NOT_FOUND, message, error as Error);
+    }
+
+    if (message.includes('429') || message.includes('rate limit')) {
+      return new ProviderError(this.name, ProviderErrorCode.RATE_LIMIT, message, error as Error);
+    }
+
+    if (message.includes('Network error') || message.includes('fetch')) {
+      return new ProviderError(this.name, ProviderErrorCode.NETWORK_ERROR, message, error as Error);
+    }
+
+    return new ProviderError(this.name, ProviderErrorCode.UNKNOWN, message, error as Error);
+  }
+
+  async healthCheck(): Promise<boolean> {
+    try {
+      await this.fetch('AAPL');
+      return true;
+    } catch {
+      return false;
+    }
+  }
+}
+
+/**
  * Yahoo Finance Quote Provider
  *
- * Provides real-time stock quotes from Yahoo Finance API.
+ * FALLBACK provider for stock quotes (priority 2).
  * No batch support - must call individually for each symbol.
  */
 export class YahooFinanceQuoteProvider implements DataProvider<StockQuote> {
@@ -257,78 +325,6 @@ export class AlphaVantageQuoteProvider implements BatchDataProvider<StockQuote> 
  * Provides stock quotes from FMP API.
  * Supports parallel batch fetching for multiple symbols.
  */
-export class FMPQuoteProvider implements BatchDataProvider<StockQuote> {
-  readonly name = 'fmp';
-  readonly maxBatchSize = 10; // Parallel requests limit
-
-  async fetch(symbol: string, options?: FetchOptions): Promise<StockQuote> {
-    try {
-      const rawQuote = await fmpDAO.getQuote(symbol);
-
-      return this.transformQuote(rawQuote, symbol);
-    } catch (error) {
-      throw this.handleError(error);
-    }
-  }
-
-  async batchFetch(symbols: string[], options?: FetchOptions): Promise<Record<string, StockQuote>> {
-    try {
-      const rawQuotes = await fmpDAO.getQuotes(symbols);
-
-      const results: Record<string, StockQuote> = {};
-      for (const [symbol, rawQuote] of Object.entries(rawQuotes)) {
-        results[symbol] = this.transformQuote(rawQuote, symbol);
-      }
-
-      return results;
-    } catch (error) {
-      throw this.handleError(error);
-    }
-  }
-
-  private transformQuote(raw: FMPQuoteResponse, symbol: string): StockQuote {
-    return {
-      symbol: raw.symbol || symbol,
-      price: raw.price,
-      change: raw.change,
-      changePercent: raw.changePercent,
-      timestamp: Date.now(),
-      source: 'fmp',
-    };
-  }
-
-  private handleError(error: unknown): ProviderError {
-    const message = error instanceof Error ? error.message : 'Unknown error';
-
-    if (message.includes('timeout')) {
-      return new ProviderError(this.name, ProviderErrorCode.TIMEOUT, message, error as Error);
-    }
-
-    if (message.includes('401') || message.includes('403')) {
-      return new ProviderError(this.name, ProviderErrorCode.AUTHENTICATION, message, error as Error);
-    }
-
-    if (message.includes('No quote data')) {
-      return new ProviderError(this.name, ProviderErrorCode.NOT_FOUND, message, error as Error);
-    }
-
-    if (message.includes('429')) {
-      return new ProviderError(this.name, ProviderErrorCode.RATE_LIMIT, message, error as Error);
-    }
-
-    return new ProviderError(this.name, ProviderErrorCode.UNKNOWN, message, error as Error);
-  }
-
-  async healthCheck(): Promise<boolean> {
-    try {
-      await this.fetch('AAPL');
-      return true;
-    } catch {
-      return false;
-    }
-  }
-}
-
 // ============================================================================
 // FUNDAMENTALS PROVIDERS
 // ============================================================================
@@ -484,62 +480,6 @@ export class AlphaVantageFundamentalsProvider implements DataProvider<CompanyFun
 // ============================================================================
 // NEWS PROVIDERS
 // ============================================================================
-
-/**
- * Finnhub News Provider
- *
- * Provides company news from Finnhub API.
- */
-export class FinnhubNewsProvider implements DataProvider<NewsArticle[]> {
-  readonly name = 'finnhub';
-
-  async fetch(symbol: string, options?: FetchOptions): Promise<NewsArticle[]> {
-    try {
-      const rawNews = await finnhubDAO.getCompanyNews(symbol);
-
-      return rawNews.map(article => this.transformArticle(article));
-    } catch (error) {
-      throw this.handleError(error);
-    }
-  }
-
-  private transformArticle(raw: FinnhubNews): NewsArticle {
-    return {
-      headline: raw.headline,
-      summary: raw.summary,
-      link: raw.link,
-      datetime: raw.datetime * 1000, // Convert to milliseconds
-      source: raw.source || 'finnhub',
-    };
-  }
-
-  private handleError(error: unknown): ProviderError {
-    const message = error instanceof Error ? error.message : 'Unknown error';
-
-    if (message.includes('401') || message.includes('API key')) {
-      return new ProviderError(this.name, ProviderErrorCode.AUTHENTICATION, message, error as Error);
-    }
-
-    if (message.includes('429') || message.includes('rate limit')) {
-      return new ProviderError(this.name, ProviderErrorCode.RATE_LIMIT, message, error as Error);
-    }
-
-    if (message.includes('Invalid') || message.includes('Unexpected')) {
-      return new ProviderError(this.name, ProviderErrorCode.INVALID_RESPONSE, message, error as Error);
-    }
-
-    return new ProviderError(this.name, ProviderErrorCode.UNKNOWN, message, error as Error);
-  }
-
-  async healthCheck(): Promise<boolean> {
-    try {
-      await this.fetch('AAPL');
-      return true;
-    } catch {
-      return false;
-    }
-  }
-}
 
 /**
  * Brave News Provider
@@ -722,16 +662,15 @@ export class SECEdgarProvider implements DataProvider<SECFiling> {
 // ============================================================================
 
 // Quote Providers
+export const tiingoQuoteProvider = new TiingoQuoteProvider();
 export const yahooFinanceQuoteProvider = new YahooFinanceQuoteProvider();
 export const alphaVantageQuoteProvider = new AlphaVantageQuoteProvider();
-export const fmpQuoteProvider = new FMPQuoteProvider();
 
 // Fundamentals Providers
 export const yahooFinanceFundamentalsProvider = new YahooFinanceFundamentalsProvider();
 export const alphaVantageFundamentalsProvider = new AlphaVantageFundamentalsProvider();
 
 // News Providers
-export const finnhubNewsProvider = new FinnhubNewsProvider();
 export const braveNewsProvider = new BraveNewsProvider();
 
 // Filing Providers
@@ -743,10 +682,13 @@ export const secEdgarProvider = new SECEdgarProvider();
 
 /**
  * Pre-configured provider groups for common use cases
+ *
+ * Phase 3: Updated to use Tiingo (primary) + Yahoo Finance (fallback) for quotes
+ * Removed: FMP, Finnhub (deprecated providers)
  */
 export const PROVIDER_GROUPS = {
-  quotes: [yahooFinanceQuoteProvider, alphaVantageQuoteProvider, fmpQuoteProvider],
+  quotes: [tiingoQuoteProvider, yahooFinanceQuoteProvider, alphaVantageQuoteProvider],
   fundamentals: [yahooFinanceFundamentalsProvider, alphaVantageFundamentalsProvider],
-  news: [finnhubNewsProvider, braveNewsProvider],
+  news: [braveNewsProvider],
   filings: [secEdgarProvider],
 } as const;

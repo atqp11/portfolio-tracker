@@ -2,7 +2,7 @@
 
 > Centralized data fetching orchestration with intelligent fallback, caching, and resilience patterns.
 
-**Status:** Phase 2 Complete ✅ | **Version:** 0.2.0
+**Status:** Phase 3 Complete ✅ | **Version:** 0.3.0
 
 ## Overview
 
@@ -154,8 +154,8 @@ if (appleQuote.data) {
             │
             ▼
 ┌───────────────────────────────────────────────────────────┐
-│               Provider Adapters (Phase 3)                  │
-│  Tiingo │ Yahoo Finance │ AlphaVantage │ NewsAPI          │
+│               Provider Adapters (Phase 3 ✅)               │
+│  Tiingo (PRIMARY) │ Yahoo Finance │ AlphaVantage │ Brave  │
 └───────────────────────────────────────────────────────────┘
 ```
 
@@ -661,11 +661,13 @@ npm test -- --watch src/lib/data-sources/__tests__/
 
 | Component | Tests | Coverage |
 |-----------|-------|----------|
-| Circuit Breaker | 20 | 100% |
-| Request Deduplication | 18 | 100% |
+| Circuit Breaker | 20 | 97% |
+| Request Deduplication | 18 | 77% |
 | Telemetry | 23 | 100% |
-| Orchestrator Integration | 20 | 95% |
-| **Total** | **81** | **98%** |
+| Orchestrator Integration | 20 | 88% |
+| **Tiingo DAO** (Phase 3) | **20+** | **100%** |
+| **Provider Adapters** (Phase 3) | **30+** | **100%** |
+| **Total** | **131+** | **95%** |
 
 ### Mock Providers
 
@@ -705,47 +707,63 @@ _Will be updated after service migration_
 
 ---
 
-## Phase 3 Roadmap (Provider Adapters)
+## Phase 3 Complete ✅ (Provider Adapters)
 
-### Planned Providers
+### Implemented Providers
 
-1. **AlphaVantageQuoteProvider** - Stock quotes from AlphaVantage
-2. **AlphaVantageOverviewProvider** - Company fundamentals
-3. **YahooFinanceProvider** - Yahoo Finance quotes and fundamentals
-4. **TiingoBatchQuoteProvider** - Batch stock quotes (implements `BatchDataProvider`)
-5. **NewsAPIProvider** - News articles
+**Stock Quotes:**
+1. ✅ **TiingoQuoteProvider** (PRIMARY) - Batch-capable (500 symbols/request)
+2. ✅ **YahooFinanceQuoteProvider** (FALLBACK) - Single fetch only
+3. ✅ **AlphaVantageQuoteProvider** - Commodities (copper, energy)
 
-### Implementation Checklist
+**Fundamentals:**
+4. ✅ **YahooFinanceFundamentalsProvider** - Company data
+5. ✅ **AlphaVantageFundamentalsProvider** - Extended metrics
 
-- [ ] Create `provider-adapters.ts`
-- [ ] Implement each provider wrapper
-- [ ] Add health check methods
-- [ ] Write provider-specific error handling
-- [ ] Add provider integration tests
-- [ ] Update this README with provider examples
+**News:**
+6. ✅ **BraveNewsProvider** (PRIMARY) - Brave Search API
+
+**Filings:**
+7. ✅ **SECEdgarProvider** - SEC filings
+
+### Removed Providers (Phase 3 Cleanup)
+- ❌ **FMPQuoteProvider** - Replaced by Tiingo
+- ❌ **FinnhubNewsProvider** - Replaced by Brave Search
+
+### Implementation Status
+
+- ✅ Created `provider-adapters.ts` (800+ LOC)
+- ✅ Implemented all production providers
+- ✅ Added health check methods
+- ✅ Provider-specific error handling with ProviderError codes
+- ✅ 50+ provider integration tests
+- ✅ Documentation updated
 
 ---
 
-## Migration Guide (Phase 4)
+## Migration Status (Phase 3 ✅)
 
-_Will be written when services begin migration_
+### Migrated Services
 
-### Services to Migrate
+1. ✅ **StockDataService** - Fully migrated to orchestrator
+   - `getQuote()` - Uses Tiingo → Yahoo Finance fallback
+   - `getBatchQuotes()` - Uses Tiingo batch API (500 symbols)
+   - Reduced from 58 LOC → 15 LOC (74% reduction)
 
-1. **StockDataService** - `getQuote()`, `getQuotes()`
-2. **FinancialDataService** - `getFundamentals()`
-3. **MarketDataService** - `getOilPrice()`, `getGasPrice()`, `getCopperPrice()`
-4. **NewsService** - `getNewsForSymbol()`
+2. ✅ **NewsService** - Updated for Finnhub removal
+   - Uses Brave Search as primary
+   - Removed Finnhub dependencies
 
-### Feature Flag Strategy
+### Remaining Services (Future Phases)
+
+3. **FinancialDataService** - `getFundamentals()` (Phase 4)
+4. **MarketDataService** - Commodities (Phase 4)
+
+### Feature Flags
 
 ```typescript
-// Use feature flag for gradual rollout
-if (process.env.FEATURE_ORCHESTRATOR_ENABLED === 'true') {
-  return this.getQuoteWithOrchestrator(symbol, tier);
-} else {
-  return this.getQuoteLegacy(symbol, tier);
-}
+// Tiingo provider (Phase 3)
+FEATURE_TIINGO_ENABLED=true  // ✅ In production
 ```
 
 ---
@@ -840,4 +858,6 @@ Part of the Portfolio Tracker application. See root LICENSE file.
 
 ---
 
-**Last Updated:** 2025-12-04 | **Phase:** 2/6 Complete
+**Last Updated:** December 4, 2025 | **Phase:** 3/6 Complete ✅
+
+**Phase 3 Completion:** Tiingo provider, provider adapters, StockDataService migration, FMP/Finnhub removal

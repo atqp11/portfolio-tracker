@@ -2,12 +2,11 @@
  * News Service
  *
  * Business logic layer for company and market news.
- * Aggregates news from multiple sources (Finnhub, Brave Search).
+ * Aggregates news from multiple sources (Brave Search, NewsAPI).
  *
  * Phase 1: Migrated to distributed cache (Vercel KV / Upstash Redis)
+ * Phase 3: Removed Finnhub (deprecated), using Brave Search as primary
  */
-import { finnhubDAO } from '../../stocks/dao/finnhub.dao';
-import { FinnhubNews } from '@lib/types/finnhub-news.dto';
 import { braveSearchDAO, BraveSearchResult } from '../dao/brave-search.dao';
 import { getCacheAdapter, type CacheAdapter } from '@lib/cache/adapter';
 import { getCacheTTL } from '@lib/config/cache-ttl.config';
@@ -95,51 +94,27 @@ export class NewsService {
     const articles: NewsArticle[] = [];
     const sources: string[] = [];
 
-    // 2. Try Finnhub (primary source)
+    // 2. Try Brave Search (primary source)
     try {
-      console.log(`[NewsService] Fetching Finnhub news for ${symbol}`);
-      const finnhubNews = await finnhubDAO.getCompanyNews(symbol);
+      console.log(`[NewsService] Fetching Brave Search news for ${symbol}`);
+      const query = `${symbol} stock news`;
+      const braveResults = await braveSearchDAO.search(query, limit);
 
-      const mapped = finnhubNews.map((article) => ({
-        headline: article.headline,
-        summary: article.summary || '',
-        url: article.link,
-        source: article.source,
-        publishedAt: article.datetime * 1000 // Convert to milliseconds
+      const mapped = braveResults.map((result) => ({
+        headline: result.title,
+        summary: result.description || '',
+        url: result.url,
+        source: new URL(result.url).hostname,
+        publishedAt: Date.now() // Brave doesn't always provide exact timestamps
       }));
 
       articles.push(...mapped);
-      sources.push('finnhub');
+      sources.push('brave');
 
-      console.log(`[NewsService] Finnhub returned ${mapped.length} articles for ${symbol}`);
+      console.log(`[NewsService] Brave Search returned ${mapped.length} articles for ${symbol}`);
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-      console.warn(`[NewsService] Finnhub failed for ${symbol}: ${errorMsg}`);
-    }
-
-    // 3. Augment with Brave Search if we have few results
-    if (articles.length < 5) {
-      try {
-        console.log(`[NewsService] Augmenting with Brave Search for ${symbol}`);
-        const query = `${symbol} stock news`;
-        const braveResults = await braveSearchDAO.search(query, 10);
-
-        const mapped = braveResults.map((result) => ({
-          headline: result.title,
-          summary: result.description || '',
-          url: result.url,
-          source: new URL(result.url).hostname,
-          publishedAt: Date.now() // Brave doesn't always provide exact timestamps
-        }));
-
-        articles.push(...mapped);
-        sources.push('brave');
-
-        console.log(`[NewsService] Brave Search returned ${mapped.length} articles for ${symbol}`);
-      } catch (error) {
-        const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-        console.warn(`[NewsService] Brave Search failed for ${symbol}: ${errorMsg}`);
-      }
+      console.warn(`[NewsService] Brave Search failed for ${symbol}: ${errorMsg}`);
     }
 
     // 4. Deduplicate by URL and sort by recency
