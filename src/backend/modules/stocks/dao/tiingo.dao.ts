@@ -128,7 +128,7 @@ export class TiingoDAO extends BaseDAO {
 
     // Build URL with tickers as comma-separated list
     const tickers = symbols.join(',');
-    const url = `${this.baseUrl}/daily/${tickers}/prices?token=${apiKey}`;
+    const url = `${this.baseUrl}/iex/?tickers=${tickers}&token=${apiKey}`;
 
     try {
       const response = await this.fetchWithTimeout<TiingoQuoteResponse[]>(url, this.timeout);
@@ -138,12 +138,14 @@ export class TiingoDAO extends BaseDAO {
 
       for (const item of response) {
         const symbol = item.ticker;
-        const change = item.last - item.prevClose;
+        // Use tngoLast (Tiingo's computed last price) when 'last' is null (outside market hours)
+        const price = item.last ?? item.tngoLast;
+        const change = price - item.prevClose;
         const changePercent = ((change / item.prevClose) * 100).toFixed(2);
 
         quotes.set(symbol, {
           symbol,
-          price: item.last,
+          price,
           change,
           changePercent,
           volume: item.volume,

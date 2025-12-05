@@ -2,12 +2,12 @@
  * News Service
  *
  * Business logic layer for company and market news.
- * Aggregates news from multiple sources (Brave Search, NewsAPI).
+ * Aggregates news from multiple sources (RSS feeds, NewsAPI fallback).
  *
  * Phase 1: Migrated to distributed cache (Vercel KV / Upstash Redis)
- * Phase 3: Removed Finnhub (deprecated), using Brave Search as primary
+ * Phase 3: Removed Finnhub and Brave Search (not free), using RSS feeds as primary
  */
-import { braveSearchDAO, BraveSearchResult } from '../dao/brave-search.dao';
+import { rssFeedDAO, type RSSArticle } from '../dao/rss-feed.dao';
 import { getCacheAdapter, type CacheAdapter } from '@lib/cache/adapter';
 import { getCacheTTL } from '@lib/config/cache-ttl.config';
 import type { TierName } from '@lib/config/types';
@@ -65,9 +65,9 @@ export class NewsService {
    *
    * Strategy:
    * 1. Check cache (TTL based on tier)
-   * 2. Fetch from Finnhub (primary for company-specific news)
-   * 3. Augment with Brave Search if needed
-   * 4. Merge, deduplicate, and sort by recency
+   * 2. Fetch from RSS feeds (primary - free, no API key needed)
+   * 3. Fallback to NewsAPI if RSS fails
+   * 4. Deduplicate and sort by recency
    *
    * @param symbol - Stock ticker symbol
    * @param limit - Maximum number of articles to return
@@ -75,7 +75,7 @@ export class NewsService {
    * @returns Aggregated news articles
    */
   async getCompanyNews(symbol: string, limit: number = 20, tier?: TierName): Promise<NewsResponse> {
-    const cacheKey = `company-news:${symbol}:v1`;
+    const cacheKey = `company-news:${symbol}:v2`; // v2 for RSS change
     const ttl = this.getCacheTTL(tier);
 
     // 1. Check cache
@@ -94,30 +94,29 @@ export class NewsService {
     const articles: NewsArticle[] = [];
     const sources: string[] = [];
 
-    // 2. Try Brave Search (primary source)
+    // 2. Try RSS feeds (primary source - free)
     try {
-      console.log(`[NewsService] Fetching Brave Search news for ${symbol}`);
-      const query = `${symbol} stock news`;
-      const braveResults = await braveSearchDAO.search(query, limit);
+      console.log(`[NewsService] Fetching RSS news for ${symbol}`);
+      const rssResults = await rssFeedDAO.getCompanyNews(symbol, limit);
 
-      const mapped = braveResults.map((result) => ({
+      const mapped = rssResults.map((result) => ({
         headline: result.title,
         summary: result.description || '',
         url: result.url,
-        source: new URL(result.url).hostname,
-        publishedAt: Date.now() // Brave doesn't always provide exact timestamps
+        source: result.source,
+        publishedAt: result.publishedAt
       }));
 
       articles.push(...mapped);
-      sources.push('brave');
+      sources.push('rss');
 
-      console.log(`[NewsService] Brave Search returned ${mapped.length} articles for ${symbol}`);
+      console.log(`[NewsService] RSS feeds returned ${mapped.length} articles for ${symbol}`);
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-      console.warn(`[NewsService] Brave Search failed for ${symbol}: ${errorMsg}`);
+      console.warn(`[NewsService] RSS feeds failed for ${symbol}: ${errorMsg}`);
     }
 
-    // 4. Deduplicate by URL and sort by recency
+    // 3. Deduplicate by URL and sort by recency
     const uniqueArticles = this.deduplicateByUrl(articles);
     const sorted = uniqueArticles.sort((a, b) => b.publishedAt - a.publishedAt);
     const limited = sorted.slice(0, limit);
@@ -139,7 +138,7 @@ export class NewsService {
   /**
    * Search general market news
    *
-   * Uses Brave Search for broad market topics.
+   * Uses RSS feeds for broad market topics.
    *
    * @param query - Search query (e.g., "stock market crash", "Fed interest rates")
    * @param limit - Maximum number of articles
@@ -147,7 +146,7 @@ export class NewsService {
    * @returns News articles matching query
    */
   async searchMarketNews(query: string, limit: number = 20, tier?: TierName): Promise<NewsResponse> {
-    const cacheKey = `market-news:${query}:v1`;
+    const cacheKey = `market-news:${query}:v2`; // v2 for RSS change
     const ttl = this.getCacheTTL(tier);
 
     // Check cache
@@ -163,19 +162,19 @@ export class NewsService {
     console.log(`[NewsService] Searching market news: ${query}`);
 
     try {
-      const braveResults = await braveSearchDAO.search(query, limit);
+      const rssResults = await rssFeedDAO.searchNews(query, limit);
 
-      const articles = braveResults.map((result) => ({
+      const articles = rssResults.map((result) => ({
         headline: result.title,
         summary: result.description || '',
         url: result.url,
-        source: new URL(result.url).hostname,
-        publishedAt: Date.now() // Brave doesn't always provide exact timestamps
+        source: result.source,
+        publishedAt: result.publishedAt
       }));
 
       const response: NewsResponse = {
         articles,
-        sources: ['brave'],
+        sources: ['rss'],
         cached: false,
         timestamp: Date.now()
       };
@@ -212,7 +211,7 @@ export class NewsService {
    * @returns Aggregated trending news
    */
   async getTrendingNews(sectors: string[] = ['technology', 'finance', 'energy'], tier?: TierName): Promise<NewsResponse> {
-    const cacheKey = `trending-news:${sectors.join('-')}:v1`;
+    const cacheKey = `trending-news:${sectors.join('-')}:v2`; // v2 for RSS change
     const ttl = this.getCacheTTL(tier);
 
     // Check cache
@@ -233,14 +232,14 @@ export class NewsService {
     const promises = sectors.map(async (sector) => {
       try {
         const query = `${sector} stocks news`;
-        const results = await braveSearchDAO.search(query, 5);
+        const results = await rssFeedDAO.searchNews(query, 5);
 
         return results.map((result) => ({
           headline: result.title,
           summary: result.description || '',
           url: result.url,
-          source: new URL(result.url).hostname,
-          publishedAt: Date.now()
+          source: result.source,
+          publishedAt: result.publishedAt
         }));
       } catch (error) {
         console.warn(`[NewsService] Failed to fetch trending news for sector: ${sector}`);
@@ -258,7 +257,7 @@ export class NewsService {
 
     const response: NewsResponse = {
       articles: limited,
-      sources: ['brave'],
+      sources: ['rss'],
       cached: false,
       timestamp: Date.now()
     };

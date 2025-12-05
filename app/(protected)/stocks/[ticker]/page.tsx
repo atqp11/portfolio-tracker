@@ -87,8 +87,10 @@ export default function StockDetailPage() {
             <h1 className="text-4xl font-bold text-[#FAFAFA]">{ticker.toUpperCase()}</h1>
             {fundamentals && (
               <>
-                <span className="text-2xl text-[#A1A1AA]">{fundamentals.overview?.Name}</span>
-                <span className="text-lg text-[#3B82F6] font-mono">${fundamentals.price.toFixed(2)}</span>
+                <span className="text-2xl text-[#A1A1AA]">{fundamentals.overview?.Name || ticker.toUpperCase()}</span>
+                <span className="text-lg text-[#3B82F6] font-mono">
+                  {fundamentals.price != null ? `$${fundamentals.price.toFixed(2)}` : 'N/A'}
+                </span>
               </>
             )}
           </div>

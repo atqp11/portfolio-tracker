@@ -40,20 +40,14 @@ export interface YahooFundamentals {
 }
 
 export class YahooFinanceDAO extends BaseDAO {
-  private readonly apiKey: string;
-  private readonly quoteUrl = 'https://yfapi.net/v6/finance/quote';
+  private readonly quoteUrl = 'https://query1.finance.yahoo.com/v7/finance/quote';
   private readonly fundamentalsUrl = 'https://query2.finance.yahoo.com/v10/finance/quoteSummary';
 
   constructor() {
     super();
-    this.apiKey = process.env.YAHOO_API_KEY || '';
-    if (!this.apiKey) {
-      console.warn('Yahoo Finance API key not configured');
-    }
   }
 
   async fetchQuote(ticker: string): Promise<any> {
-    if (!this.apiKey) throw new Error('Missing Yahoo Finance API key');
     if (!ticker) throw new Error('Ticker symbol is required');
     const url = this.buildUrl(this.quoteUrl, { symbols: ticker });
     const controller = new AbortController();
@@ -62,7 +56,7 @@ export class YahooFinanceDAO extends BaseDAO {
     try {
       res = await fetch(url, {
         headers: {
-          'x-api-key': this.apiKey,
+          'User-Agent': 'Mozilla/5.0',
         },
         signal: controller.signal,
       });

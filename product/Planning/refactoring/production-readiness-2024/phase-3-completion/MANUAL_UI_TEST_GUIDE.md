@@ -235,15 +235,15 @@ curl http://localhost:3000/api/telemetry/stats
 
 ---
 
-### 8. News Endpoints (Post-Finnhub Cleanup)
+### 8. News Endpoints (Post-Finnhub/Brave Search Cleanup)
 
-**Test news after Finnhub removal:**
+**Test news after Finnhub and Brave Search removal (now using FREE RSS feeds):**
 
 ```bash
-# Copper news (should work with Brave Search)
+# Copper news (should work with RSS feeds - no API key needed)
 curl http://localhost:3000/api/news/copper
 
-# Energy news (should work with Brave Search)
+# Energy news (should work with RSS feeds - no API key needed)
 curl http://localhost:3000/api/news/energy
 
 # Deprecated scrape-news endpoint
@@ -252,9 +252,10 @@ curl http://localhost:3000/api/scrape-news
 ```
 
 **Expected:**
-- ✅ Copper/energy news load from Brave Search
-- ✅ No Finnhub errors in console
+- ✅ Copper/energy news load from RSS feeds (Yahoo Finance, Google News, Investing.com)
+- ✅ No Finnhub or Brave Search errors in console
 - ✅ `/api/scrape-news` returns 410 Gone
+- ✅ News articles have proper title, description, URL, source, publishedAt fields
 
 ---
 

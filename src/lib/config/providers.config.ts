@@ -25,7 +25,7 @@ export const PROVIDER_CONFIG = {
     name: 'tiingo',
     enabled: process.env.FEATURE_TIINGO_ENABLED === 'true',
     priority: 1, // PRIMARY for stock quotes
-    baseUrl: 'https://api.tiingo.com/tiingo',
+    baseUrl: 'https://api.tiingo.com',
     apiKey: process.env.TIINGO_API_KEY,
     timeout: 10000, // 10 seconds
     retryAttempts: 2,

@@ -1,58 +1,33 @@
 import { NextResponse } from 'next/server';
-import { NewsService } from '@backend/modules/news/service/news.service';
-import { NewsAPIError } from '@lib/types/news.dto';
+import { rssFeedDAO } from '@backend/modules/news/dao/rss-feed.dao';
 
-const newsService = new NewsService();
-
+/**
+ * Energy News API Route
+ *
+ * Fetches energy/oil/gas news from free RSS feeds (Investing.com, Google News, etc.)
+ * No API key required.
+ */
 export async function GET(request: Request) {
   try {
-    // Get portfolio ID from query params
-    const { searchParams } = new URL(request.url);
-    const portfolioId = searchParams.get('portfolioId');
+    console.log('[/api/news/energy] Fetching energy news from RSS feeds');
 
-    let query: string;
-    let cacheKey: string;
-
-    if (portfolioId) {
-      // Fetch portfolio and generate AI-powered query
-      const portfolioResponse = await fetch(`${request.headers.get('origin') || 'http://localhost:3000'}/api/portfolio?id=${portfolioId}`);
-      if (!portfolioResponse.ok) {
-        throw new Error('Failed to fetch portfolio');
-      }
-
-      const portfolio = await portfolioResponse.json();
-
-      // Generate AI-powered query based on portfolio holdings
-      query = await newsService.generateNewsQueryForPortfolio(portfolio);
-      cacheKey = `market-news-energy-${portfolioId}`;
-    } else {
-      // Default energy market news
-      query = 'energy OR oil OR natural gas OR petroleum OR crude';
-      cacheKey = 'market-news-energy';
-    }
-
-    const articles = await newsService.getNewsAPI(query, cacheKey, 10);
+    // Fetch energy news from RSS feeds
+    const articles = await rssFeedDAO.getCommodityNews('energy', 10);
 
     // Format articles to match expected response format
     const news = articles.map((article) => ({
       title: article.title,
       description: article.description,
       url: article.url,
-      source: article.source?.name || 'Unknown',
+      source: article.source,
       publishedAt: article.publishedAt,
     }));
 
+    console.log(`[/api/news/energy] Returning ${news.length} articles from RSS feeds`);
+
     return NextResponse.json(news);
   } catch (error: any) {
-    console.error('Error fetching energy news:', error);
-
-    // Handle specific NewsAPI errors
-    if (error instanceof NewsAPIError) {
-      return NextResponse.json(
-        { error: error.message, type: error.type },
-        { status: error.status }
-      );
-    }
+    console.error('[/api/news/energy] Error fetching energy news:', error);
 
     return NextResponse.json(
       { error: error.message || 'Failed to fetch energy news' },

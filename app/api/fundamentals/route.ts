@@ -10,7 +10,7 @@ interface FundamentalsResponse {
   ticker: string;
   price: number;
   fundamentals: any;
-  source: 'yahoo' | 'alphavantage' | 'merged' | 'cache';
+  source: 'yahoo' | 'alphavantage' | 'merged' | 'cache' | 'none';
   timestamp: number;
   debugRouteHit?: boolean;
   fetchedAt: string;
@@ -35,11 +35,8 @@ export async function GET(request: NextRequest) {
   console.log(`[/api/fundamentals] Fetching fundamentals for: ${ticker}`);
 
   try {
-    // Fetch price and fundamentals in parallel using new service layer
-    const [quote, fundamentals] = await Promise.all([
-      stockDataService.getQuote(ticker),
-      financialDataService.getFundamentals(ticker)
-    ]);
+    // Fetch quote first (always needed)
+    const quote = await stockDataService.getQuote(ticker);
 
     // Handle null quote (all providers failed) - check BEFORE using quote data
     if (!quote) {
@@ -51,6 +48,21 @@ export async function GET(request: NextRequest) {
         },
         { status: 503 }
       );
+    }
+
+    // Try to fetch fundamentals, but don't fail if it's an ETF or not available
+    let fundamentals;
+    try {
+      fundamentals = await financialDataService.getFundamentals(ticker);
+    } catch (error: any) {
+      console.warn(`[/api/fundamentals] Could not fetch fundamentals for ${ticker} (might be ETF/Fund): ${error.message}`);
+      // Return basic response with quote only (for ETFs, commodities, etc.)
+      fundamentals = {
+        symbol: ticker,
+        source: 'none',
+        timestamp: Date.now(),
+        description: 'Fundamental data not available for this security (may be an ETF, commodity, or fund)',
+      };
     }
 
     // Transform fundamentals data to match expected format for stock detail page
@@ -86,7 +98,7 @@ export async function GET(request: NextRequest) {
       ticker,
       price: quote.price,
       fundamentals,
-      source: fundamentals.source,
+      source: (fundamentals.source || 'none') as 'yahoo' | 'alphavantage' | 'merged' | 'cache' | 'none',
       timestamp: fundamentals.timestamp,
       ...(includeDebug ? { debugRouteHit: true } : {}),
       fetchedAt: new Date().toISOString()

@@ -23,7 +23,6 @@ import { tiingoDAO, type TiingoQuoteResponse, type StockQuote as TiingoStockQuot
 import { yahooFinanceDAO, type YahooQuoteResponse, type YahooFundamentals } from '@backend/modules/stocks/dao/yahoo-finance.dao';
 import { alphaVantageDAO, type AlphaVantageQuoteResponse, type CompanyOverview } from '@backend/modules/stocks/dao/alpha-vantage.dao';
 import { secEdgarDAO, type SECFilingsResponse } from '@backend/modules/stocks/dao/sec-edgar.dao';
-import { fetchBraveNewsDAO } from '@backend/modules/news/dao/brave-news.dao';
 
 // NOTE: FMP and Finnhub providers removed in Phase 3 - replaced by Tiingo (primary) + Yahoo Finance (fallback)
 
@@ -478,91 +477,6 @@ export class AlphaVantageFundamentalsProvider implements DataProvider<CompanyFun
 }
 
 // ============================================================================
-// NEWS PROVIDERS
-// ============================================================================
-
-/**
- * Brave News Provider
- *
- * Provides news articles from Brave Search API.
- */
-export class BraveNewsProvider implements DataProvider<NewsArticle[]> {
-  readonly name = 'braveNews';
-
-  async fetch(query: string, options?: FetchOptions): Promise<NewsArticle[]> {
-    try {
-      const rawData = await fetchBraveNewsDAO(query);
-
-      return rawData.results.map((article: any) => this.transformArticle(article));
-    } catch (error) {
-      throw this.handleError(error);
-    }
-  }
-
-  private transformArticle(raw: any): NewsArticle {
-    return {
-      headline: raw.title || '',
-      summary: raw.description || raw.snippet || '',
-      link: raw.url || '',
-      datetime: raw.age ? this.parseRelativeTime(raw.age) : Date.now(),
-      source: raw.meta_url?.hostname || 'brave',
-    };
-  }
-
-  private parseRelativeTime(relativeTime: string): number {
-    // Parse relative time strings like "2 hours ago", "1 day ago"
-    const now = Date.now();
-    const match = relativeTime.match(/(\d+)\s+(minute|hour|day|week)s?/i);
-
-    if (!match) return now;
-
-    const value = parseInt(match[1], 10);
-    const unit = match[2].toLowerCase();
-
-    const multipliers: Record<string, number> = {
-      minute: 60 * 1000,
-      hour: 60 * 60 * 1000,
-      day: 24 * 60 * 60 * 1000,
-      week: 7 * 24 * 60 * 60 * 1000,
-    };
-
-    const multiplier = multipliers[unit] || 0;
-    return now - (value * multiplier);
-  }
-
-  private handleError(error: unknown): ProviderError {
-    const message = error instanceof Error ? error.message : 'Unknown error';
-
-    if (message.includes('API key') || message.includes('Missing Brave')) {
-      return new ProviderError(this.name, ProviderErrorCode.AUTHENTICATION, message, error as Error);
-    }
-
-    if (message.includes('timeout')) {
-      return new ProviderError(this.name, ProviderErrorCode.TIMEOUT, message, error as Error);
-    }
-
-    if (message.includes('Network error')) {
-      return new ProviderError(this.name, ProviderErrorCode.NETWORK_ERROR, message, error as Error);
-    }
-
-    if (message.includes('Unexpected') || message.includes('Invalid')) {
-      return new ProviderError(this.name, ProviderErrorCode.INVALID_RESPONSE, message, error as Error);
-    }
-
-    return new ProviderError(this.name, ProviderErrorCode.UNKNOWN, message, error as Error);
-  }
-
-  async healthCheck(): Promise<boolean> {
-    try {
-      await this.fetch('stock market news');
-      return true;
-    } catch {
-      return false;
-    }
-  }
-}
-
-// ============================================================================
 // SEC FILING PROVIDER
 // ============================================================================
 
@@ -670,9 +584,6 @@ export const alphaVantageQuoteProvider = new AlphaVantageQuoteProvider();
 export const yahooFinanceFundamentalsProvider = new YahooFinanceFundamentalsProvider();
 export const alphaVantageFundamentalsProvider = new AlphaVantageFundamentalsProvider();
 
-// News Providers
-export const braveNewsProvider = new BraveNewsProvider();
-
 // Filing Providers
 export const secEdgarProvider = new SECEdgarProvider();
 
@@ -684,11 +595,11 @@ export const secEdgarProvider = new SECEdgarProvider();
  * Pre-configured provider groups for common use cases
  *
  * Phase 3: Updated to use Tiingo (primary) + Yahoo Finance (fallback) for quotes
- * Removed: FMP, Finnhub (deprecated providers)
+ * Removed: FMP, Finnhub, Brave Search (deprecated providers)
+ * News now uses RSS feeds (no provider adapter needed)
  */
 export const PROVIDER_GROUPS = {
   quotes: [tiingoQuoteProvider, yahooFinanceQuoteProvider, alphaVantageQuoteProvider],
   fundamentals: [yahooFinanceFundamentalsProvider, alphaVantageFundamentalsProvider],
-  news: [braveNewsProvider],
   filings: [secEdgarProvider],
 } as const;

@@ -1,12 +1,15 @@
 import { NextResponse } from 'next/server';
-import { NewsService } from '@backend/modules/news/service/news.service';
+import { rssFeedDAO } from '@backend/modules/news/dao/rss-feed.dao';
 import { portfolioController } from '@backend/modules/portfolio/portfolio.controller';
-import { NewsAPIError } from '@lib/types/news.dto';
 import { ErrorResponse } from '@lib/types/base/response.dto';
 import { getUserProfile } from '@lib/auth/session';
 
-const newsService = new NewsService();
-
+/**
+ * Portfolio News API Route
+ *
+ * Fetches news from free RSS feeds based on portfolio type.
+ * No API key required.
+ */
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -33,32 +36,52 @@ export async function GET(
     // Fetch portfolio data via internal controller so server-side auth (cookies) is preserved
     const portfolio = await portfolioController.getPortfolioById(portfolioId);
 
-    // Generate AI-powered query based on portfolio holdings
-    const query = await newsService.generateNewsQueryForPortfolio(portfolio);
-    const cacheKey = `market-news-portfolio-${portfolioId}`;
+    console.log(`[/api/news/portfolio/${portfolioId}] Fetching RSS news for ${portfolio.type} portfolio: ${portfolio.name}`);
 
-    const articles = await newsService.getNewsAPI(query, cacheKey, 10);
+    let articles;
+
+    // Get news based on portfolio type
+    const portfolioType = portfolio.type?.toLowerCase() || 'general';
+
+    if (portfolioType === 'energy') {
+      // Energy portfolio - use commodity news with energy keywords
+      articles = await rssFeedDAO.getCommodityNews('energy', 10);
+    } else if (portfolioType === 'copper' || portfolioType === 'commodity') {
+      // Copper/commodity portfolio - use commodity news with copper keywords
+      articles = await rssFeedDAO.getCommodityNews('copper', 10);
+    } else {
+      // General portfolio - use market news with portfolio-specific keywords
+      const keywords: string[] = [];
+
+      // Extract stock symbols from holdings
+      if (portfolio.holdings && portfolio.holdings.length > 0) {
+        portfolio.holdings.forEach((holding: any) => {
+          if (holding.symbol) {
+            keywords.push(holding.symbol);
+          }
+        });
+      }
+
+      // Add general market keywords
+      keywords.push('stock', 'market', 'trading');
+
+      articles = await rssFeedDAO.getMarketNews(10, keywords);
+    }
 
     // Format articles to match expected response format
     const news = articles.map((article) => ({
       title: article.title,
       description: article.description,
       url: article.url,
-      source: article.source?.name || 'Unknown',
+      source: article.source,
       publishedAt: article.publishedAt,
     }));
 
+    console.log(`[/api/news/portfolio/${portfolioId}] Returning ${news.length} articles from RSS feeds (type: ${portfolioType})`);
+
     return NextResponse.json({ success: true, data: news });
   } catch (error: any) {
-    console.error('Error fetching portfolio news:', error);
-
-    // Handle specific NewsAPI errors
-    if (error instanceof NewsAPIError) {
-      return NextResponse.json(
-        ErrorResponse.create(error.type, error.message),
-        { status: error.status }
-      );
-    }
+    console.error('[/api/news/portfolio] Error fetching portfolio news:', error);
 
     // Handle not found
     if (error.message?.includes('not found')) {

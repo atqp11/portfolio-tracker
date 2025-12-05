@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { usePortfolios, usePortfolioById, useStocks, Portfolio, Stock } from '@lib/hooks/useDatabase';
 import PortfolioSelector from '@/components/PortfolioSelector';
 import PortfolioModal from '@/components/PortfolioModal';
@@ -20,6 +21,8 @@ interface StockFundamentals {
 }
 
 export default function FundamentalsPage() {
+  const router = useRouter();
+
   // Portfolio state
     const { data: portfolios, isLoading: portfoliosLoading, refetch: refetchPortfolios } = usePortfolios();
   //const { portfolios, loading: portfoliosLoading, refetch: refetchPortfolios } = usePortfolios();
@@ -67,17 +70,24 @@ export default function FundamentalsPage() {
             const data = await response.json();
             const fundamentals = data.fundamentals || {};
 
+            // Helper to parse string or number values
+            const parseValue = (val: any): number | undefined => {
+              if (val === null || val === undefined) return undefined;
+              const num = typeof val === 'string' ? parseFloat(val) : val;
+              return isNaN(num) ? undefined : num;
+            };
+
             fundamentalsData[stock.symbol] = {
               symbol: stock.symbol,
               name: stock.name || stock.symbol,
               price: stock.currentPrice || data.price || 0,
-              pe: fundamentals.pe || fundamentals.peRatio || fundamentals.trailingPE,
-              eps: fundamentals.eps || fundamentals.epsTrailing,
-              marketCap: fundamentals.marketCap,
-              dividend: fundamentals.dividendYield || fundamentals.dividend,
-              beta: fundamentals.beta,
-              week52High: fundamentals.week52High || fundamentals.fiftyTwoWeekHigh,
-              week52Low: fundamentals.week52Low || fundamentals.fiftyTwoWeekLow,
+              pe: parseValue(fundamentals.pe || fundamentals.peRatio || fundamentals.trailingPE),
+              eps: parseValue(fundamentals.eps || fundamentals.epsTrailing),
+              marketCap: parseValue(fundamentals.marketCap),
+              dividend: parseValue(fundamentals.dividendYield || fundamentals.dividend),
+              beta: parseValue(fundamentals.beta),
+              week52High: parseValue(fundamentals.week52High || fundamentals.fiftyTwoWeekHigh),
+              week52Low: parseValue(fundamentals.week52Low || fundamentals.fiftyTwoWeekLow),
             };
           } else {
             fundamentalsData[stock.symbol] = {
@@ -245,7 +255,8 @@ export default function FundamentalsPage() {
             return (
               <div
                 key={stock.id}
-                className={`bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 p-6 ${portfolioTheme.cardHover}`}
+                onClick={() => router.push(`/stocks/${stock.symbol}`)}
+                className={`bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 p-6 cursor-pointer transition-all hover:shadow-lg ${portfolioTheme.cardHover}`}
               >
                 {/* Stock Header */}
                 <div className="border-b border-gray-200 dark:border-gray-700 pb-4 mb-4">
