@@ -369,10 +369,10 @@ const LandingPage = () => {
             ))}
           </div>
           <div className="flex items-center gap-3">
-            <Link href="/auth/sign-in" className="hidden md:block text-sm font-medium text-gray-300 hover:text-white transition-colors">
+            <Link href="/auth/signin" className="hidden md:block text-sm font-medium text-gray-300 hover:text-white transition-colors">
               Sign In
             </Link>
-            <Link href="/auth/sign-up" className="bg-white text-black px-6 py-2.5 rounded-full font-bold text-sm hover:bg-indigo-50 transition-colors border border-white/20 shadow-[0_0_20px_rgba(255,255,255,0.2)]">
+            <Link href="/auth/signup" className="bg-white text-black px-6 py-2.5 rounded-full font-bold text-sm hover:bg-indigo-50 transition-colors border border-white/20 shadow-[0_0_20px_rgba(255,255,255,0.2)]">
               Get Started
             </Link>
           </div>
@@ -404,7 +404,7 @@ const LandingPage = () => {
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link
-              href="/auth/sign-up"
+              href="/auth/signup"
               className="bg-indigo-600 text-white px-8 py-3 rounded-lg font-semibold hover:bg-indigo-700 transition"
             >
               Get Started Free

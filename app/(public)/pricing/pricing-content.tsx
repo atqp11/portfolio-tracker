@@ -22,7 +22,7 @@ export default function PricingContent() {
         if (user) {
           router.push('/dashboard');
         } else {
-          router.push('/auth/sign-up');
+          router.push('/auth/signup');
         }
         return;
       }
@@ -34,7 +34,7 @@ export default function PricingContent() {
           tier: tierId,
           billing: billingPeriod,
         }));
-        router.push('/auth/sign-up?redirect=checkout');
+        router.push('/auth/signup?redirect=checkout');
         return;
       }
 

@@ -371,10 +371,10 @@ export class AdminController {
    */
   async updateUser(
     req: NextRequest,
-    context: { params: { id: string }; body?: { tier?: string; is_admin?: boolean }; admin: UserProfile }
+    context: { params: { userId: string }; body?: { tier?: string; is_admin?: boolean }; admin: UserProfile }
   ): Promise<NextResponse> {
     try {
-      const { id: userId } = context.params;
+      const { userId } = context.params;
       const { tier, is_admin } = context.body || {};
 
       const user = await adminService.getUserDetails(userId);
@@ -423,15 +423,15 @@ export class AdminController {
   }
 
   /**
-   * DELETE /api/admin/users/[id]/quota
+   * DELETE /api/admin/users/[userId]/quota
    * Reset user's quota (delete usage tracking records)
    */
   async resetUserQuota(
     req: NextRequest,
-    context: { params: { id: string }; admin: UserProfile }
+    context: { params: { userId: string }; admin: UserProfile }
   ): Promise<NextResponse> {
     try {
-      const { id: userId } = context.params;
+      const { userId } = context.params;
 
       const user = await adminService.getUserDetails(userId);
       if (!user) {
