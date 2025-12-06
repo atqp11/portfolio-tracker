@@ -17,6 +17,13 @@ import { createAdminClient } from '@lib/supabase/admin';
 import type { StripeTier } from '@lib/stripe/types';
 import type Stripe from 'stripe';
 import type { Profile } from '@lib/supabase/db';
+import { 
+  handleSubscriptionUpdated,
+  handleSubscriptionDeleted,
+  handleInvoicePaymentSucceeded,
+  handleInvoicePaymentFailed,
+  handleCheckoutCompleted,
+} from './webhook-handlers';
 
 // ============================================================================
 // TYPES
@@ -59,6 +66,7 @@ export interface ProcessWebhookParams {
 
 export interface ProcessWebhookResult {
   received: boolean;
+  duplicate?: boolean;
 }
 
 // ============================================================================
@@ -89,13 +97,17 @@ export async function createStripeCheckoutSession(
     throw new Error(`Price ID not configured for ${tier} tier`);
   }
 
+  // Create idempotency key
+  const idempotencyKey = `checkout_${profile.id}_${Date.now()}`;
+
   // Create checkout session
   const { sessionId, url } = await createCheckoutSession(
     customerId,
     priceId,
     successUrl,
     cancelUrl,
-    trialDays
+    trialDays,
+    idempotencyKey
   );
 
   return {
@@ -167,142 +179,76 @@ export async function processStripeWebhook(
     throw new Error('Invalid webhook signature');
   }
 
-  console.log(`Processing Stripe webhook event: ${event.type}`);
-
-  // Route event to appropriate handler
-  switch (event.type) {
-    case 'customer.subscription.created':
-    case 'customer.subscription.updated':
-      await handleSubscriptionChange(event.data.object as Stripe.Subscription);
-      break;
-
-    case 'customer.subscription.deleted':
-      await handleSubscriptionCanceled(event.data.object as Stripe.Subscription);
-      break;
-
-    case 'invoice.payment_succeeded':
-      await handlePaymentSucceeded(event.data.object as Stripe.Invoice);
-      break;
-
-    case 'invoice.payment_failed':
-      await handlePaymentFailed(event.data.object as Stripe.Invoice);
-      break;
-
-    default:
-      console.log(`Unhandled event type: ${event.type}`);
-  }
-
-  return { received: true };
-}
-
-// ============================================================================
-// WEBHOOK EVENT HANDLERS
-// ============================================================================
-
-interface SubscriptionMetadata {
-  userId?: string;
-}
-
-/**
- * Handle subscription created or updated events
- */
-async function handleSubscriptionChange(subscription: Stripe.Subscription): Promise<void> {
-  // Get the price ID from subscription
-  const priceId = subscription.items.data[0]?.price?.id as string;
-  if (!priceId) {
-    throw new Error('No price ID found in subscription');
-  }
-
-  // Get tier from price ID
-  const tier = getTierFromPriceId(priceId);
-  if (!tier) {
-    throw new Error(`Unknown price ID: ${priceId}`);
-  }
-
-  // Get user ID from subscription metadata
-  const metadata = subscription.metadata as SubscriptionMetadata;
-  const userId = metadata?.userId;
-
-  if (!userId) {
-    throw new Error('Cannot determine user ID for subscription');
-  }
-
-  // Update user tier in database
-  const result = await updateUserTier(userId, tier);
-  if (!result) {
-    throw new Error(`Failed to update user tier for user ${userId}`);
-  }
-
-  console.log(`Successfully updated user ${userId} to tier: ${tier}`);
-
-  // Store subscription info
-  await storeSubscriptionInfo(userId, subscription.id, tier, 'active');
-}
-
-/**
- * Handle subscription canceled events
- */
-async function handleSubscriptionCanceled(subscription: Stripe.Subscription): Promise<void> {
-  const metadata = subscription.metadata as SubscriptionMetadata;
-  const userId = metadata?.userId;
-
-  if (!userId) {
-    throw new Error('Cannot determine user ID for canceled subscription');
-  }
-
-  // Downgrade user to free tier
-  const result = await updateUserTier(userId, 'free');
-  if (!result) {
-    throw new Error(`Failed to downgrade user ${userId} to free tier`);
-  }
-
-  // Update subscription status
-  await storeSubscriptionInfo(userId, subscription.id, 'free', 'canceled');
-
-  console.log(`Successfully downgraded user ${userId} to free tier`);
-}
-
-/**
- * Handle successful payment events
- */
-async function handlePaymentSucceeded(invoice: Stripe.Invoice): Promise<void> {
-  console.log('Payment succeeded:', invoice.id);
-  // Add additional logic here for successful payments (e.g., send receipt email)
-}
-
-/**
- * Handle failed payment events
- */
-async function handlePaymentFailed(invoice: Stripe.Invoice): Promise<void> {
-  console.log('Payment failed:', invoice.id);
-  // Add logic here for failed payments (e.g., send notification to user)
-}
-
-/**
- * Store subscription information in database
- */
-async function storeSubscriptionInfo(
-  userId: string,
-  subscriptionId: string,
-  tier: string,
-  status: string
-): Promise<void> {
+  // Check for duplicate event (idempotency)
   const supabase = createAdminClient();
-  
-  const { error } = await supabase
-    .from('profiles')
-    .update({
-      stripe_subscription_id: subscriptionId,
-      subscription_status: status,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', userId);
+  const { data: existingTx } = await supabase
+    .from('stripe_transactions')
+    .select('id')
+    .eq('stripe_event_id', event.id)
+    .single();
 
-  if (error) {
-    throw new Error(`Failed to store subscription info: ${error.message}`);
+  if (existingTx) {
+    console.log(`Duplicate webhook event ${event.id}, skipping`);
+    return { received: true, duplicate: true };
   }
 
-  console.log(
-    `Stored subscription ${subscriptionId} for user ${userId} (tier: ${tier}, status: ${status})`
-  );
+  // Log the incoming event
+  const { error: logError } = await supabase
+    .from('stripe_transactions')
+    .insert({
+      stripe_event_id: event.id,
+      event_type: event.type,
+      status: 'pending',
+      created_at: new Date().toISOString(),
+    });
+
+  if (logError) {
+    console.error('Failed to log webhook event:', logError);
+    // Continue processing - logging failure shouldn't block the webhook
+  }
+
+  try {
+    const context = { event, supabase };
+    // Process event...
+    switch (event.type) {
+      case 'checkout.session.completed':
+        await handleCheckoutCompleted(event.data.object as Stripe.Checkout.Session, context);
+        break;
+      case 'customer.subscription.updated':
+        await handleSubscriptionUpdated(event.data.object as Stripe.Subscription, context);
+        break;
+      case 'customer.subscription.deleted':
+        await handleSubscriptionDeleted(event.data.object as Stripe.Subscription, context);
+        break;
+      case 'invoice.payment_succeeded':
+        await handleInvoicePaymentSucceeded(event.data.object as Stripe.Invoice, context);
+        break;
+      case 'invoice.payment_failed':
+        await handleInvoicePaymentFailed(event.data.object as Stripe.Invoice, context);
+        break;
+      default:
+        console.log(`Unhandled event type: ${event.type}`);
+    }
+
+    // Mark as completed
+    await supabase
+      .from('stripe_transactions')
+      .update({ status: 'completed', processed_at: new Date().toISOString() })
+      .eq('stripe_event_id', event.id);
+
+    return { received: true };
+  } catch (error) {
+    // Mark as failed with error details
+    await supabase
+      .from('stripe_transactions')
+      .update({
+        status: 'failed',
+        error_message: error instanceof Error ? error.message : 'Unknown error',
+        processed_at: new Date().toISOString(),
+      })
+      .eq('stripe_event_id', event.id);
+
+    throw error;
+  }
 }
+

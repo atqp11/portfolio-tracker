@@ -1,18 +1,11 @@
-/**
- * Pricing Page
- * 
- * Displays tier comparison and checkout options
- */
-
-'use client';
-
-import { Suspense } from 'react';
+import { Metadata } from 'next';
 import PricingContent from './pricing-content';
 
+export const metadata: Metadata = {
+  title: 'Pricing - Portfolio Tracker',
+  description: 'Choose the plan that fits your investment journey',
+};
+
 export default function PricingPage() {
-  return (
-    <Suspense fallback={<div className="p-8">Loading...</div>}>
-      <PricingContent />
-    </Suspense>
-  );
+  return <PricingContent />;
 }

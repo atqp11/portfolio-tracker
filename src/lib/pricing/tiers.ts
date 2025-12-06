@@ -1,23 +1,14 @@
-import { TIER_CONFIG } from '@lib/tiers/config';
-import type { TierName as ConfigTierName } from '@lib/tiers/config';
-
-export type PricingTierId = 'free' | 'basic' | 'premium';
-
-// Build PRICING_TIERS from authoritative TIER_CONFIG where possible.
-// This keeps marketing copy (pricing & CTAs) consistent with enforcement/config.
-const tierIds: PricingTierId[] = ['free', 'basic', 'premium'];
-
 export interface PricingTier {
-  id: PricingTierId;
+  id: 'free' | 'basic' | 'premium';
   name: string;
   description: string;
   price: {
-    monthly: number; // in dollars
-    annual: number; // in dollars
+    monthly: number;
+    annual: number;
   };
   priceId: {
-    monthly: string; // Stripe price ID (env var)
-    annual: string; // Stripe price ID (env var)
+    monthly: string;
+    annual: string;
   };
   features: string[];
   limitations: string[];
@@ -29,87 +20,98 @@ export interface PricingTier {
   trialDays?: number;
 }
 
-/**
- * Resolve a Stripe price ID for a given tier and billing period.
- * Reads from server-side env var: `STRIPE_PRICE_{TIER}_{BILLING}`
- * (e.g., STRIPE_PRICE_BASIC_MONTHLY, STRIPE_PRICE_PREMIUM_ANNUAL)
- * 
- * Required env vars are validated at build time by prebuild check.
- * Returns empty string and logs error if missing at runtime.
- */
-export function resolvePriceId(tierId: PricingTierId, billing: 'monthly' | 'annual') {
-  const T = tierId.toUpperCase();
-  // Normalize billing input (accept mixed case) then compute upper-case token for env names
-  const billingLower = String(billing).toLowerCase();
-  const B = billingLower === 'monthly' ? 'MONTHLY' : 'ANNUAL';
-
-  // 1) Server canonical env (required by prebuild check)
-  const serverName = `STRIPE_PRICE_${T}_${B}`;
-  const serverVal = process.env[serverName];
-  if (serverVal && serverVal.length) return serverVal;
-
-  // No fallbacks — prebuild check ensures envs are set.
-  // Log error for debugging if somehow missing at runtime.
-  // eslint-disable-next-line no-console
-  console.error(`[pricing] Missing price ID: tier=${tierId} billing=${billingLower} env=${serverName}. This should have been caught at build time.`);
-  return '';
-}
-
-export const PRICING_TIERS: PricingTier[] = tierIds.map((id) => {
-  const cfg = TIER_CONFIG[id as ConfigTierName];
-
-  // Human readable features derived from config values
-  const features: string[] = [];
-  // portfolios
-  features.push(cfg.maxPortfolios === Infinity ? 'Unlimited portfolios' : `${cfg.maxPortfolios} portfolio${cfg.maxPortfolios > 1 ? 's' : ''}`);
-  // stocks per portfolio
-  features.push(cfg.maxStocksPerPortfolio === Infinity ? 'Unlimited stocks' : `${cfg.maxStocksPerPortfolio} stocks per portfolio`);
-  // AI queries
-  features.push(cfg.chatQueriesPerDay === Infinity ? 'Unlimited AI queries per day' : `${cfg.chatQueriesPerDay} AI queries per day`);
-  // data access
-  features.push(cfg.secFilingsPerMonth === Infinity ? 'Full SEC filings access' : `${cfg.secFilingsPerMonth} SEC filings/month`);
-  // support
-  if (cfg.support === 'priority') features.push('Priority support');
-  else if (cfg.support === 'email') features.push('Email support');
-  else features.push('Community support');
-
-  // Add feature flags
-  if (cfg.features.thesisHealthScoring) features.push('Investment thesis tracking');
-  if (cfg.features.advancedAI) features.push('Advanced AI');
-  if (cfg.features.technicalAnalysis) features.push('Technical analysis tools');
-  if (cfg.features.monteCarloSimulations) features.push('Monte Carlo simulations');
-  if (cfg.features.apiAccess) features.push('API access');
-
-  // Limitations (marketing-friendly)
-  const limitations: string[] = [];
-  if (!cfg.features.technicalAnalysis) limitations.push('No technical analysis');
-  if (!cfg.features.monteCarloSimulations) limitations.push('No Monte Carlo simulations');
-
-  // Price amounts
-  const monthlyAmount = cfg.price;
-  const annualAmount = cfg.annualPrice ?? Math.round(cfg.price * 12 * 100) / 100;
-
-  // Price IDs (resolved from server env vars)
-  const monthlyPriceId = resolvePriceId(id, 'monthly');
-  const annualPriceId = resolvePriceId(id, 'annual');
-
-  return {
-    id,
-    name: id === 'free' ? 'Free' : id === 'basic' ? 'Basic' : 'Premium',
-    description: id === 'free' ? 'Get started with basic portfolio tracking' : id === 'basic' ? 'For active investors who want more insights' : 'For serious investors who need every edge',
+export const PRICING_TIERS: PricingTier[] = [
+  {
+    id: 'free',
+    name: 'Free',
+    description: 'Get started with basic portfolio tracking',
     price: {
-      monthly: monthlyAmount,
-      annual: annualAmount,
+      monthly: 0,
+      annual: 0,
     },
-    priceId: { monthly: monthlyPriceId, annual: annualPriceId },
-    features,
-    limitations,
-    cta: { text: id === 'free' ? 'Get Started Free' : 'Start 14-Day Free Trial', variant: id === 'free' ? 'outline' : id === 'basic' ? 'default' : 'premium' },
-    popular: id === 'basic',
-    trialDays: (cfg as any).trialDays ?? Number(process.env.STRIPE_TRIAL_DAYS || '14'),
-  } as PricingTier;
-});
+    priceId: {
+      monthly: '',
+      annual: '',
+    },
+    features: [
+      '1 portfolio',
+      '10 stocks maximum',
+      '50 AI queries per day',
+      'Basic market data',
+      'Daily checklist',
+    ],
+    limitations: [
+      'No investment thesis',
+      'No SEC filings',
+      'Limited AI features',
+    ],
+    cta: {
+      text: 'Get Started Free',
+      variant: 'outline',
+    },
+  },
+  {
+    id: 'basic',
+    name: 'Basic',
+    description: 'For active investors who want more insights',
+    price: {
+      monthly: 6,
+      annual: 60, // 2 months free
+    },
+    priceId: {
+      monthly: process.env.NEXT_PUBLIC_STRIPE_PRICE_BASIC_MONTHLY || '',
+      annual: process.env.NEXT_PUBLIC_STRIPE_PRICE_BASIC_ANNUAL || '',
+    },
+    features: [
+      '5 portfolios',
+      '50 stocks per portfolio',
+      '200 AI queries per day',
+      'Investment thesis tracking',
+      'Basic SEC filing summaries',
+      'Email support',
+    ],
+    limitations: [
+      'Limited AI analysis depth',
+    ],
+    cta: {
+      text: 'Start 14-Day Free Trial',
+      variant: 'default',
+    },
+    popular: true,
+    trialDays: 14,
+  },
+  {
+    id: 'premium',
+    name: 'Premium',
+    description: 'For serious investors who need every edge',
+    price: {
+      monthly: 15.99,
+      annual: 159, // ~2 months free
+    },
+    priceId: {
+      monthly: process.env.NEXT_PUBLIC_STRIPE_PRICE_PREMIUM_MONTHLY || '',
+      annual: process.env.NEXT_PUBLIC_STRIPE_PRICE_PREMIUM_ANNUAL || '',
+    },
+    features: [
+      'Unlimited portfolios',
+      'Unlimited stocks',
+      '1000 AI queries per day',
+      'Full investment thesis with AI validation',
+      'Complete SEC filing analysis',
+      'Priority email support',
+      'Advanced risk metrics',
+      'Custom alerts',
+    ],
+    limitations: [],
+    cta: {
+      text: 'Start 14-Day Free Trial',
+      variant: 'premium',
+    },
+    trialDays: 14,
+  },
+];
 
-export function getTierById(id: PricingTierId) {
-  return PRICING_TIERS.find((t) => t.id === id) || null;
+export function resolvePriceId(tier: 'free' | 'basic' | 'premium', billing: 'monthly' | 'annual'): string {
+  const envVarName = `STRIPE_PRICE_${tier.toUpperCase()}_${billing.toUpperCase()}`;
+  return process.env[envVarName] || '';
 }

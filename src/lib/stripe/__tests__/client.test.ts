@@ -175,7 +175,8 @@ describe('Stripe Client', () => {
         'price_basic',
         'https://example.com/success',
         'https://example.com/cancel',
-        7
+        7,
+        undefined
       );
       
       expect(mockCheckoutSessionsCreate).toHaveBeenCalledWith(
@@ -183,7 +184,8 @@ describe('Stripe Client', () => {
           subscription_data: {
             trial_period_days: 7,
           },
-        })
+        }),
+        expect.any(Object)
       );
     });
   });

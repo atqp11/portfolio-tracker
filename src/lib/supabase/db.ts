@@ -16,11 +16,20 @@ export interface Profile {
   id: string;
   email: string;
   name: string | null;
+  full_name?: string | null;  // Display name for admin panel
   tier: 'free' | 'basic' | 'premium';
   is_admin: boolean;
+  is_active?: boolean;  // Account active status
   stripe_customer_id?: string | null;
   stripe_subscription_id?: string | null;
   subscription_status?: string | null;
+  subscription_tier?: string | null;  // Tier from subscription
+  current_period_start?: string | null;  // Billing period start
+  current_period_end?: string | null;  // Billing period end
+  trial_ends_at?: string | null;  // Trial end date
+  cancel_at_period_end?: boolean;  // Scheduled for cancellation
+  last_payment_status?: string | null;  // Last payment status
+  last_payment_error?: string | null;  // Last payment error message
   created_at: string;
   updated_at: string;
 }

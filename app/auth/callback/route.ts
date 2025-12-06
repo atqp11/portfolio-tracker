@@ -11,6 +11,14 @@ export async function GET(request: NextRequest) {
     const { error } = await supabase.auth.exchangeCodeForSession(code);
 
     if (!error) {
+      // Check for pending checkout
+      const redirect = searchParams.get('redirect');
+      if (redirect === 'checkout') {
+        // User was trying to checkout before auth
+        // The pricing page will handle the checkout via sessionStorage
+        return NextResponse.redirect(new URL('/pricing?resume=checkout', request.url));
+      }
+
       const forwardedHost = request.headers.get('x-forwarded-host');
       const isLocalEnv = process.env.NODE_ENV === 'development';
 

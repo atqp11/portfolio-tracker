@@ -9,6 +9,9 @@ import {
   type LucideIcon
 } from 'lucide-react';
 
+import { PRICING_TIERS } from '@/src/lib/pricing/tiers';
+import { PricingCard } from '@/components/pricing/PricingCard';
+
 // --- CSS for High-End Visuals & 3D Effects ---
 const styles = `
   /* Aurora & Blob Animations - SLOWED DOWN */
@@ -359,17 +362,17 @@ const LandingPage = () => {
             </span>
           </div>
           <div className="hidden md:flex items-center gap-1 bg-white/5 rounded-full p-1 border border-white/5 backdrop-blur-md">
-            {['Philosophy', 'Live Research', 'Pricing'].map((item) => (
-              <a key={item} href="#" className="px-5 py-2 rounded-full text-sm font-medium text-gray-300 hover:text-white hover:bg-white/10 transition-all duration-700">
-                {item}
+            {[{ name: 'Features', href: '/#features' }, { name: 'Pricing', href: '/pricing' }, { name: 'About', href: '/#about' }].map((item) => (
+              <a key={item.name} href={item.href} className="px-5 py-2 rounded-full text-sm font-medium text-gray-300 hover:text-white hover:bg-white/10 transition-all duration-700">
+                {item.name}
               </a>
             ))}
           </div>
           <div className="flex items-center gap-3">
-            <Link href="/auth/signin" className="hidden md:block text-sm font-medium text-gray-300 hover:text-white transition-colors">
+            <Link href="/auth/sign-in" className="hidden md:block text-sm font-medium text-gray-300 hover:text-white transition-colors">
               Sign In
             </Link>
-            <Link href="/auth/signup" className="bg-white text-black px-6 py-2.5 rounded-full font-bold text-sm hover:bg-indigo-50 transition-colors border border-white/20 shadow-[0_0_20px_rgba(255,255,255,0.2)]">
+            <Link href="/auth/sign-up" className="bg-white text-black px-6 py-2.5 rounded-full font-bold text-sm hover:bg-indigo-50 transition-colors border border-white/20 shadow-[0_0_20px_rgba(255,255,255,0.2)]">
               Get Started
             </Link>
           </div>
@@ -399,13 +402,19 @@ const LandingPage = () => {
             It talks you off the ledge when the market bleeds and helps you dig into the details when you're ready.
           </p>
 
-          <div className="flex flex-col sm:flex-row gap-5 justify-center items-center">
-             <Link href="/auth/signup" className="btn-liquid px-10 py-4 rounded-full font-bold text-lg text-white hover:-translate-y-1 transition-transform duration-700 flex items-center gap-2 group">
-                Get My Free Co-Pilot <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform duration-700" />
-             </Link>
-             <button className="flex items-center gap-2 px-8 py-4 rounded-full text-gray-300 hover:text-white hover:bg-white/5 transition-all duration-700 border border-transparent hover:border-white/10">
-                <Play className="w-4 h-4 fill-current" /> Watch Demo
-             </button>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <Link
+              href="/auth/sign-up"
+              className="bg-indigo-600 text-white px-8 py-3 rounded-lg font-semibold hover:bg-indigo-700 transition"
+            >
+              Get Started Free
+            </Link>
+            <Link
+              href="/pricing"
+              className="border border-gray-700 text-white px-8 py-3 rounded-lg font-semibold hover:bg-gray-800 transition"
+            >
+              View Pricing
+            </Link>
           </div>
         </div>
 
@@ -653,6 +662,40 @@ const LandingPage = () => {
                icon={Smartphone}
                gradient="from-rose-500 to-red-500"
             />
+          </div>
+        </div>
+      </section>
+
+      {/* Pricing Section */}
+      <section id="pricing" className="py-20 bg-gray-900">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-16">
+            <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
+              Start Free, Upgrade When Ready
+            </h2>
+            <p className="text-xl text-gray-400 max-w-2xl mx-auto">
+              Begin with our free plan. Upgrade anytime to unlock advanced features.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl mx-auto">
+            {PRICING_TIERS.map((tier) => (
+              <PricingCard
+                key={tier.id}
+                tier={tier}
+                billingPeriod="monthly"
+                onSelect={() => {
+                  // Navigate to pricing page for full experience
+                  window.location.href = `/pricing?tier=${tier.id}`;
+                }}
+              />
+            ))}
+          </div>
+
+          <div className="text-center mt-12">
+            <Link href="/pricing" className="text-indigo-400 hover:text-indigo-300">
+              View full pricing details →
+            </Link>
           </div>
         </div>
       </section>

@@ -4,6 +4,7 @@ import type { Metadata } from 'next';
 import './global.css';
 import QueryProvider from '@/components/QueryProvider';
 import { ThemeProvider } from '@lib/contexts/ThemeContext'; // Use custom ThemeProvider
+import { AuthProvider } from '@/components/auth/AuthProvider';
 
 export const metadata: Metadata = {
   title: 'Live Portfolio Tracker',
@@ -19,7 +20,9 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body className="font-sans bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100">
         <ThemeProvider> {/* Use custom ThemeProvider */}
-          <QueryProvider>{children}</QueryProvider>
+          <AuthProvider>
+            <QueryProvider>{children}</QueryProvider>
+          </AuthProvider>
         </ThemeProvider>
       </body>
     </html>
