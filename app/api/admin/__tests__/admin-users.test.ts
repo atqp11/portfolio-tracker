@@ -5,13 +5,28 @@
  */
 
 import { GET } from '@app/api/admin/users/route';
-import { createMockRequest, extractJSON } from '@test/helpers/test-utils';
-import * as adminAuth from '@lib/auth/admin';
+import { createMockRequest, extractJSON, createMockProfile } from '@test/helpers/test-utils';
 import * as supabaseDb from '@lib/supabase/db';
-import { NextResponse } from 'next/server';
+import type { Profile } from '@lib/supabase/db';
+
+// Define typed mock functions
+const mockGetUser = jest.fn() as jest.MockedFunction<
+  () => Promise<{ id: string; email: string } | null>
+>;
+
+const mockGetUserProfile = jest.fn() as jest.MockedFunction<
+  () => Promise<Profile | null>
+>;
 
 // Mock dependencies
-jest.mock('@lib/auth/admin');
+jest.mock('@lib/auth/session', () => ({
+  getUser: () => mockGetUser(),
+  getUserProfile: () => mockGetUserProfile(),
+  userHasTier: jest.fn().mockResolvedValue(true),
+  requireUser: jest.fn(),
+  requireUserProfile: jest.fn(),
+  requireTier: jest.fn(),
+}));
 jest.mock('@lib/supabase/db');
 
 describe('Admin Users API', () => {
@@ -55,17 +70,29 @@ describe('Admin Users API', () => {
     },
   };
 
+  const adminProfile = createMockProfile({
+    id: 'admin-1',
+    email: 'admin@example.com',
+    tier: 'premium',
+    is_admin: true,
+  });
+
+  const nonAdminProfile = createMockProfile({
+    id: 'user-1',
+    email: 'user@example.com',
+    tier: 'free',
+    is_admin: false,
+  });
+
   beforeEach(() => {
     jest.clearAllMocks();
   });
 
   describe('GET /api/admin/users', () => {
     it('should return unauthorized if user is not admin', async () => {
-      const unauthorizedResponse = NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
-      (adminAuth.requireAdmin as jest.Mock).mockResolvedValue(unauthorizedResponse);
+      // Mock non-admin user
+      mockGetUser.mockResolvedValue({ id: nonAdminProfile.id, email: nonAdminProfile.email });
+      mockGetUserProfile.mockResolvedValue(nonAdminProfile);
 
       const request = createMockRequest({
         url: 'http://localhost:3000/api/admin/users',
@@ -74,12 +101,14 @@ describe('Admin Users API', () => {
       const response = await GET(request);
       const data = await extractJSON(response);
 
-      expect(response.status).toBe(401);
-      expect(data.error).toBeTruthy();
+      expect(response.status).toBe(403);
+      expect(data.success).toBe(false);
     });
 
     it('should return all users with usage data for admin', async () => {
-      (adminAuth.requireAdmin as jest.Mock).mockResolvedValue(null);
+      // Mock admin user
+      mockGetUser.mockResolvedValue({ id: adminProfile.id, email: adminProfile.email });
+      mockGetUserProfile.mockResolvedValue(adminProfile);
       (supabaseDb.getAllUsers as jest.Mock).mockResolvedValue(mockUsers);
       (supabaseDb.getCurrentUserUsage as jest.Mock).mockResolvedValue(mockUsage);
 
@@ -101,7 +130,9 @@ describe('Admin Users API', () => {
     });
 
     it('should handle errors gracefully', async () => {
-      (adminAuth.requireAdmin as jest.Mock).mockResolvedValue(null);
+      // Mock admin user
+      mockGetUser.mockResolvedValue({ id: adminProfile.id, email: adminProfile.email });
+      mockGetUserProfile.mockResolvedValue(adminProfile);
       (supabaseDb.getAllUsers as jest.Mock).mockRejectedValue(new Error('Database error'));
 
       const request = createMockRequest({

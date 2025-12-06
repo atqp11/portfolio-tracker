@@ -1,60 +1,34 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { requireAdmin } from '@lib/auth/admin';
-import { getProfileAsAdmin } from '@lib/supabase/db';
-import { createAdminClient } from '@lib/supabase/admin';
+/**
+ * Admin Reset Quota API Route
+ *
+ * DELETE /api/admin/users/[id]/quota - Reset user's quota
+ *
+ * Uses middleware pattern consistent with other routes.
+ */
+
+import { NextRequest } from 'next/server';
+import { z } from 'zod';
+import { adminController } from '@backend/modules/admin/admin.controller';
+import { withErrorHandler } from '@backend/common/middleware/error-handler.middleware';
+import { withAdminContext } from '@backend/common/middleware/auth.middleware';
 
 export const dynamic = 'force-dynamic';
 
+// Params schema for [id] route
+const idParamsSchema = z.object({
+  id: z.string().uuid(),
+});
+
 /**
  * DELETE /api/admin/users/[id]/quota
- *
  * Reset user's quota (delete usage tracking records)
- * Admin only
  */
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  // Check admin authorization
-  const authError = await requireAdmin(request);
-  if (authError) return authError;
-
-  try {
-    const { id: userId } = await params;
-
-    // Validate user exists
-    const user = await getProfileAsAdmin(userId);
-    if (!user) {
-      return NextResponse.json(
-        { error: 'User not found' },
-        { status: 404 }
-      );
+export const DELETE = withErrorHandler(
+  withAdminContext(
+    async (req: NextRequest, context: any) => {
+      const params = await context.params;
+      const validated = idParamsSchema.parse(params);
+      return adminController.resetUserQuota(req, { ...context, params: validated });
     }
-
-    // Delete all usage tracking records for this user
-    const supabase = createAdminClient();
-    const { error } = await supabase
-      .from('usage_tracking')
-      .delete()
-      .eq('user_id', userId);
-
-    if (error) {
-      console.error('Error resetting quota:', error);
-      return NextResponse.json(
-        { error: 'Failed to reset quota' },
-        { status: 500 }
-      );
-    }
-
-    return NextResponse.json({
-      message: 'User quota reset successfully',
-      userId,
-    });
-  } catch (error) {
-    console.error('Error resetting quota:', error);
-    return NextResponse.json(
-      { error: 'Failed to reset quota' },
-      { status: 500 }
-    );
-  }
-}
+  )
+);

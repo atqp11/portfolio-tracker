@@ -1,41 +1,29 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { createAdminClient } from '@lib/supabase/admin';
-import { getUserProfile } from '@lib/auth/session';
+/**
+ * Admin User Transactions API Route
+ *
+ * GET /api/admin/users/[userId]/transactions - Get user's transaction log
+ *
+ * Uses middleware pattern consistent with other routes.
+ */
+
+import { NextRequest } from 'next/server';
+import { adminController } from '@backend/modules/admin/admin.controller';
+import { withErrorHandler } from '@backend/common/middleware/error-handler.middleware';
+import { withAdminContext } from '@backend/common/middleware/auth.middleware';
+import { userIdParamsSchema } from '@lib/validators/admin-schemas';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET(
-  req: NextRequest,
-  { params }: { params: Promise<{ userId: string }> }
-) {
-  try {
-    // Verify admin
-    const profile = await getUserProfile();
-    if (!profile?.is_admin) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+/**
+ * GET /api/admin/users/[userId]/transactions
+ * Get user's transaction log
+ */
+export const GET = withErrorHandler(
+  withAdminContext(
+    async (req: NextRequest, context: any) => {
+      const params = await context.params;
+      const validated = userIdParamsSchema.parse(params);
+      return adminController.getTransactions(req, { ...context, params: validated });
     }
-
-    const { userId } = await params;
-
-    const supabase = createAdminClient();
-
-    // Get transactions from the database
-    const { data: transactions, error } = await supabase
-      .from('stripe_transactions')
-      .select('*')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false });
-
-    if (error) {
-      throw error;
-    }
-
-    return NextResponse.json(transactions);
-  } catch (error) {
-    console.error('Error fetching transactions:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch transactions' },
-      { status: 500 }
-    );
-  }
-}
+  )
+);

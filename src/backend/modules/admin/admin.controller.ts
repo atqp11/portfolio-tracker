@@ -3,11 +3,38 @@
  *
  * Handles HTTP request/response for admin operations
  * Thin wrapper that delegates to service layer
+ * 
+ * Uses context-based API compatible with middleware pattern:
+ * - context.params: URL path parameters
+ * - context.body: Validated request body
+ * - context.query: Validated query parameters
+ * - context.admin: Admin user profile (injected by withAdminContext)
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { usersService } from './service/users.service';
 import * as adminService from './service/admin.service';
+import type { UserProfile } from '@lib/auth/session';
+import type {
+  GetUsersQuery,
+  DeactivateUserInput,
+  ReactivateUserInput,
+  ChangeTierInput,
+  RefundUserInput,
+  ExtendTrialInput,
+  CancelSubscriptionInput,
+} from '@lib/validators/admin-schemas';
+
+// ============================================================================
+// CONTEXT TYPES
+// ============================================================================
+
+interface AdminRequestContext {
+  params?: { userId?: string; id?: string };
+  body?: any;
+  query?: any;
+  admin: UserProfile;
+}
 
 // ============================================================================
 // RESPONSE HELPERS
@@ -40,7 +67,10 @@ export class AdminController {
    * GET /api/admin/users
    * List all users with optional filters
    */
-  async getUsers(req: NextRequest): Promise<NextResponse> {
+  async getUsers(
+    req: NextRequest,
+    context: { query?: GetUsersQuery; admin: UserProfile }
+  ): Promise<NextResponse> {
     try {
       const users = await usersService.fetchAllUsersWithUsage();
       return successResponse({ users, total: users.length });
@@ -58,8 +88,12 @@ export class AdminController {
    * GET /api/admin/users/[userId]
    * Get single user details
    */
-  async getUserById(userId: string): Promise<NextResponse> {
+  async getUserById(
+    req: NextRequest,
+    context: { params: { userId: string }; admin: UserProfile }
+  ): Promise<NextResponse> {
     try {
+      const { userId } = context.params;
       const user = await adminService.getUserDetails(userId);
 
       if (!user) {
@@ -81,8 +115,12 @@ export class AdminController {
    * GET /api/admin/users/[userId]/billing-history
    * Get user's billing history
    */
-  async getBillingHistory(userId: string): Promise<NextResponse> {
+  async getBillingHistory(
+    req: NextRequest,
+    context: { params: { userId: string }; admin: UserProfile }
+  ): Promise<NextResponse> {
     try {
+      const { userId } = context.params;
       const history = await adminService.getUserBillingHistory(userId);
       return successResponse({ history });
     } catch (error) {
@@ -99,8 +137,12 @@ export class AdminController {
    * GET /api/admin/users/[userId]/transactions
    * Get user's transaction log
    */
-  async getTransactions(userId: string): Promise<NextResponse> {
+  async getTransactions(
+    req: NextRequest,
+    context: { params: { userId: string }; admin: UserProfile }
+  ): Promise<NextResponse> {
     try {
+      const { userId } = context.params;
       const transactions = await adminService.getUserTransactions(userId);
       return successResponse({ transactions });
     } catch (error) {
@@ -122,17 +164,20 @@ export class AdminController {
    * Deactivate user account
    */
   async deactivateUser(
-    userId: string,
-    adminId: string,
-    body: { reason: string; notes?: string; cancelSubscription?: boolean }
+    req: NextRequest,
+    context: { params: { userId: string }; body: DeactivateUserInput; admin: UserProfile }
   ): Promise<NextResponse> {
     try {
+      const { userId } = context.params;
+      const { reason, notes, cancelSubscription } = context.body;
+      const adminId = context.admin.id;
+
       const user = await adminService.deactivateUser({
         userId,
         adminId,
-        reason: body.reason,
-        notes: body.notes,
-        cancelSubscription: body.cancelSubscription,
+        reason,
+        notes,
+        cancelSubscription,
       });
 
       return successResponse({ user });
@@ -150,8 +195,14 @@ export class AdminController {
    * POST /api/admin/users/[userId]/reactivate
    * Reactivate user account
    */
-  async reactivateUser(userId: string, adminId: string): Promise<NextResponse> {
+  async reactivateUser(
+    req: NextRequest,
+    context: { params: { userId: string }; body?: ReactivateUserInput; admin: UserProfile }
+  ): Promise<NextResponse> {
     try {
+      const { userId } = context.params;
+      const adminId = context.admin.id;
+
       const user = await adminService.reactivateUser({
         userId,
         adminId,
@@ -173,15 +224,18 @@ export class AdminController {
    * Change user's tier
    */
   async changeTier(
-    userId: string,
-    adminId: string,
-    body: { tier: string }
+    req: NextRequest,
+    context: { params: { userId: string }; body: ChangeTierInput; admin: UserProfile }
   ): Promise<NextResponse> {
     try {
+      const { userId } = context.params;
+      const { tier } = context.body;
+      const adminId = context.admin.id;
+
       const user = await adminService.changeUserTier({
         userId,
         adminId,
-        newTier: body.tier,
+        newTier: tier,
       });
 
       return successResponse({ user });
@@ -200,15 +254,18 @@ export class AdminController {
    * Cancel user's subscription
    */
   async cancelSubscription(
-    userId: string,
-    adminId: string,
-    body?: { immediate?: boolean }
+    req: NextRequest,
+    context: { params: { userId: string }; body?: CancelSubscriptionInput; admin: UserProfile }
   ): Promise<NextResponse> {
     try {
+      const { userId } = context.params;
+      const immediately = context.body?.immediately || false;
+      const adminId = context.admin.id;
+
       await adminService.cancelUserSubscription(
         userId,
         adminId,
-        body?.immediate || false
+        immediately
       );
 
       return successResponse({ message: 'Subscription canceled successfully' });
@@ -227,16 +284,19 @@ export class AdminController {
    * Process refund for user
    */
   async refundUser(
-    userId: string,
-    adminId: string,
-    body: { amount?: number; reason?: string }
+    req: NextRequest,
+    context: { params: { userId: string }; body?: RefundUserInput; admin: UserProfile }
   ): Promise<NextResponse> {
     try {
+      const { userId } = context.params;
+      const { amountCents, reason } = context.body || {};
+      const adminId = context.admin.id;
+
       await adminService.refundUser({
         userId,
         adminId,
-        amount: body.amount,
-        reason: body.reason,
+        amount: amountCents,
+        reason,
       });
 
       return successResponse({ message: 'Refund processed successfully' });
@@ -255,12 +315,15 @@ export class AdminController {
    * Extend user's trial period
    */
   async extendTrial(
-    userId: string,
-    adminId: string,
-    body: { days: number }
+    req: NextRequest,
+    context: { params: { userId: string }; body: ExtendTrialInput; admin: UserProfile }
   ): Promise<NextResponse> {
     try {
-      const user = await adminService.extendTrial(userId, adminId, body.days);
+      const { userId } = context.params;
+      const { days } = context.body;
+      const adminId = context.admin.id;
+
+      const user = await adminService.extendTrial(userId, adminId, days);
 
       return successResponse({ user });
     } catch (error) {
@@ -277,8 +340,14 @@ export class AdminController {
    * POST /api/admin/users/[userId]/sync-subscription
    * Sync user's subscription from Stripe
    */
-  async syncSubscription(userId: string, adminId: string): Promise<NextResponse> {
+  async syncSubscription(
+    req: NextRequest,
+    context: { params: { userId: string }; admin: UserProfile }
+  ): Promise<NextResponse> {
     try {
+      const { userId } = context.params;
+      const adminId = context.admin.id;
+
       const user = await adminService.syncUserSubscription(userId, adminId);
 
       return successResponse({ user });
@@ -286,6 +355,110 @@ export class AdminController {
       console.error('Error syncing subscription:', error);
       return errorResponse(
         'Failed to sync subscription',
+        500,
+        error instanceof Error ? error.message : 'Unknown error'
+      );
+    }
+  }
+
+  // ============================================================================
+  // LEGACY ROUTES (from [id] folder)
+  // ============================================================================
+
+  /**
+   * PUT /api/admin/users/[id]
+   * Update user tier or admin status (legacy route)
+   */
+  async updateUser(
+    req: NextRequest,
+    context: { params: { id: string }; body?: { tier?: string; is_admin?: boolean }; admin: UserProfile }
+  ): Promise<NextResponse> {
+    try {
+      const { id: userId } = context.params;
+      const { tier, is_admin } = context.body || {};
+
+      const user = await adminService.getUserDetails(userId);
+      if (!user) {
+        return errorResponse('User not found', 404);
+      }
+
+      let updatedUser = user;
+
+      // Update tier if provided
+      if (tier !== undefined) {
+        updatedUser = await adminService.changeUserTier({
+          userId,
+          adminId: context.admin.id,
+          newTier: tier,
+        });
+      }
+
+      // Update admin status if provided
+      if (is_admin !== undefined) {
+        const { updateUserAdminStatus } = await import('@lib/supabase/db');
+        const result = await updateUserAdminStatus(userId, is_admin);
+        if (result) {
+          updatedUser = { ...updatedUser, is_admin: result.is_admin };
+        }
+      }
+
+      return successResponse({
+        message: 'User updated successfully',
+        user: {
+          id: updatedUser.id,
+          email: updatedUser.email,
+          name: updatedUser.name,
+          tier: updatedUser.tier,
+          is_admin: updatedUser.is_admin,
+        },
+      });
+    } catch (error) {
+      console.error('Error updating user:', error);
+      return errorResponse(
+        'Failed to update user',
+        500,
+        error instanceof Error ? error.message : 'Unknown error'
+      );
+    }
+  }
+
+  /**
+   * DELETE /api/admin/users/[id]/quota
+   * Reset user's quota (delete usage tracking records)
+   */
+  async resetUserQuota(
+    req: NextRequest,
+    context: { params: { id: string }; admin: UserProfile }
+  ): Promise<NextResponse> {
+    try {
+      const { id: userId } = context.params;
+
+      const user = await adminService.getUserDetails(userId);
+      if (!user) {
+        return errorResponse('User not found', 404);
+      }
+
+      // Delete all usage tracking records for this user
+      const { createAdminClient } = await import('@lib/supabase/admin');
+      const supabase = createAdminClient();
+      const { error } = await supabase
+        .from('usage_tracking')
+        .delete()
+        .eq('user_id', userId);
+
+      if (error) {
+        console.error('Error resetting quota:', error);
+        return errorResponse('Failed to reset quota', 500, error.message);
+      }
+
+      return successResponse({
+        message: 'User quota reset successfully',
+        userId,
+      });
+    } catch (error) {
+      console.error('Error resetting quota:', error);
+      return errorResponse(
+        'Failed to reset quota',
         500,
         error instanceof Error ? error.message : 'Unknown error'
       );

@@ -5,6 +5,7 @@
  * Provides middleware interface for authentication and authorization.
  */
 
+import { NextRequest } from 'next/server';
 import {
   getUser,
   getUserProfile,
@@ -256,4 +257,30 @@ export function withAdmin<T extends (...args: any[]) => Promise<any>>(
     await AuthMiddleware.requireAdmin();
     return handler(...args);
   }) as T;
+}
+
+/**
+ * Admin context that includes the admin user profile
+ */
+export interface AdminContext {
+  admin: UserProfile;
+}
+
+/**
+ * Higher-order function to wrap route handlers with admin requirement
+ * and inject admin context
+ */
+export function withAdminContext(
+  handler: (
+    request: NextRequest,
+    context: { params?: any; body?: any; query?: any; admin: UserProfile }
+  ) => Promise<any>
+) {
+  return async (
+    request: NextRequest,
+    context: { params?: any; body?: any; query?: any }
+  ): Promise<any> => {
+    const admin = await AuthMiddleware.requireAdmin();
+    return handler(request, { ...context, admin });
+  };
 }

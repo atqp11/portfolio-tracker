@@ -82,7 +82,20 @@ export async function getUserDetails(userId: string): Promise<Profile | null> {
  * Get user's billing history
  */
 export async function getUserBillingHistory(userId: string) {
-  return adminDao.getUserBillingHistory(userId);
+  // Get user's Stripe customer ID
+  const user = await adminDao.getUserById(userId);
+  if (!user?.stripe_customer_id) {
+    throw new Error('User has no Stripe customer ID');
+  }
+
+  // Get charges from Stripe
+  const stripe = getStripe();
+  const charges = await stripe.charges.list({
+    customer: user.stripe_customer_id,
+    limit: 100, // Adjust as needed
+  });
+
+  return charges.data;
 }
 
 /**

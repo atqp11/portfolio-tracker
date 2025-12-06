@@ -4,77 +4,37 @@
  * POST /api/stripe/portal - Create portal session
  * GET /api/stripe/portal - Get portal info
  * 
- * This is a thin wrapper that delegates to the Stripe service layer.
+ * Uses middleware pattern consistent with other API routes.
  */
 
-import { NextRequest, NextResponse } from 'next/server';
-import { getUserProfile } from '@lib/auth/session';
+import { NextRequest } from 'next/server';
+import { stripeController } from '@backend/modules/stripe/stripe.controller';
+import { withErrorHandler } from '@backend/common/middleware/error-handler.middleware';
+import { withValidation } from '@backend/common/middleware/validation.middleware';
+import { withAuth } from '@backend/common/middleware/auth.middleware';
 import { portalRequestSchema } from '@lib/stripe/validation';
-import { 
-  createStripePortalSession, 
-  getPortalInfo 
-} from '@/src/backend/modules/stripe/stripe.service';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-export async function POST(req: NextRequest) {
-  try {
-    // Verify authentication
-    const profile = await getUserProfile();
-    if (!profile) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+/**
+ * POST /api/stripe/portal
+ * Create a Stripe customer portal session
+ */
+export const POST = withErrorHandler(
+  withAuth(
+    withValidation(portalRequestSchema)(
+      (req: NextRequest, context: any) => stripeController.createPortalSession(req, context)
+    )
+  )
+);
 
-    // Validate request
-    const body = await req.json();
-    const validation = portalRequestSchema.safeParse(body);
-    
-    if (!validation.success) {
-      return NextResponse.json(
-        { 
-          error: 'Invalid request data',
-          details: validation.error.flatten().fieldErrors
-        },
-        { status: 400 }
-      );
-    }
-
-    // Delegate to service layer
-    const result = await createStripePortalSession({
-      profile,
-      returnUrl: validation.data.returnUrl,
-    });
-
-    return NextResponse.json(result);
-  } catch (error) {
-    console.error('Portal session creation error:', error);
-    return NextResponse.json(
-      { 
-        error: 'PORTAL_FAILED',
-        message: error instanceof Error ? error.message : 'Failed to create portal session',
-      },
-      { status: 500 }
-    );
-  }
-}
-
-export async function GET(req: NextRequest) {
-  try {
-    // Verify authentication
-    const profile = await getUserProfile();
-    if (!profile) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    // Delegate to service layer
-    const result = await getPortalInfo(profile);
-    return NextResponse.json(result);
-  } catch (error) {
-    console.error('Get portal info error:', error);
-    return NextResponse.json(
-      { error: 'Failed to get portal info' },
-      { status: 500 }
-    );
-  }
-}
+/**
+ * GET /api/stripe/portal
+ * Get portal information for current user
+ */
+export const GET = withErrorHandler(
+  withAuth(
+    (req: NextRequest, context: any) => stripeController.getPortalInfo(req, context)
+  )
+);

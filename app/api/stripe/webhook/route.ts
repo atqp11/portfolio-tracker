@@ -3,7 +3,8 @@
  * 
  * POST /api/stripe/webhook - Process Stripe webhook events
  * 
- * This is a thin wrapper that delegates to the Stripe service layer.
+ * Uses middleware pattern for error handling.
+ * Note: Webhooks use Stripe signature verification instead of auth middleware.
  * 
  * Set this URL in Stripe Dashboard:
  * https://yourdomain.com/api/stripe/webhook
@@ -16,51 +17,24 @@
  * - invoice.payment_failed
  */
 
-import { NextRequest, NextResponse } from 'next/server';
-import { processStripeWebhook } from '@/src/backend/modules/stripe/stripe.service';
+import { NextRequest } from 'next/server';
+import { stripeController } from '@backend/modules/stripe/stripe.controller';
+import { withErrorHandler } from '@backend/common/middleware/error-handler.middleware';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-export async function POST(req: NextRequest) {
-  try {
-    // Get webhook data
+/**
+ * POST /api/stripe/webhook
+ * Process Stripe webhook events
+ * 
+ * Note: No auth middleware - uses Stripe signature verification instead
+ */
+export const POST = withErrorHandler(
+  async (req: NextRequest) => {
     const body = await req.text();
-    const signature = req.headers.get('stripe-signature');
-    const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+    const signature = req.headers.get('stripe-signature') || '';
 
-    // Validate configuration
-    if (!webhookSecret) {
-      console.error('STRIPE_WEBHOOK_SECRET not configured');
-      return NextResponse.json(
-        { error: 'Webhook secret not configured' },
-        { status: 500 }
-      );
-    }
-
-    if (!signature) {
-      return NextResponse.json(
-        { error: 'Missing webhook signature' },
-        { status: 400 }
-      );
-    }
-
-    // Delegate to service layer
-    const result = await processStripeWebhook({
-      body,
-      signature,
-      webhookSecret,
-    });
-
-    return NextResponse.json(result);
-  } catch (error) {
-    console.error('Webhook error:', error);
-    return NextResponse.json(
-      { 
-        error: 'Webhook processing failed',
-        message: error instanceof Error ? error.message : 'Unknown error',
-      },
-      { status: 500 }
-    );
+    return stripeController.processWebhook(req, { body, signature });
   }
-}
+);
