@@ -5,20 +5,37 @@
 import { describe, it, expect, jest, beforeEach } from '@jest/globals';
 import { NextRequest } from 'next/server';
 
-// Mock modules at the top level
-const mockGetUserProfile = jest.fn();
-const mockCreateStripeCheckoutSession = jest.fn();
-const mockGetCheckoutInfo = jest.fn();
-const mockCreateStripePortalSession = jest.fn();
+// Mock modules at the top level with explicit type signatures
+import type { Profile } from '@lib/supabase/db';
+import { createMockProfile } from '@test/helpers/test-utils';
 
+// Define typed mock functions with explicit signatures (no unknown[] spreads)
+const mockGetUserProfile = jest.fn() as jest.MockedFunction<
+  () => Promise<Profile | null>
+>;
+
+const mockCreateStripeCheckoutSession = jest.fn() as jest.MockedFunction<
+  (userId: string, tier: string, successUrl: string, cancelUrl: string, trialDays?: number) => Promise<{ sessionId: string; url: string }>
+>;
+
+const mockGetCheckoutInfo = jest.fn() as jest.MockedFunction<
+  (sessionId: string) => Promise<{ sessionId: string; status: string } | null>
+>;
+
+const mockCreateStripePortalSession = jest.fn() as jest.MockedFunction<
+  (customerId: string, returnUrl: string) => Promise<{ url: string }>
+>;
+
+// Mock modules with explicit parameter forwarding
 jest.mock('@lib/auth/session', () => ({
-  getUserProfile: (...args: any[]) => mockGetUserProfile(...args),
+  getUserProfile: () => mockGetUserProfile(),
 }));
 
 jest.mock('@/src/backend/modules/stripe/stripe.service', () => ({
-  createStripeCheckoutSession: (...args: any[]) => mockCreateStripeCheckoutSession(...args),
-  getCheckoutInfo: (...args: any[]) => mockGetCheckoutInfo(...args),
-  createStripePortalSession: (...args: any[]) => mockCreateStripePortalSession(...args),
+  createStripeCheckoutSession: (userId: string, tier: string, successUrl: string, cancelUrl: string, trialDays?: number) =>
+    mockCreateStripeCheckoutSession(userId, tier, successUrl, cancelUrl, trialDays),
+  getCheckoutInfo: (sessionId: string) => mockGetCheckoutInfo(sessionId),
+  createStripePortalSession: (customerId: string, returnUrl: string) => mockCreateStripePortalSession(customerId, returnUrl),
 }));
 
 describe('Stripe API Routes', () => {
@@ -45,11 +62,9 @@ describe('Stripe API Routes', () => {
     });
 
     it('should return 400 for invalid tier', async () => {
-      mockGetUserProfile.mockResolvedValue({
-        id: 'user_123',
-        email: 'test@example.com',
-        tier: 'free',
-      });
+      mockGetUserProfile.mockResolvedValue(
+        createMockProfile({ id: 'user_123', email: 'test@example.com', tier: 'free' })
+      );
       
       mockCreateStripeCheckoutSession.mockRejectedValue(new Error('Invalid tier'));
 
@@ -68,11 +83,9 @@ describe('Stripe API Routes', () => {
     });
 
     it('should return 400 if URLs are missing', async () => {
-      mockGetUserProfile.mockResolvedValue({
-        id: 'user_123',
-        email: 'test@example.com',
-        tier: 'free',
-      });
+      mockGetUserProfile.mockResolvedValue(
+        createMockProfile({ id: 'user_123', email: 'test@example.com', tier: 'free' })
+      );
 
       const { POST } = await import('@/app/api/stripe/checkout/route');
       const req = new NextRequest('http://localhost:3000/api/stripe/checkout', {
@@ -87,11 +100,9 @@ describe('Stripe API Routes', () => {
     });
 
     it('should create checkout session for valid request', async () => {
-      mockGetUserProfile.mockResolvedValue({
-        id: 'user_123',
-        email: 'test@example.com',
-        tier: 'free',
-      });
+      mockGetUserProfile.mockResolvedValue(
+        createMockProfile({ id: 'user_123', email: 'test@example.com', tier: 'free' })
+      );
       
       mockCreateStripeCheckoutSession.mockResolvedValue({
         sessionId: 'cs_123',
@@ -187,11 +198,9 @@ describe('Stripe API Routes', () => {
     });
 
     it('should return 400 if returnUrl is missing', async () => {
-      mockGetUserProfile.mockResolvedValue({
-        id: 'user_123',
-        email: 'test@example.com',
-        tier: 'basic',
-      });
+      mockGetUserProfile.mockResolvedValue(
+        createMockProfile({ id: 'user_123', email: 'test@example.com', tier: 'basic' })
+      );
 
       const { POST } = await import('@/app/api/stripe/portal/route');
       const req = new NextRequest('http://localhost:3000/api/stripe/portal', {
@@ -204,12 +213,14 @@ describe('Stripe API Routes', () => {
     });
 
     it('should create portal session for valid request', async () => {
-      mockGetUserProfile.mockResolvedValue({
-        id: 'user_123',
-        email: 'test@example.com',
-        tier: 'basic',
-        stripe_customer_id: 'cus_123',
-      });
+      mockGetUserProfile.mockResolvedValue(
+        createMockProfile({
+          id: 'user_123',
+          email: 'test@example.com',
+          tier: 'basic',
+          stripe_customer_id: 'cus_123',
+        })
+      );
       
       mockCreateStripePortalSession.mockResolvedValue({
         url: 'https://billing.stripe.com/test',

@@ -4,6 +4,7 @@
  * Tests for orchestrator-based commodity data fetching with demo fallback.
  */
 import { MarketDataService } from '../market-data.service';
+import { ProviderError, ProviderErrorCode } from '@lib/data-sources';
 import { DataSourceOrchestrator } from '@lib/data-sources';
 
 // Mock dependencies
@@ -44,10 +45,12 @@ describe('MarketDataService', () => {
         cached: false,
         timestamp: Date.now(),
         age: 0,
-        errors: [],
+        errors: [
+          new ProviderError('alphaVantage', ProviderErrorCode.NETWORK_ERROR, 'Network error', new Error('Network error')),
+        ],
         metadata: {
           providersAttempted: ['alphaVantage'],
-          totalDuration: 500,
+          totalDuration: 300,
           circuitBreakerTriggered: false,
           deduplicated: false,
         },
@@ -77,12 +80,7 @@ describe('MarketDataService', () => {
         timestamp: Date.now(),
         age: 0,
         errors: [
-          {
-            provider: 'alphaVantage',
-            code: 'RATE_LIMIT',
-            message: 'Rate limit exceeded',
-            originalError: new Error('Rate limit'),
-          },
+          new ProviderError('alphaVantage', ProviderErrorCode.RATE_LIMIT, 'Rate limit exceeded', new Error('Rate limit')),
         ],
         metadata: {
           providersAttempted: ['alphaVantage'],

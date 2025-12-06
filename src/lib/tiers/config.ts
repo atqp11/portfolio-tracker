@@ -14,6 +14,10 @@ export type TierName = 'free' | 'basic' | 'premium';
 export interface TierLimits {
   // Pricing
   price: number;
+  // Optional explicit annual price (for discounted annual billing)
+  annualPrice?: number;
+  // Optional canonical annual Stripe Price ID (if you prefer embedding here)
+  annualPriceId?: string;
   priceDisplay: string;
 
   // Portfolio Limits
@@ -75,6 +79,7 @@ export const TIER_CONFIG: Record<TierName, TierLimits> = {
   free: {
     // Pricing
     price: 0,
+    annualPrice: 0,
     priceDisplay: 'Free',
 
     // Portfolio Limits
@@ -135,6 +140,8 @@ export const TIER_CONFIG: Record<TierName, TierLimits> = {
   basic: {
     // Pricing
     price: 6,
+    // Discounted annual: 2 months free -> $6 * 10 = $60
+    annualPrice: 60,
     priceDisplay: '$6/month',
 
     // Portfolio Limits
@@ -195,6 +202,8 @@ export const TIER_CONFIG: Record<TierName, TierLimits> = {
   premium: {
     // Pricing
     price: 15.99,
+    // Marketing discounted annual price (approx): $159
+    annualPrice: 159,
     priceDisplay: '$15.99/month',
 
     // Portfolio Limits

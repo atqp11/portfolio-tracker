@@ -4,7 +4,7 @@
 > **WHEN TO USE:** First stop for anyone discovering this project - explains what it does, how to deploy it, and basic setup.
 > **UPDATE FREQUENCY:** When major features launch or deployment instructions change.
 
-**70/30 Cash-Margin** | **Live Prices** | **Daily Snapshot** | **Stop-Loss & Take Profit** | **DRIP**
+**70/30 Cash-Margin** | **Live Prices** | **Daily Snapshot** | **Stop-Loss & Take Profit** | **DRIP** | **Stripe Billing**
 
 ## Features
 - Energy & Copper portfolios
@@ -12,6 +12,8 @@
 - Daily 9:30 AM ET market snapshot + 5 news
 - Stop-Loss (-30%), Take Profit (+50%)
 - Dividend Reinvestment (DRIP)
+- **Tiered subscriptions** (Free, Basic $6/mo, Premium $15.99/mo)
+- **Annual billing discounts** (Basic $60/yr, Premium $159/yr)
 - Mobile responsive
 - IndexedDB cache
 - Vercel free-tier

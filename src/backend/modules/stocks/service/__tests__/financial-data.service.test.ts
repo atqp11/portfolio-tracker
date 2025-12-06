@@ -4,6 +4,7 @@
  * Tests for orchestrator-based financial data fetching with merging strategy.
  */
 import { FinancialDataService } from '../financial-data.service';
+import { ProviderError, ProviderErrorCode } from '@lib/data-sources';
 import { DataSourceOrchestrator } from '@lib/data-sources';
 import { getCacheAdapter } from '@lib/cache/adapter';
 import { alphaVantageDAO } from '@backend/modules/stocks/dao/alpha-vantage.dao';
@@ -95,12 +96,7 @@ describe('FinancialDataService', () => {
         timestamp: Date.now(),
         age: 0,
         errors: [
-          {
-            provider: 'yahooFinance',
-            code: 'NETWORK_ERROR',
-            message: 'Network error',
-            originalError: new Error('Network error'),
-          },
+          new ProviderError('yahooFinance', ProviderErrorCode.NETWORK_ERROR, 'Network error', new Error('Network error')),
         ],
         metadata: {
           providersAttempted: ['yahooFinance', 'alphaVantage'],

@@ -239,12 +239,12 @@ Overall:                 ██████████████████�
   - `PRODUCTION_READINESS_PLAN.md` - Complete 5-week plan
   - `CACHING_CURRENT_VS_IDEAL.md` - Cache architecture comparison
   - `QUOTA_VS_RATE_LIMITING.md` - Quota system design
+  - `MANUAL_UI_TEST_GUIDE.md` - UI testing instructions
   - `phase-3-completion/` - Phase completion summaries
     - `README.md` - Phases 1 & 3 completion index
     - `PHASE_1_COMPLETION_SUMMARY.md` - Phase 1 details
     - `PHASE_3_COMPLETION_SUMMARY.md` - Phase 3 details
     - `PHASE_3_CODE_REVIEW.md` - Code review per CLAUDE.md
-    - `MANUAL_UI_TEST_GUIDE.md` - UI testing instructions
 
 ### Architecture Documents
 - `docs/3_Architecture/`

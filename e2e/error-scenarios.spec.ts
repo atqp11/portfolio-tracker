@@ -84,7 +84,7 @@ test.describe("E2E: Cache Failure & Graceful Degradation", () => {
     await page.route("**/api/**", (route) => {
       route.continue({
         headers: {
-          ...route.request().postDataJSON?.headers,
+          ...route.request().postDataJSON?.().headers,
           "X-Cache-Status": "stale",
         },
       });

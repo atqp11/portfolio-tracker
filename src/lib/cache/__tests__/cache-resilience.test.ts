@@ -85,11 +85,11 @@ describe('Cache Resilience', () => {
     test('should timeout cache get() after 1 second', async () => {
       const cacheWithSlowGet = {
         get: jest.fn(
-          () =>
-            new Promise((_, reject) => {
-              setTimeout(() => reject(new Error('Cache timeout')), 1500);
-            })
-        ),
+            (_key: string) =>
+              new Promise((_, reject) => {
+                setTimeout(() => reject(new Error('Cache timeout')), 1500);
+              })
+          ),
         set: jest.fn().mockResolvedValue(true),
         delete: jest.fn().mockResolvedValue(true),
         exists: jest.fn().mockResolvedValue(false),
@@ -111,7 +111,7 @@ describe('Cache Resilience', () => {
       const cacheWithSlowSet = {
         get: jest.fn().mockResolvedValue(null),
         set: jest.fn(
-          () =>
+          (_key: string, _value: string, _ttl: number) =>
             new Promise((_, reject) => {
               setTimeout(() => reject(new Error('Set timeout')), 2000);
             })
@@ -266,7 +266,7 @@ describe('Cache Resilience', () => {
       let callCount = 0;
 
       const partiallyFailingCache = {
-        get: jest.fn(async () => {
+        get: jest.fn(async (_key: string) => {
           callCount++;
           // Fail on first 2 calls, succeed on subsequent
           if (callCount <= 2) throw new Error('Temporarily unavailable');

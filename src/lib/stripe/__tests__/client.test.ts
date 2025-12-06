@@ -5,13 +5,25 @@
  */
 
 import { describe, it, expect, jest, beforeEach } from '@jest/globals';
-import Stripe from 'stripe';
+import type Stripe from 'stripe';
 
-// Mock Stripe constructor
-const mockCustomersList = jest.fn();
-const mockCustomersCreate = jest.fn();
-const mockCheckoutSessionsCreate = jest.fn();
-const mockWebhooksConstructEvent = jest.fn();
+// Mock Stripe constructor with explicit parameter types
+
+const mockCustomersList = jest.fn() as jest.MockedFunction<
+  (params?: Stripe.CustomerListParams) => Promise<{ data: Array<{ id: string; email?: string }> }>
+>;
+
+const mockCustomersCreate = jest.fn() as jest.MockedFunction<
+  (params: Stripe.CustomerCreateParams) => Promise<{ id: string }>
+>;
+
+const mockCheckoutSessionsCreate = jest.fn() as jest.MockedFunction<
+  (params: Stripe.Checkout.SessionCreateParams) => Promise<{ id: string; url: string }>
+>;
+
+const mockWebhooksConstructEvent = jest.fn() as jest.MockedFunction<
+  (payload: string | Buffer, header: string | Buffer, secret: string) => Stripe.Event
+>;
 
 jest.mock('stripe', () => {
   return jest.fn().mockImplementation(() => ({
@@ -178,7 +190,17 @@ describe('Stripe Client', () => {
 
   describe('constructWebhookEvent', () => {
     it('should construct webhook event with valid signature', async () => {
-      const mockEvent = { id: 'evt_123', type: 'customer.subscription.created' };
+      const mockEvent = {
+        id: 'evt_123',
+        type: 'customer.subscription.created',
+        object: 'event',
+        api_version: '2023-10-16',
+        created: Date.now(),
+        data: { object: {} },
+        livemode: false,
+        pending_webhooks: 0,
+        request: null,
+      } as Stripe.Event;
       mockWebhooksConstructEvent.mockReturnValue(mockEvent);
 
       const { constructWebhookEvent } = await import('@lib/stripe/client');

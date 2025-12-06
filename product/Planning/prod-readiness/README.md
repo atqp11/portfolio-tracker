@@ -172,4 +172,8 @@ See [../archive/refactoring/](../archive/refactoring/) for completed initiatives
 
 ---
 
+# Production Readiness Planning
+
+> **Note:** This folder contains work and documentation that must be completed before the MVP goes live. All tasks, implementation guides, and planning materials here are pre-launch requirements.
+
 **Last Updated:** 2025-12-03

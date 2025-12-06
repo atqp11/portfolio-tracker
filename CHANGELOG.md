@@ -9,6 +9,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+#### Stripe Pricing Integration - Phase 1 Complete (2024-12-05)
+- **Canonical Pricing Configuration** (`src/lib/tiers/config.ts`)
+  - Added `annualPrice` field to `TierLimits` for discounted annual billing
+  - Set annual pricing: Free $0/yr, Basic $60/yr (save $12), Premium $159/yr (save $32.88)
+  - Added optional `annualPriceId` field for future flexibility
+- **Pricing Tiers Module** (`src/lib/pricing/tiers.ts`)
+  - Server-only Stripe Price ID resolution via `resolvePriceId(tier, billing)`
+  - Removed all client-side fallbacks for pricing integrity
+  - Dynamic `PRICING_TIERS` array built from authoritative `TIER_CONFIG`
+  - Auto-derived marketing features from enforcement config (single source of truth)
+  - Runtime error logging for missing price IDs
+- **Build-Time Validation** (`scripts/check-pricing-env.js`)
+  - Prebuild check for required Stripe Price env vars (all tiers: free, basic, premium)
+  - Fails Vercel builds if env vars missing: `STRIPE_PRICE_{TIER}_{MONTHLY|ANNUAL}`
+  - Clear error messages with deployment guidance
+- **Package.json Integration**
+  - Added `prebuild` script hook to run env validation before Next.js build
+- **Test Coverage** (`src/__tests__/pricing/price-resolver.test.ts`)
+  - Unit tests for server-only price resolution
+  - Case-insensitive billing parameter handling
+  - Validates all three tiers (free, basic, premium)
+  - Confirms annual price usage from config
+
+**Architecture:** Server-only env vars prevent stale pricing, build-time validation ensures correct deployment, single source of truth eliminates drift between marketing and enforcement.
+
+**Next Steps:** Database schema migrations, webhook idempotency, admin user management (see `product/Planning/refactoring/stripe-user-management/STATUS.md`).
+
 #### L3 Database Cache Production Readiness Fixes (2024-12-03)
 - **Prisma Schema** - Verified L3 cache models present (`CacheFilingSummary`, `CacheCompanyProfile`, `CacheNewsSentiment`)
 - **Database Types** (`src/lib/supabase/database.types.ts`) - Added proper TypeScript types for all L3 cache tables

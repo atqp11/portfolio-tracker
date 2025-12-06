@@ -4,6 +4,7 @@
  * Tests for orchestrator-based news fetching from RSS feeds.
  */
 import { NewsService } from '../news.service';
+import { ProviderError, ProviderErrorCode } from '@lib/data-sources';
 import { DataSourceOrchestrator } from '@lib/data-sources';
 import { getCacheAdapter } from '@lib/cache/adapter';
 
@@ -153,12 +154,7 @@ describe('NewsService', () => {
         timestamp: Date.now(),
         age: 0,
         errors: [
-          {
-            provider: 'rssFeed',
-            code: 'NETWORK_ERROR',
-            message: 'Network error',
-            originalError: new Error('Network error'),
-          },
+          new ProviderError('rssFeed', ProviderErrorCode.NETWORK_ERROR, 'Network error', new Error('Network error')),
         ],
         metadata: {} as any,
       };

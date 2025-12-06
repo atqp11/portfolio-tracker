@@ -29,7 +29,7 @@
       "@lib/*": ["./src/lib/*"],
       "@app/*": ["./app/*"],
       "@src/*": ["./src/*"],
-      "@test/*": ["./src/test/*"]
+      "@test/*": ["./src/__tests__/*"]
     },
     "plugins": [
       {

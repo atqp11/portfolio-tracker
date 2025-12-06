@@ -170,3 +170,96 @@ export function createMockPrismaClient() {
     $transaction: jest.fn((callback) => callback(mockModel)),
   };
 }
+
+// ============================================================================
+// TYPED MOCK PATTERNS
+// ============================================================================
+
+/**
+ * Typed Mock Pattern Documentation
+ * 
+ * When creating Jest mocks, always use explicit type signatures to avoid `any`.
+ * This ensures type safety and catches errors at compile time.
+ * 
+ * PATTERN 1: Simple function mock with known signature
+ * ✅ GOOD:
+ * ```typescript
+ * const mockGetUser = jest.fn() as jest.MockedFunction<
+ *   (userId: string) => Promise<User | null>
+ * >;
+ * ```
+ * 
+ * ❌ BAD:
+ * ```typescript
+ * const mockGetUser = jest.fn() as any;
+ * const mockGetUser = jest.fn() as jest.MockedFunction<(...args: unknown[]) => any>;
+ * ```
+ * 
+ * PATTERN 2: Module mock with forwarding
+ * ✅ GOOD:
+ * ```typescript
+ * const mockGetUser = jest.fn() as jest.MockedFunction<
+ *   (userId: string) => Promise<User | null>
+ * >;
+ * 
+ * jest.mock('@lib/user', () => ({
+ *   getUser: (userId: string) => mockGetUser(userId),
+ * }));
+ * ```
+ * 
+ * PATTERN 3: Complex object mocks (like Stripe)
+ * Use explicit parameter types instead of unknown[] spreads:
+ * ✅ GOOD:
+ * ```typescript
+ * const mockCreate = jest.fn() as jest.MockedFunction<
+ *   (params: Stripe.CustomerCreateParams) => Promise<Stripe.Customer>
+ * >;
+ * ```
+ */
+
+/**
+ * Create a typed mock function with explicit signature
+ * 
+ * @example
+ * ```typescript
+ * // For a function: (userId: string, tier: string) => Promise<Profile>
+ * const mockFn = createTypedMock<
+ *   (userId: string, tier: string) => Promise<Profile>
+ * >();
+ * ```
+ */
+export function createTypedMock<T extends (...args: any[]) => any>(): jest.MockedFunction<T> {
+  return jest.fn() as unknown as jest.MockedFunction<T>;
+}
+
+/**
+ * Create a mock Profile object with all required fields
+ * Useful for testing authentication and user-related functionality
+ */
+export function createMockProfile(overrides?: Partial<{
+  id: string;
+  email: string;
+  name: string | null;
+  tier: 'free' | 'basic' | 'premium';
+  is_admin: boolean;
+  stripe_customer_id: string | null;
+  stripe_subscription_id: string | null;
+  subscription_status: string | null;
+  created_at: string;
+  updated_at: string;
+}>): any {
+  const now = new Date().toISOString();
+  return {
+    id: 'test-user-id',
+    email: 'test@example.com',
+    name: null,
+    tier: 'free' as const,
+    is_admin: false,
+    stripe_customer_id: null,
+    stripe_subscription_id: null,
+    subscription_status: null,
+    created_at: now,
+    updated_at: now,
+    ...overrides,
+  };
+}
