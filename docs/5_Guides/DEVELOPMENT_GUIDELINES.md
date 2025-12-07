@@ -2265,6 +2265,7 @@ Before submitting code, verify:
 - [ ] TypeScript strict mode passes with no `any` types
 - [ ] Error states are handled (try/catch, error boundaries)
 - [ ] Loading states are displayed to users
+- [ ] Theme switching supported (light/dark via `dark:` classes)
 - [ ] API routes have `dynamic = 'force-dynamic'` export
 - [ ] Database queries check for null/undefined results
 - [ ] External API calls respect rate limits and use caching
