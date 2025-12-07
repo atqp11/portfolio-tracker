@@ -22,7 +22,7 @@
  * @param fallback - Fallback message if error cannot be extracted
  * @returns The error message as a string
  */
-export function extractErrorMessage(error: any, fallback: string = 'An error occurred'): string {
+export function extractErrorMessage(error: unknown, fallback: string = 'An error occurred'): string {
   // If error is already a string, return it
   if (typeof error === 'string') {
     return error;

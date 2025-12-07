@@ -70,6 +70,11 @@ export default function WaitlistAdminPage() {
   return (
     <div className="min-h-screen bg-white dark:bg-gray-950 text-gray-900 dark:text-white p-8">
       <div className="max-w-7xl mx-auto">
+        {/* Back Link */}
+        <a href="/admin" className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 dark:hover:text-indigo-300 mb-4 inline-block">
+          ← Back to Admin Dashboard
+        </a>
+
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-4xl font-bold mb-2 text-gray-900 dark:text-white">Waitlist Management</h1>

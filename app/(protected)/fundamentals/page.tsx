@@ -77,7 +77,7 @@ export default function FundamentalsPage() {
                          fundamentals.description?.includes('fund');
 
             // Helper to parse string or number values
-            const parseValue = (val: any): number | undefined => {
+            const parseValue = (val: string | number | null | undefined): number | undefined => {
               if (val === null || val === undefined) return undefined;
               const num = typeof val === 'string' ? parseFloat(val) : val;
               return isNaN(num) ? undefined : num;

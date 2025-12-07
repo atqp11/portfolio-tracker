@@ -6,15 +6,58 @@ import FundamentalMetricCard from '@/components/FundamentalMetricCard';
 import FinancialStatementTable from '@/components/FinancialStatementTable';
 import Navigation from '@/components/Navigation';
 
+interface FundamentalsMetrics {
+  pe?: number | null;
+  pb?: number | null;
+  evToEbitda?: number | null;
+  grahamNumber?: number | null;
+  roe?: number | null;
+  roic?: number | null;
+  roa?: number | null;
+  netMargin?: number | null;
+  operatingMargin?: number | null;
+  debtToEquity?: number | null;
+  currentRatio?: number | null;
+  marginOfSafety?: number | null;
+  peIndicator?: 'undervalued' | 'fair' | 'overvalued' | null;
+  pbIndicator?: 'undervalued' | 'fair' | 'overvalued' | null;
+  evEbitdaIndicator?: 'undervalued' | 'fair' | 'overvalued' | null;
+}
+
+interface CompanyOverview {
+  Name?: string;
+  Symbol?: string;
+  Description?: string;
+  Exchange?: string;
+  Sector?: string;
+  Industry?: string;
+  MarketCapitalization?: string;
+  Beta?: string | number;
+  '52WeekHigh'?: number | null;
+  '52WeekLow'?: number | null;
+  [key: string]: unknown;
+}
+
+interface FinancialReport {
+  fiscalDateEnding?: string;
+  reportedCurrency?: string;
+  [key: string]: unknown;
+}
+
+interface FinancialStatementsData {
+  annualReports?: FinancialReport[];
+  quarterlyReports?: FinancialReport[];
+}
+
 interface FundamentalsData {
   ticker: string;
   price: number;
-  fundamentals: any;
-  metrics: any;
-  overview: any;
-  income: any;
-  balance: any;
-  cashFlow: any;
+  fundamentals: Record<string, unknown>;
+  metrics: FundamentalsMetrics;
+  overview: CompanyOverview;
+  income: FinancialStatementsData;
+  balance: FinancialStatementsData;
+  cashFlow: FinancialStatementsData;
   source: string;
   fetchedAt: string;
 }
@@ -22,14 +65,22 @@ interface FundamentalsData {
 export default function StockDetailPage() {
   const params = useParams();
   const router = useRouter();
-  const ticker = params?.ticker as string;
+  const ticker = typeof params?.ticker === 'string' ? params.ticker : undefined;
   
   const [fundamentals, setFundamentals] = useState<FundamentalsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Helper to safely get a value from fundamentals object
+  const getFundamentalValue = (key: string): string | number | null | undefined => {
+    const value = fundamentals?.fundamentals?.[key];
+    if (value === null || value === undefined) return undefined;
+    if (typeof value === 'string' || typeof value === 'number') return value;
+    return undefined;
+  };
+
   // Helper to parse string or number values
-  const parseValue = (val: any): number | undefined => {
+  const parseValue = (val: string | number | null | undefined): number | undefined => {
     if (val === null || val === undefined) return undefined;
     const num = typeof val === 'string' ? parseFloat(val) : val;
     return isNaN(num) ? undefined : num;
@@ -60,9 +111,10 @@ export default function StockDetailPage() {
         console.log('[Stock Detail] Fundamentals:', data.fundamentals);
         console.log('[Stock Detail] TrailingPE:', data.fundamentals?.trailingPE);
         setFundamentals(data);
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error('Error fetching fundamentals:', err);
-        setError(err.message || 'Failed to load fundamental data');
+        const errorMessage = err instanceof Error ? err.message : 'Failed to load fundamental data';
+        setError(errorMessage);
       } finally {
         setLoading(false);
       }
@@ -100,10 +152,10 @@ export default function StockDetailPage() {
           </button>
 
           <div className="flex items-baseline gap-4">
-            <h1 className="text-4xl font-bold text-[#FAFAFA]">{ticker.toUpperCase()}</h1>
+            <h1 className="text-4xl font-bold text-[#FAFAFA]">{ticker?.toUpperCase() ?? 'Unknown'}</h1>
             {fundamentals && (
               <>
-                <span className="text-2xl text-[#A1A1AA]">{fundamentals.overview?.Name || ticker.toUpperCase()}</span>
+                <span className="text-2xl text-[#A1A1AA]">{(fundamentals.overview?.Name ?? ticker?.toUpperCase()) ?? 'Unknown'}</span>
                 <span className="text-lg text-[#3B82F6] font-mono">
                   {fundamentals.price != null ? `$${fundamentals.price.toFixed(2)}` : 'N/A'}
                 </span>
@@ -131,7 +183,7 @@ export default function StockDetailPage() {
           <div className="flex items-center justify-center py-20">
             <div className="text-center">
               <div className="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#3B82F6] mb-4"></div>
-              <p className="text-[#A1A1AA]">Loading fundamental data for {ticker.toUpperCase()}...</p>
+              <p className="text-[#A1A1AA]">Loading fundamental data for {ticker?.toUpperCase() ?? 'stock'}...</p>
             </div>
           </div>
         )}
@@ -164,7 +216,7 @@ export default function StockDetailPage() {
                   <div>
                     <div className="text-[#71717A] text-sm mb-1">Market Cap</div>
                     <div className="text-[#FAFAFA] font-semibold">
-                      ${(parseFloat(fundamentals.overview?.MarketCapitalization || 0) / 1e9).toFixed(2)}B
+                      ${(parseFloat(fundamentals.overview?.MarketCapitalization ?? '0') / 1e9).toFixed(2)}B
                     </div>
                   </div>
                   <div>
@@ -200,19 +252,19 @@ export default function StockDetailPage() {
                 {/* Valuation Metrics */}
                 <FundamentalMetricCard
                   name="P/E Ratio"
-                  value={parseValue(fundamentals.fundamentals?.trailingPE ?? fundamentals.fundamentals?.pe) ?? null}
+                  value={parseValue(getFundamentalValue('trailingPE') ?? getFundamentalValue('pe')) ?? null}
                   indicator={fundamentals.metrics?.peIndicator}
                   description="Price-to-Earnings ratio. Lower is generally better for value investors."
                 />
                 <FundamentalMetricCard
                   name="P/B Ratio"
-                  value={parseValue(fundamentals.fundamentals?.priceToBook ?? fundamentals.fundamentals?.pb) ?? null}
+                  value={parseValue(getFundamentalValue('priceToBook') ?? getFundamentalValue('pb')) ?? null}
                   indicator={fundamentals.metrics?.pbIndicator}
                   description="Price-to-Book ratio. Below 1.0 suggests stock may be undervalued."
                 />
                 <FundamentalMetricCard
                   name="EV/EBITDA"
-                  value={parseValue(fundamentals.fundamentals?.evToEbitda) ?? null}
+                  value={parseValue(getFundamentalValue('evToEbitda')) ?? null}
                   indicator={fundamentals.metrics?.evEbitdaIndicator}
                   description="Enterprise Value to EBITDA. Measures company value relative to earnings."
                 />
@@ -226,25 +278,37 @@ export default function StockDetailPage() {
                 {/* Profitability Metrics */}
                 <FundamentalMetricCard
                   name="ROE"
-                  value={parseValue(fundamentals.fundamentals?.returnOnEquity) !== undefined ? parseValue(fundamentals.fundamentals?.returnOnEquity)! * 100 : null}
+                  value={(() => {
+                    const val = parseValue(getFundamentalValue('returnOnEquity'));
+                    return val !== undefined ? val * 100 : null;
+                  })()}
                   unit="%"
                   description="Return on Equity. Measures profitability relative to shareholder equity."
                 />
                 <FundamentalMetricCard
                   name="ROIC"
-                  value={parseValue(fundamentals.fundamentals?.roic) !== undefined ? parseValue(fundamentals.fundamentals?.roic)! * 100 : null}
+                  value={(() => {
+                    const val = parseValue(getFundamentalValue('roic'));
+                    return val !== undefined ? val * 100 : null;
+                  })()}
                   unit="%"
                   description="Return on Invested Capital. Warren Buffett's preferred metric."
                 />
                 <FundamentalMetricCard
                   name="ROA"
-                  value={parseValue(fundamentals.fundamentals?.returnOnAssets) !== undefined ? parseValue(fundamentals.fundamentals?.returnOnAssets)! * 100 : null}
+                  value={(() => {
+                    const val = parseValue(getFundamentalValue('returnOnAssets'));
+                    return val !== undefined ? val * 100 : null;
+                  })()}
                   unit="%"
                   description="Return on Assets. Measures how efficiently company uses assets."
                 />
                 <FundamentalMetricCard
                   name="Net Margin"
-                  value={parseValue(fundamentals.fundamentals?.profitMargins) !== undefined ? parseValue(fundamentals.fundamentals?.profitMargins)! * 100 : null}
+                  value={(() => {
+                    const val = parseValue(getFundamentalValue('profitMargins'));
+                    return val !== undefined ? val * 100 : null;
+                  })()}
                   unit="%"
                   description="Net profit margin. Higher margins indicate better profitability."
                 />
@@ -252,12 +316,12 @@ export default function StockDetailPage() {
                 {/* Leverage & Liquidity */}
                 <FundamentalMetricCard
                   name="Debt/Equity"
-                  value={parseValue(fundamentals.fundamentals?.debtToEquity) ?? null}
+                  value={parseValue(getFundamentalValue('debtToEquity')) ?? null}
                   description="Debt-to-Equity ratio. Lower values indicate less financial risk."
                 />
                 <FundamentalMetricCard
                   name="Current Ratio"
-                  value={parseValue(fundamentals.fundamentals?.currentRatio) ?? null}
+                  value={parseValue(getFundamentalValue('currentRatio')) ?? null}
                   description="Current assets / Current liabilities. Above 1.5 is healthy."
                 />
                 
@@ -270,7 +334,10 @@ export default function StockDetailPage() {
                 />
                 <FundamentalMetricCard
                   name="Operating Margin"
-                  value={parseValue(fundamentals.fundamentals?.operatingMargins) !== undefined ? parseValue(fundamentals.fundamentals?.operatingMargins)! * 100 : null}
+                  value={(() => {
+                    const val = parseValue(getFundamentalValue('operatingMargins'));
+                    return val !== undefined ? val * 100 : null;
+                  })()}
                   unit="%"
                   description="Operating profit margin. Indicates operational efficiency."
                 />

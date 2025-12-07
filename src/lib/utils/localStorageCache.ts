@@ -1,8 +1,8 @@
 // lib/utils/localStorageCache.ts
 // General client-side caching utilities using localStorage
 
-export interface CacheData {
-  data: any;
+export interface CacheData<T = unknown> {
+  data: T;
   timestamp: number;
 }
 
@@ -12,10 +12,10 @@ export function hasLocalStorage(): boolean {
   } catch (e) {
     // ignore
   }
-  return typeof (global as any).localStorage !== 'undefined';
+  return typeof (global as { localStorage?: Storage }).localStorage !== 'undefined';
 }
 
-export function saveToCache(key: string, data: any): void {
+export function saveToCache<T>(key: string, data: T): void {
   if (!hasLocalStorage()) return;
 
   const cacheData: CacheData = {
@@ -24,23 +24,25 @@ export function saveToCache(key: string, data: any): void {
   };
 
   try {
-    const storage = (typeof localStorage !== 'undefined') ? localStorage : (global as any).localStorage;
+    const storage = (typeof localStorage !== 'undefined') ? localStorage : (global as { localStorage?: Storage }).localStorage;
+    if (!storage) return;
     storage.setItem(key, JSON.stringify(cacheData));
   } catch (error) {
     console.error('Failed to save to cache:', error);
   }
 }
 
-export function loadFromCache<T = any>(key: string): T | null {
+export function loadFromCache<T = unknown>(key: string): T | null {
   if (!hasLocalStorage()) return null;
 
   try {
-    const storage = (typeof localStorage !== 'undefined') ? localStorage : (global as any).localStorage;
+    const storage = (typeof localStorage !== 'undefined') ? localStorage : (global as { localStorage?: Storage }).localStorage;
+    if (!storage) return null;
     const cached = storage.getItem(key);
     if (!cached) return null;
 
-    const cacheData = JSON.parse(cached) as CacheData;
-    return cacheData.data as T;
+    const cacheData = JSON.parse(cached) as CacheData<T>;
+    return cacheData.data;
   } catch (error) {
     console.error('Failed to load from cache:', error);
     return null;
@@ -51,11 +53,12 @@ export function getCacheAge(key: string): number {
   if (!hasLocalStorage()) return 0;
 
   try {
-    const storage = (typeof localStorage !== 'undefined') ? localStorage : (global as any).localStorage;
+    const storage = (typeof localStorage !== 'undefined') ? localStorage : (global as { localStorage?: Storage }).localStorage;
+    if (!storage) return 0;
     const cached = storage.getItem(key);
     if (!cached) return 0;
 
-    const cacheData = JSON.parse(cached) as CacheData;
+    const cacheData = JSON.parse(cached) as CacheData<unknown>;
     return Date.now() - cacheData.timestamp;
   } catch (error) {
     return 0;

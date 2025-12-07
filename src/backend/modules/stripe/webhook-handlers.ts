@@ -33,9 +33,15 @@ export async function handleCheckoutCompleted(
   const priceId = subscription.items.data[0]?.price?.id;
   const tier = getTierFromPriceId(priceId) || 'free';
 
-  // Access subscription period dates (type-safe for Stripe v20+)
-  const periodStart = (subscription as unknown as { current_period_start: number }).current_period_start;
-  const periodEnd = (subscription as unknown as { current_period_end: number }).current_period_end;
+  // Access subscription period dates
+  // Note: Stripe SDK types don't include these properties, but they exist at runtime
+  type SubscriptionWithPeriods = {
+    current_period_start: number;
+    current_period_end: number;
+  };
+  const subscriptionWithPeriods = subscription as unknown as Stripe.Subscription & SubscriptionWithPeriods;
+  const periodStart = subscriptionWithPeriods.current_period_start;
+  const periodEnd = subscriptionWithPeriods.current_period_end;
 
   // Update user profile
   const { error } = await supabase
@@ -97,9 +103,15 @@ export async function handleSubscriptionUpdated(
   const priceId = subscription.items.data[0]?.price?.id;
   const newTier = getTierFromPriceId(priceId) || 'free';
 
-  // Access subscription period dates (type-safe for Stripe v20+)
-  const periodStart = (subscription as unknown as { current_period_start: number }).current_period_start;
-  const periodEnd = (subscription as unknown as { current_period_end: number }).current_period_end;
+  // Access subscription period dates
+  // Note: Stripe SDK types don't include these properties, but they exist at runtime
+  type SubscriptionWithPeriods = {
+    current_period_start: number;
+    current_period_end: number;
+  };
+  const subscriptionWithPeriods = subscription as unknown as Stripe.Subscription & SubscriptionWithPeriods;
+  const periodStart = subscriptionWithPeriods.current_period_start;
+  const periodEnd = subscriptionWithPeriods.current_period_end;
 
   // Update user profile
   const { error } = await supabase
@@ -141,8 +153,16 @@ export async function handleInvoicePaymentSucceeded(
 ): Promise<void> {
   const supabase = createAdminClient();
 
-  // Type-safe access to potentially missing properties (Stripe v20+)
-  const subscriptionId = (invoice as unknown as { subscription?: string | null }).subscription;
+  // Access subscription ID from invoice
+  // Note: Stripe SDK types don't include subscription property, but it exists at runtime
+  type InvoiceWithSubscription = {
+    subscription?: string | Stripe.Subscription | null;
+    payment_intent?: string | Stripe.PaymentIntent | null;
+  };
+  const invoiceWithExtras = invoice as unknown as Stripe.Invoice & InvoiceWithSubscription;
+  const subscriptionId = typeof invoiceWithExtras.subscription === 'string' 
+    ? invoiceWithExtras.subscription 
+    : invoiceWithExtras.subscription?.id || null;
   if (!subscriptionId) return; // Skip one-time payments
 
   // Find user by customer ID
@@ -166,7 +186,10 @@ export async function handleInvoicePaymentSucceeded(
     .eq('id', user.id);
 
   // Log transaction
-  const paymentIntentId = (invoice as unknown as { payment_intent?: string | null }).payment_intent;
+  // Note: Using invoiceWithExtras from above for type-safe access
+  const paymentIntentId = typeof invoiceWithExtras.payment_intent === 'string'
+    ? invoiceWithExtras.payment_intent
+    : invoiceWithExtras.payment_intent?.id || null;
   await logTransaction(ctx, {
     user_id: user.id,
     stripe_invoice_id: invoice.id,
@@ -190,8 +213,15 @@ export async function handleInvoicePaymentFailed(
 ): Promise<void> {
   const supabase = createAdminClient();
 
-  // Type-safe access to potentially missing properties (Stripe v20+)
-  const subscriptionId = (invoice as unknown as { subscription?: string | null }).subscription;
+  // Access subscription ID from invoice
+  // Note: Stripe SDK types don't include subscription property, but it exists at runtime
+  type InvoiceWithSubscription = {
+    subscription?: string | Stripe.Subscription | null;
+  };
+  const invoiceWithExtras = invoice as unknown as Stripe.Invoice & InvoiceWithSubscription;
+  const subscriptionId = typeof invoiceWithExtras.subscription === 'string' 
+    ? invoiceWithExtras.subscription 
+    : invoiceWithExtras.subscription?.id || null;
   if (!subscriptionId) return;
 
   // Find user by customer ID

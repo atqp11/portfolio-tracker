@@ -194,11 +194,13 @@ export async function GET(request: NextRequest) {
         'Cache-Control': 'public, max-age=3600' // 1 hour
       }
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error(`[/api/fundamentals] Error fetching fundamentals for ${ticker}:`, error);
 
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    
     // Check if it's a rate limit error
-    if (error?.message?.includes('RATE_LIMIT')) {
+    if (errorMessage.includes('RATE_LIMIT')) {
       return NextResponse.json(
         {
           error: 'API rate limit exceeded',
@@ -210,13 +212,13 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    return NextResponse.json(
-      {
-        error: 'Failed to fetch fundamentals',
-        ticker,
-        details: error?.message || 'Unknown error'
-      },
-      { status: 500 }
-    );
+      return NextResponse.json(
+        {
+          error: 'Failed to fetch fundamentals',
+          ticker,
+          details: errorMessage
+        },
+        { status: 500 }
+      );
   }
 }

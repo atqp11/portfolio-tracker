@@ -8,6 +8,7 @@ import ErrorLog from './components/ErrorLog';
 import AdminActionsPanel from './components/AdminActionsPanel';
 import { notFound, redirect } from 'next/navigation';
 import { CaseConverter } from '@lib/transformers/base-transformer';
+import Link from 'next/link';
 
 export const dynamic = 'force-dynamic';
 
@@ -82,6 +83,12 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
     <div className="min-h-screen bg-white dark:bg-gray-950 text-gray-900 dark:text-white p-8">
       <div className="max-w-7xl mx-auto space-y-6">
         <div className="flex items-center justify-between">
+          <Link
+            href="/admin/users"
+            className="inline-flex items-center text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300"
+          >
+            ← Back to User Management
+          </Link>
           <div>
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white">User Details</h1>
             <p className="text-sm text-gray-600 dark:text-gray-300 mt-1">User billing, transactions and administrative actions</p>

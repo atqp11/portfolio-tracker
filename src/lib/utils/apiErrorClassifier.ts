@@ -8,8 +8,18 @@ export interface ApiError {
   message: string;
 }
 
-export function classifyApiError(error: any): ApiError {
-  const errorMessage = error?.message || error?.toString() || '';
+export function classifyApiError(error: unknown): ApiError {
+  // Safely extract error message from unknown type
+  let errorMessage = '';
+  
+  if (error instanceof Error) {
+    errorMessage = error.message;
+  } else if (typeof error === 'object' && error !== null && 'message' in error) {
+    const messageValue = (error as { message?: unknown }).message;
+    errorMessage = typeof messageValue === 'string' ? messageValue : String(messageValue ?? '');
+  } else if (error !== null && error !== undefined) {
+    errorMessage = String(error);
+  }
   
   // Check for rate limit errors
   if (
