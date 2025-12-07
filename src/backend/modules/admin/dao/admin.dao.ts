@@ -138,6 +138,25 @@ export async function getUserTransactions(userId: string) {
   return data || [];
 }
 
+/**
+ * Count active admin users
+ */
+export async function countActiveAdmins(): Promise<number> {
+  const supabase = createAdminClient();
+
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('id')
+    .eq('is_admin', true)
+    .eq('is_active', true);
+
+  if (error) {
+    throw new Error(`Failed to count active admins: ${error.message}`);
+  }
+
+  return data?.length || 0;
+}
+
 // ============================================================================
 // USER MUTATIONS
 // ============================================================================

@@ -1,5 +1,6 @@
-import { UsersService, usersService } from '../service/users.service';
+import { UsersService, usersService } from '@backend/modules/admin/service/users.service';
 import { getAllUsers, getCurrentUserUsage } from '@lib/supabase/db';
+import { adminUsersResponseSchema } from '@backend/modules/admin/dto/admin.dto';
 
 jest.mock('@lib/supabase/db');
 
@@ -33,12 +34,15 @@ describe('UsersService', () => {
 
       const users = await usersService.fetchAllUsersWithUsage();
 
+      // Ensure final API contract validates (camelCase per Zod schema)
+      expect(() => adminUsersResponseSchema.parse({ users, total: users.length })).not.toThrow();
+
       expect(users).toHaveLength(1);
       expect(users[0].id).toBe('u1');
       expect(users[0].email).toBe('a@example.com');
       expect(users[0].name).toBe('User A');
       expect(users[0].tier).toBe('free');
-      expect(users[0].is_admin).toBe(false);
+      expect(users[0].isAdmin).toBe(false);
       expect(users[0].usage?.daily?.chatQueries).toBe(5);
       expect(users[0].usage?.daily?.portfolioAnalysis).toBe(2);
       expect(users[0].usage?.monthly?.secFilings).toBe(10);
@@ -144,10 +148,10 @@ describe('UsersService', () => {
         email: 'admin@example.com',
         name: 'Admin User',
         tier: 'premium',
-        is_admin: true,
-        created_at: '2023-06-15T10:30:00Z',
-        stripe_customer_id: 'cus_premium123',
-        subscription_status: 'active',
+        isAdmin: true,
+        createdAt: '2023-06-15T10:30:00Z',
+        stripeCustomerId: 'cus_premium123',
+        subscriptionStatus: 'active',
       });
     });
   });

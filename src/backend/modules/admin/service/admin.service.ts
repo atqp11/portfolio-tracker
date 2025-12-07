@@ -4,9 +4,10 @@
  * Handles all business logic for admin operations
  */
 
-import * as adminDao from '../dao/admin.dao';
+import * as adminDao from '@backend/modules/admin/dao/admin.dao';
 import type { Profile } from '@lib/supabase/db';
 import { getStripe } from '@lib/stripe/client';
+import type Stripe from 'stripe';
 
 // ============================================================================
 // TYPES
@@ -115,10 +116,23 @@ export async function getUserTransactions(userId: string) {
 export async function deactivateUser(params: DeactivateUserParams): Promise<Profile> {
   const { userId, adminId, reason, notes, cancelSubscription } = params;
 
+  // Prevent self-deactivation
+  if (userId === adminId) {
+    throw new Error('You cannot deactivate your own account');
+  }
+
   // Get user before deactivation
   const userBefore = await adminDao.getUserById(userId);
   if (!userBefore) {
     throw new Error('User not found');
+  }
+
+  // Prevent deactivating the last active admin
+  if (userBefore.is_admin) {
+    const activeAdminCount = await adminDao.countActiveAdmins();
+    if (activeAdminCount <= 1) {
+      throw new Error('Cannot deactivate the last active admin. At least one admin must remain active.');
+    }
   }
 
   // Cancel Stripe subscription if requested and user has one
@@ -377,13 +391,21 @@ export async function syncUserSubscription(
   }
 
   const stripe = getStripe();
-  const subscription = await stripe.subscriptions.retrieve(user.stripe_subscription_id);
+  const subscriptionResponse = await stripe.subscriptions.retrieve(user.stripe_subscription_id);
+  
+  // Stripe SDK returns Response<Subscription> wrapper, extract the subscription
+  // The period fields exist at runtime but aren't in the type definition
+  type SubscriptionWithPeriods = {
+    current_period_start: number;
+    current_period_end: number;
+  };
+  const subscription = subscriptionResponse as unknown as Stripe.Subscription & SubscriptionWithPeriods;
 
   // Update user with Stripe data
   const userAfter = await adminDao.updateUser(userId, {
     subscription_status: subscription.status,
-    current_period_start: new Date((subscription as any).current_period_start * 1000).toISOString(),
-    current_period_end: new Date((subscription as any).current_period_end * 1000).toISOString(),
+    current_period_start: new Date(subscription.current_period_start * 1000).toISOString(),
+    current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
     cancel_at_period_end: subscription.cancel_at_period_end,
   });
 

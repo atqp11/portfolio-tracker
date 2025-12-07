@@ -22,16 +22,20 @@ export const adminUserUsageSchema = z.object({
 
 export type AdminUserUsage = z.infer<typeof adminUserUsageSchema>;
 
+/**
+ * Admin user schema for API responses (camelCase)
+ * Database fields (snake_case) are transformed to camelCase in the service layer
+ */
 export const adminUserSchema = z.object({
   id: z.string(),
   email: z.string().email(),
   name: z.string().nullable(),
   tier: z.string().nullable(),
-  is_admin: z.boolean().nullable(),
-  is_active: z.boolean().nullable(),
-  created_at: z.string().nullable(),
-  stripe_customer_id: z.string().nullable(),
-  subscription_status: z.string().nullable(),
+  isAdmin: z.boolean().nullable(),
+  isActive: z.boolean().nullable(),
+  createdAt: z.string().nullable(),
+  stripeCustomerId: z.string().nullable(),
+  subscriptionStatus: z.string().nullable(),
   usage: adminUserUsageSchema,
 });
 

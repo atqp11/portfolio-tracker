@@ -2,10 +2,10 @@
 import Stripe from 'stripe';
 import { createAdminClient } from '@lib/supabase/admin';
 import { getStripe, getTierFromPriceId } from '@lib/stripe/client';
+import * as stripeDao from '@backend/modules/stripe/dao/stripe.dao';
 
 interface WebhookContext {
   event: Stripe.Event;
-  supabase: ReturnType<typeof createAdminClient>;
 }
 
 // ============================================================================
@@ -16,7 +16,7 @@ export async function handleCheckoutCompleted(
   session: Stripe.Checkout.Session,
   ctx: WebhookContext
 ): Promise<void> {
-  const { supabase } = ctx;
+  const supabase = createAdminClient();
   
   const customerId = session.customer as string;
   const subscriptionId = session.subscription as string;
@@ -80,7 +80,7 @@ export async function handleSubscriptionUpdated(
   subscription: Stripe.Subscription,
   ctx: WebhookContext
 ): Promise<void> {
-  const { supabase } = ctx;
+  const supabase = createAdminClient();
 
   // Find user by customer ID
   const { data: user, error: userError } = await supabase
@@ -139,7 +139,7 @@ export async function handleInvoicePaymentSucceeded(
   invoice: Stripe.Invoice,
   ctx: WebhookContext
 ): Promise<void> {
-  const { supabase } = ctx;
+  const supabase = createAdminClient();
 
   // Type-safe access to potentially missing properties (Stripe v20+)
   const subscriptionId = (invoice as unknown as { subscription?: string | null }).subscription;
@@ -188,7 +188,7 @@ export async function handleInvoicePaymentFailed(
   invoice: Stripe.Invoice,
   ctx: WebhookContext
 ): Promise<void> {
-  const { supabase } = ctx;
+  const supabase = createAdminClient();
 
   // Type-safe access to potentially missing properties (Stripe v20+)
   const subscriptionId = (invoice as unknown as { subscription?: string | null }).subscription;
@@ -240,7 +240,7 @@ export async function handleSubscriptionDeleted(
   subscription: Stripe.Subscription,
   ctx: WebhookContext
 ): Promise<void> {
-  const { supabase } = ctx;
+  const supabase = createAdminClient();
 
   // Find user by customer ID
   const { data: user } = await supabase
@@ -285,15 +285,23 @@ async function logTransaction(
   ctx: WebhookContext,
   data: Record<string, unknown>
 ): Promise<void> {
-  const { supabase, event } = ctx;
+  const { event } = ctx;
 
-  await supabase
-    .from('stripe_transactions')
-    .upsert({
-      stripe_event_id: event.id,
-      ...data,
-      processed_at: new Date().toISOString(),
-    }, {
-      onConflict: 'stripe_event_id',
-    });
+  // Convert data to DAO format
+  await stripeDao.upsertTransaction({
+    stripe_event_id: event.id,
+    event_type: (data.event_type as string) || event.type,
+    status: (data.status as string) || 'completed',
+    user_id: data.user_id as string | undefined,
+    stripe_customer_id: data.stripe_customer_id as string | undefined,
+    stripe_subscription_id: data.stripe_subscription_id as string | undefined,
+    stripe_invoice_id: data.stripe_invoice_id as string | undefined,
+    stripe_payment_intent_id: data.stripe_payment_intent_id as string | undefined,
+    amount_cents: data.amount_cents as number | undefined,
+    currency: data.currency as string | undefined,
+    tier_before: data.tier_before as string | undefined,
+    tier_after: data.tier_after as string | undefined,
+    error_message: data.error_message as string | undefined,
+    processed_at: new Date().toISOString(),
+  });
 }

@@ -2,9 +2,9 @@
 
 interface NormalizedTransaction {
   id: string;
-  event_type: string;
+  eventType: string;
   status: string;
-  metadata?: any;
+  metadata?: Record<string, unknown>;
   createdIso?: string | null;
 }
 
@@ -36,13 +36,13 @@ export default function TransactionLog({ transactions }: TransactionLogProps) {
             </tr>
           </thead>
           <tbody>
-            {transactions.map((transaction: any) => (
+            {transactions.map((transaction) => (
               <tr key={transaction.id} className="border-b last:border-0">
                 <td className="py-2">
                   {/* Use server-provided ISO timestamp for deterministic output */}
                   {transaction.createdIso ? transaction.createdIso.replace('T', ' ').slice(0, 19) : '—'}
                 </td>
-                <td className="py-2">{transaction.event_type}</td>
+                <td className="py-2">{transaction.eventType}</td>
                 <td className="py-2">
                   <span className={`px-2 py-1 rounded text-xs ${
                     transaction.status === 'completed' ? 'bg-green-800 text-green-100' :

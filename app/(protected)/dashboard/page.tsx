@@ -14,6 +14,7 @@ import NewsCard from '@/components/NewsCard';
 import StonksAI from '@/components/StonksAI/StonksAI';
 import { fetchAndUpdateStockPrice } from '@lib/utils/priceUpdater';
 import { getPortfolioTheme } from '@lib/utils/portfolioTheme';
+import { extractErrorMessage } from '@lib/utils/errorUtils';
 
 export default function Home() {
   const { data: portfolios, isLoading: portfoliosLoading, refetch: refetchPortfolios} = usePortfolios();
@@ -76,7 +77,7 @@ export default function Home() {
         const response = await fetch(endpoint);
         if (!response.ok) {
           const errorData = await response.json();
-          throw new Error(errorData.error || `Failed to fetch news`);
+          throw new Error(extractErrorMessage(errorData.error, 'Failed to fetch news'));
         }
 
         const newsData = await response.json();
@@ -152,7 +153,7 @@ export default function Home() {
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.error || 'Failed to add stock');
+        throw new Error(extractErrorMessage(error.error, 'Failed to add stock'));
       }
 
       const newStock = await response.json();
@@ -195,7 +196,7 @@ export default function Home() {
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.error || 'Failed to update stock');
+        throw new Error(extractErrorMessage(error.error, 'Failed to update stock'));
       }
 
       const updatedStock = await response.json();
@@ -228,7 +229,7 @@ export default function Home() {
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.error || 'Failed to delete stock');
+        throw new Error(extractErrorMessage(error.error, 'Failed to delete stock'));
       }
     } catch (error) {
       console.error('Error deleting stock:', error);

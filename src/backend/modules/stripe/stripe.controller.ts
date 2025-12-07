@@ -23,7 +23,7 @@ import type { CheckoutRequest, PortalRequest } from '@lib/stripe/validation';
  */
 interface StripeRequestContext {
   body?: CheckoutRequest | PortalRequest;
-  query?: any;
+  query?: Record<string, unknown>;
 }
 
 /**

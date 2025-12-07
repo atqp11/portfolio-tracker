@@ -25,6 +25,7 @@ This guide contains:
 3. **No Direct Supabase on Frontend** - All data access via `/api/*` routes.
 4. **TypeScript Strict Mode** - No `any` types. Always type function returns explicitly.
 5. **Path Aliases Required** - Use `@lib/`, `@/components/`, never `../../../`.
+6. **Theme Switching Required** - All UI components must support both light and dark themes using Tailwind's `dark:` prefix. Never hardcode dark-only colors.
 
 ### Import Pattern
 
@@ -45,6 +46,7 @@ import { helper } from './utils';
 - [ ] TypeScript compiles without errors
 - [ ] Error states handled
 - [ ] Loading states displayed
+- [ ] Theme switching supported (light/dark via `dark:` classes)
 - [ ] Tests pass: `npm test`
 - [ ] Build succeeds: `npm run build`
 

@@ -251,6 +251,28 @@ Prisma plays a specific, restricted role within the application's data access st
 
 - **Server-First Architecture with React Server Components (RSC):** The application prioritizes a server-first rendering strategy, leveraging Next.js 14's React Server Components (RSC) to maximize performance and simplify data fetching. This approach is ideal for reducing client-side JavaScript, improving load times, and keeping sensitive data on the server. Client Components are primarily used for adding interactivity to the UI.
 
+- **Theme Switching Support:** All UI components, pages, error boundaries, and loading states must support both light and dark themes. The application uses Tailwind CSS's `dark:` prefix for theme-aware styling, controlled by the `ThemeProvider` in `src/lib/contexts/ThemeContext.tsx`.
+  - **Required Pattern:** Always provide both light and dark variants for colors, backgrounds, borders, and text.
+  - **Example:**
+    ```tsx
+    // ✅ Correct - supports both themes
+    <div className="bg-white dark:bg-gray-950 text-gray-900 dark:text-white">
+      <div className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800">
+        <p className="text-gray-600 dark:text-gray-300">Content</p>
+      </div>
+    </div>
+    
+    // ❌ Incorrect - hardcoded dark theme only
+    <div className="bg-gray-950 text-white">
+      <div className="bg-gray-900 border border-gray-800">
+        <p className="text-gray-300">Content</p>
+      </div>
+    </div>
+    ```
+  - **Theme Provider:** The app uses a custom `ThemeProvider` that adds/removes the `dark` class on the document root, supporting `light`, `dark`, and `auto` (system preference) modes.
+  - **Skeleton/Loading States:** Loading skeletons must also use theme-aware colors (e.g., `bg-gray-200 dark:bg-gray-800`).
+  - **Error Pages:** Error boundaries and error pages must support theme switching.
+
 ### 3.5. API Route Architecture
 
 In this project, Next.js API Routes (`app/api/*`) serve as **thin wrappers** around the backend business logic. This architecture ensures that API routes remain clean, focused, and easily maintainable.

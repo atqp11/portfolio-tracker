@@ -859,7 +859,77 @@ function useOldPortfolio(portfolioType: string) {
 
 ### User Experience
 
+#### Loading States and Error Boundaries
+
 Utilize `loading.tsx` and React `Suspense` for automatic and granular loading UIs, especially within Server Components. For client-side data fetching with React Query, use the `isLoading` and `isError` flags to render skeletons, spinners, or error messages.
+
+#### Theme Switching Support
+
+**Critical Requirement:** All UI components, pages, error boundaries, and loading states must support both light and dark themes. The application uses Tailwind CSS's `dark:` prefix for theme-aware styling, controlled by the `ThemeProvider` in `src/lib/contexts/ThemeContext.tsx`.
+
+**Guidelines:**
+
+1. **Always Provide Both Theme Variants:**
+   - Never hardcode dark-only or light-only colors
+   - Always use Tailwind's `dark:` prefix for dark theme variants
+   - Provide appropriate light theme defaults
+
+2. **Standard Color Patterns:**
+   ```tsx
+   // ✅ CORRECT - Theme-aware styling
+   // Page backgrounds
+   <div className="bg-white dark:bg-gray-950 text-gray-900 dark:text-white">
+   
+   // Cards and containers
+   <div className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800">
+   
+   // Text colors
+   <p className="text-gray-600 dark:text-gray-300">Content</p>
+   <h1 className="text-gray-900 dark:text-white">Heading</h1>
+   
+   // Error states
+   <div className="text-red-600 dark:text-red-400">Error message</div>
+   
+   // Loading skeletons
+   <div className="bg-gray-200 dark:bg-gray-800 rounded animate-pulse"></div>
+   ```
+
+3. **Required for All UI Elements:**
+   - ✅ Page components (`page.tsx`)
+   - ✅ Error boundaries (`error.tsx`)
+   - ✅ Loading states (`loading.tsx`)
+   - ✅ All reusable components
+   - ✅ Modals and overlays
+   - ✅ Form inputs and buttons
+   - ✅ Tables and data displays
+
+4. **Theme Provider:**
+   - The app uses a custom `ThemeProvider` that adds/removes the `dark` class on the document root
+   - Supports `light`, `dark`, and `auto` (system preference) modes
+   - Theme preference is persisted in localStorage
+
+5. **Common Patterns:**
+   ```tsx
+   // ❌ INCORRECT - Hardcoded dark theme
+   <div className="bg-gray-950 text-white">
+     <div className="bg-gray-900 border border-gray-800">
+       <p className="text-gray-300">Content</p>
+     </div>
+   </div>
+   
+   // ✅ CORRECT - Theme-aware
+   <div className="bg-white dark:bg-gray-950 text-gray-900 dark:text-white">
+     <div className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800">
+       <p className="text-gray-600 dark:text-gray-300">Content</p>
+     </div>
+   </div>
+   ```
+
+6. **Testing Theme Support:**
+   - Verify components render correctly in both light and dark modes
+   - Test theme switching via the settings page
+   - Ensure loading skeletons and error states are theme-aware
+   - Check that all interactive elements (buttons, inputs) have proper contrast in both themes
 
 **Pattern: Suspense Boundaries with Server Components**
 

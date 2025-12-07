@@ -17,6 +17,7 @@ export function cn(...inputs: ClassValue[]): string {
 export * from './aiCache';
 export * from './apiErrorClassifier';
 export * from './apiRateLimitTracker';
+export * from './errorUtils';
 export * from './localStorageCache';
 export * from './portfolioTheme';
 export * from './priceUpdater';

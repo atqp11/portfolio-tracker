@@ -112,22 +112,24 @@ export type CancelSubscriptionInput = z.infer<typeof cancelSubscriptionSchema>;
 
 /**
  * PUT /api/admin/users/[id] - Legacy update
+ * API contract (camelCase) - will be transformed to snake_case for database
  */
 export const updateUserSchema = z.object({
   tier: z.enum(['free', 'basic', 'premium']).optional(),
-  is_admin: z.boolean().optional(),
+  isAdmin: z.boolean().optional(),
 });
 
 export type UpdateUserInput = z.infer<typeof updateUserSchema>;
 
 /**
  * PUT /api/admin/users/[id]/quota
+ * API contract (camelCase) - will be transformed to snake_case for database
  */
 export const updateQuotaSchema = z.object({
-  ai_query_count: z.number().int().nonnegative().optional(),
-  portfolio_change_quota: z.number().int().nonnegative().optional(),
-  portfolio_count: z.number().int().nonnegative().optional(),
-  stock_count: z.number().int().nonnegative().optional(),
+  aiQueryCount: z.number().int().nonnegative().optional(),
+  portfolioChangeQuota: z.number().int().nonnegative().optional(),
+  portfolioCount: z.number().int().nonnegative().optional(),
+  stockCount: z.number().int().nonnegative().optional(),
 });
 
 export type UpdateQuotaInput = z.infer<typeof updateQuotaSchema>;

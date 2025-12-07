@@ -3,9 +3,9 @@
 
 interface NormalizedTransaction {
   id: string;
-  event_type: string;
+  eventType: string;
   status: string;
-  metadata?: any;
+  metadata?: Record<string, unknown>;
   createdIso?: string | null;
 }
 
@@ -31,7 +31,7 @@ export default function ErrorLog({ transactions }: ErrorLogProps) {
       <div className="space-y-4">
         {errors.map((error) => (
           <div key={error.id} className="bg-red-900 p-3 rounded">
-            <div className="font-semibold text-red-200">{error.event_type} Failed</div>
+            <div className="font-semibold text-red-200">{error.eventType} Failed</div>
             {/* Use server-provided ISO string for deterministic rendering */}
             <div className="text-sm text-red-300">{error.createdIso ? error.createdIso.replace('T', ' ').slice(0, 19) : '—'}</div>
             <div className="mt-2 text-sm text-gray-300">

@@ -13,7 +13,6 @@ import {
   getTierFromPriceId
 } from '@lib/stripe/client';
 import { updateUserTier } from '@lib/supabase/db';
-import { createAdminClient } from '@lib/supabase/admin';
 import type { StripeTier } from '@lib/stripe/types';
 import type Stripe from 'stripe';
 import type { Profile } from '@lib/supabase/db';
@@ -23,7 +22,8 @@ import {
   handleInvoicePaymentSucceeded,
   handleInvoicePaymentFailed,
   handleCheckoutCompleted,
-} from './webhook-handlers';
+} from '@backend/modules/stripe/webhook-handlers';
+import * as stripeDao from '@backend/modules/stripe/dao/stripe.dao';
 
 // ============================================================================
 // TYPES
@@ -180,12 +180,7 @@ export async function processStripeWebhook(
   }
 
   // Check for duplicate event (idempotency)
-  const supabase = createAdminClient();
-  const { data: existingTx } = await supabase
-    .from('stripe_transactions')
-    .select('id')
-    .eq('stripe_event_id', event.id)
-    .single();
+  const existingTx = await stripeDao.findTransactionByEventId(event.id);
 
   if (existingTx) {
     console.log(`Duplicate webhook event ${event.id}, skipping`);
@@ -193,22 +188,20 @@ export async function processStripeWebhook(
   }
 
   // Log the incoming event
-  const { error: logError } = await supabase
-    .from('stripe_transactions')
-    .insert({
+  try {
+    await stripeDao.createTransaction({
       stripe_event_id: event.id,
       event_type: event.type,
       status: 'pending',
       created_at: new Date().toISOString(),
     });
-
-  if (logError) {
+  } catch (logError) {
     console.error('Failed to log webhook event:', logError);
     // Continue processing - logging failure shouldn't block the webhook
   }
 
   try {
-    const context = { event, supabase };
+    const context = { event };
     // Process event...
     switch (event.type) {
       case 'checkout.session.completed':
@@ -231,22 +224,19 @@ export async function processStripeWebhook(
     }
 
     // Mark as completed
-    await supabase
-      .from('stripe_transactions')
-      .update({ status: 'completed', processed_at: new Date().toISOString() })
-      .eq('stripe_event_id', event.id);
+    await stripeDao.updateTransactionByEventId(event.id, {
+      status: 'completed',
+      processed_at: new Date().toISOString(),
+    });
 
     return { received: true };
   } catch (error) {
     // Mark as failed with error details
-    await supabase
-      .from('stripe_transactions')
-      .update({
-        status: 'failed',
-        error_message: error instanceof Error ? error.message : 'Unknown error',
-        processed_at: new Date().toISOString(),
-      })
-      .eq('stripe_event_id', event.id);
+    await stripeDao.updateTransactionByEventId(event.id, {
+      status: 'failed',
+      error_message: error instanceof Error ? error.message : 'Unknown error',
+      processed_at: new Date().toISOString(),
+    });
 
     throw error;
   }

@@ -119,18 +119,13 @@ CREATE POLICY "Users can view own profile"
   USING (auth.uid() = id);
 
 -- Users can update their own non-admin fields
+-- Note: Field-level restrictions (is_admin, tier, etc.) are enforced at application layer
+-- RLS only ensures users can only update their own profile
 DROP POLICY IF EXISTS "Users can update own profile" ON public.profiles;
 CREATE POLICY "Users can update own profile"
   ON public.profiles FOR UPDATE
   USING (auth.uid() = id)
-  WITH CHECK (
-    -- Prevent users from changing admin-only fields
-    auth.uid() = id AND
-    NEW.is_admin = OLD.is_admin AND
-    NEW.tier = OLD.tier AND
-    NEW.subscription_tier = OLD.subscription_tier AND
-    NEW.is_active = OLD.is_active
-  );
+  WITH CHECK (auth.uid() = id);
 
 -- Admins can view all profiles
 DROP POLICY IF EXISTS "Admins can view all profiles" ON public.profiles;

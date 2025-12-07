@@ -1,16 +1,19 @@
 'use client';
 
-import type { AdminUserDto } from '@/src/backend/modules/admin/dto/admin.dto';
+import type { AdminUserDto } from '@backend/modules/admin/dto/admin.dto';
 import UserActions from './UserActions';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
 // (old Profile-based typing removed — this component now receives AdminUserDto)
 
 interface UserTableProps {
   users: AdminUserDto[];
+  currentUserId?: string | null;
 }
 
-export default function UserTable({ users }: UserTableProps) {
+export default function UserTable({ users, currentUserId }: UserTableProps) {
+  const router = useRouter();
   return (
     <div className="overflow-x-auto">
       <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
@@ -18,6 +21,7 @@ export default function UserTable({ users }: UserTableProps) {
           <tr>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">User</th>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Tier</th>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Admin</th>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Usage</th>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Status</th>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Actions</th>
@@ -50,8 +54,8 @@ export default function UserTable({ users }: UserTableProps) {
                           body: JSON.stringify({ tier: newTier }),
                         });
                         if (!res.ok) throw new Error('Failed to update tier');
-                      // reload to reflect changes (simpler than local mutation)
-                      window.location.reload();
+                      // refresh to reflect changes without full page reload
+                      router.refresh();
                     } catch (err) {
                       alert(err instanceof Error ? err.message : 'Failed to update tier');
                     }
@@ -64,25 +68,37 @@ export default function UserTable({ users }: UserTableProps) {
                 </select>
               </td>
 
-              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-200">
-                <div className="text-xs text-gray-300">Chat: {user.usage?.daily?.chatQueries ?? 0}</div>
-                <div className="text-xs text-gray-300">Analysis: {user.usage?.daily?.portfolioAnalysis ?? 0}</div>
-                <div className="text-xs text-gray-300">SEC: {user.usage?.monthly?.secFilings ?? 0}</div>
+              <td className="px-6 py-4 whitespace-nowrap text-sm">
+                {/* Admin flag column */}
+                {user.isAdmin ? (
+                  <span className="px-2 py-1 rounded text-xs bg-purple-100 dark:bg-purple-900 text-purple-800 dark:text-purple-200">Admin</span>
+                ) : (
+                  <span className="px-2 py-1 rounded text-xs bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200">User</span>
+                )}
               </td>
 
               <td className="px-6 py-4 whitespace-nowrap text-sm">
-                {user.is_active === false ? (
-                  <span className="px-2 py-1 rounded text-xs bg-red-100 text-red-800">Deactivated</span>
+                {/* Usage - service returns camelCase */}
+                <div className="text-xs text-gray-600 dark:text-gray-300">
+                  <div>Chat: {user.usage?.daily?.chatQueries ?? 0}</div>
+                  <div>Analysis: {user.usage?.daily?.portfolioAnalysis ?? 0}</div>
+                  <div>SEC: {user.usage?.monthly?.secFilings ?? 0}</div>
+                </div>
+              </td>
+
+              <td className="px-6 py-4 whitespace-nowrap text-sm">
+                {user.isActive === false ? (
+                  <span className="px-2 py-1 rounded text-xs bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200">Deactivated</span>
                 ) : (
-                  <span className="px-2 py-1 rounded text-xs bg-green-100 text-green-800">Active</span>
+                  <span className="px-2 py-1 rounded text-xs bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200">Active</span>
                 )}
               </td>
 
               <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-4">
-                <Link href={`/admin/users/${user.id}`} className="text-indigo-400 hover:text-indigo-300">
+                <Link href={`/admin/users/${user.id}`} className="text-indigo-400 hover:text-indigo-300 dark:text-indigo-500 dark:hover:text-indigo-400">
                   View
                 </Link>
-                <UserActions userId={user.id} isActive={user.is_active ?? false} />
+                <UserActions userId={user.id} isActive={user.isActive ?? false} currentUserId={currentUserId} />
                 <button
                   onClick={async () => {
                     if (!confirm('Reset quota for this user?')) return;
@@ -90,12 +106,12 @@ export default function UserTable({ users }: UserTableProps) {
                       const r = await fetch(`/api/admin/users/${user.id}/quota`, { method: 'DELETE' });
                       if (!r.ok) throw new Error('Failed to reset quota');
                       alert('Quota reset');
-                      window.location.reload();
+                      router.refresh();
                     } catch (err) {
                       alert(err instanceof Error ? err.message : 'Failed to reset quota');
                     }
                   }}
-                  className="text-sm text-red-400 hover:text-red-300 ml-3"
+                  className="text-sm text-red-400 hover:text-red-300 dark:text-red-500 dark:hover:text-red-400 ml-3"
                 >
                   Reset Quota
                 </button>

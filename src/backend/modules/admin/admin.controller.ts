@@ -12,8 +12,8 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { usersService } from './service/users.service';
-import * as adminService from './service/admin.service';
+import { usersService } from '@backend/modules/admin/service/users.service';
+import * as adminService from '@backend/modules/admin/service/admin.service';
 import type { UserProfile } from '@lib/auth/session';
 import type {
   GetUsersQuery,
@@ -23,16 +23,40 @@ import type {
   RefundUserInput,
   ExtendTrialInput,
   CancelSubscriptionInput,
+  UpdateUserInput,
 } from '@lib/validators/admin-schemas';
+import { adminUsersResponseSchema } from '@backend/modules/admin/dto/admin.dto';
 
 // ============================================================================
 // CONTEXT TYPES
 // ============================================================================
 
+/**
+ * Union type for all possible admin request body types
+ */
+type AdminRequestBody =
+  | DeactivateUserInput
+  | ReactivateUserInput
+  | ChangeTierInput
+  | RefundUserInput
+  | ExtendTrialInput
+  | CancelSubscriptionInput
+  | UpdateUserInput
+  | undefined;
+
+/**
+ * Union type for all possible admin request query types
+ */
+type AdminRequestQuery = GetUsersQuery | Record<string, never> | undefined;
+
+/**
+ * Base admin request context interface
+ * Note: Individual methods use more specific context types, but this serves as a base
+ */
 interface AdminRequestContext {
   params?: { userId?: string; id?: string };
-  body?: any;
-  query?: any;
+  body?: AdminRequestBody;
+  query?: AdminRequestQuery;
   admin: UserProfile;
 }
 
@@ -73,7 +97,11 @@ export class AdminController {
   ): Promise<NextResponse> {
     try {
       const users = await usersService.fetchAllUsersWithUsage();
-      return successResponse({ users, total: users.length });
+
+      // Validate API contract (server -> client) — ensure camelCase shape per zod schema
+      const validated = adminUsersResponseSchema.parse({ users, total: users.length });
+
+      return successResponse(validated);
     } catch (error) {
       console.error('Error fetching users:', error);
       return errorResponse(
@@ -183,10 +211,20 @@ export class AdminController {
       return successResponse({ user });
     } catch (error) {
       console.error('Error deactivating user:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      
+      // Return appropriate status codes for different error types
+      let statusCode = 500;
+      if (errorMessage.includes('cannot deactivate your own account')) {
+        statusCode = 400; // Bad Request
+      } else if (errorMessage.includes('last active admin')) {
+        statusCode = 409; // Conflict
+      }
+      
       return errorResponse(
-        'Failed to deactivate user',
-        500,
-        error instanceof Error ? error.message : 'Unknown error'
+        errorMessage,
+        statusCode,
+        errorMessage
       );
     }
   }
@@ -371,11 +409,11 @@ export class AdminController {
    */
   async updateUser(
     req: NextRequest,
-    context: { params: { userId: string }; body?: { tier?: string; is_admin?: boolean }; admin: UserProfile }
+    context: { params: { userId: string }; body?: UpdateUserInput; admin: UserProfile }
   ): Promise<NextResponse> {
     try {
       const { userId } = context.params;
-      const { tier, is_admin } = context.body || {};
+      const { tier, isAdmin } = context.body || {};
 
       const user = await adminService.getUserDetails(userId);
       if (!user) {
@@ -393,10 +431,10 @@ export class AdminController {
         });
       }
 
-      // Update admin status if provided
-      if (is_admin !== undefined) {
+      // Update admin status if provided (transform camelCase to snake_case for database)
+      if (isAdmin !== undefined) {
         const { updateUserAdminStatus } = await import('@lib/supabase/db');
-        const result = await updateUserAdminStatus(userId, is_admin);
+        const result = await updateUserAdminStatus(userId, isAdmin);
         if (result) {
           updatedUser = { ...updatedUser, is_admin: result.is_admin };
         }
@@ -409,7 +447,7 @@ export class AdminController {
           email: updatedUser.email,
           name: updatedUser.name,
           tier: updatedUser.tier,
-          is_admin: updatedUser.is_admin,
+          isAdmin: updatedUser.is_admin, // Transform to camelCase for API response
         },
       });
     } catch (error) {

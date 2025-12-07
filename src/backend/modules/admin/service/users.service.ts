@@ -1,5 +1,6 @@
 import { getAllUsers, getCurrentUserUsage } from '@lib/supabase/db';
-import type { AdminUserDto } from '../dto/admin.dto';
+import type { AdminUserDto } from '@backend/modules/admin/dto/admin.dto';
+import { CaseConverter } from '@lib/transformers/base-transformer';
 
 export class UsersService {
   async fetchAllUsersWithUsage(): Promise<AdminUserDto[]> {
@@ -8,16 +9,18 @@ export class UsersService {
     const usersWithUsage = await Promise.all(
       users.map(async (user: any) => {
         const usage = await getCurrentUserUsage(user.id);
-        return {
+        
+        // Transform database fields (snake_case) to API contract (camelCase)
+        const userDto = {
           id: user.id,
           email: user.email,
           name: user.name || null,
           tier: user.tier || null,
-          is_admin: user.is_admin ?? null,
-          is_active: user.is_active ?? null,
-          created_at: user.created_at ?? null,
-          stripe_customer_id: user.stripe_customer_id ?? null,
-          subscription_status: user.subscription_status ?? null,
+          isAdmin: user.is_admin ?? null,
+          isActive: user.is_active ?? null,
+          createdAt: user.created_at ?? null,
+          stripeCustomerId: user.stripe_customer_id ?? null,
+          subscriptionStatus: user.subscription_status ?? null,
           usage: {
             daily: usage?.daily
               ? {
@@ -35,6 +38,8 @@ export class UsersService {
               : null,
           },
         } as AdminUserDto;
+
+        return userDto;
       })
     );
 

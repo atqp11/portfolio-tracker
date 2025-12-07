@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { getUsageStats, type TierName } from '@lib/tiers';
+import { extractErrorMessage } from '@lib/utils/errorUtils';
 import Link from 'next/link';
 
 interface UsageStats {
@@ -59,7 +60,7 @@ export default function UsagePage() {
         if (response.status === 401) {
           setError('Please sign in to view your usage statistics.');
         } else {
-          setError(data.error || 'Failed to load usage stats');
+          setError(extractErrorMessage(data.error, 'Failed to load usage stats'));
         }
         setLoading(false);
         return;
@@ -69,7 +70,7 @@ export default function UsagePage() {
         setStats(data.stats);
         setError(null);
       } else {
-        setError(data.error || 'Failed to load usage stats');
+        setError(extractErrorMessage(data.error, 'Failed to load usage stats'));
       }
       setLoading(false);
     } catch (err) {

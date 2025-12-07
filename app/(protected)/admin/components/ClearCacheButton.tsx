@@ -34,7 +34,7 @@ export default function ClearCacheButton() {
         {loading ? 'Clearing...' : 'Clear Cache'}
       </button>
       {result && (
-        <div className="text-xs text-gray-300">Last: {new Date(result.timestamp).toLocaleString()}</div>
+        <div className="text-xs text-gray-600 dark:text-gray-300">Last: {new Date(result.timestamp).toLocaleString()}</div>
       )}
     </div>
   );
