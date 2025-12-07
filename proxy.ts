@@ -121,7 +121,7 @@ export async function proxy(request: NextRequest) {
     request.nextUrl.pathname.startsWith('/settings') ||
     request.nextUrl.pathname.startsWith('/usage') ||
     request.nextUrl.pathname.startsWith('/stocks') ||
-    request.nextUrl.pathname.startsWith('/admin-panel')
+    request.nextUrl.pathname.startsWith('/admin')
   )) {
     const url = request.nextUrl.clone()
     url.pathname = '/auth/signin'

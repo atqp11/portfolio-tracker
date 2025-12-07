@@ -17,8 +17,9 @@ export default function Navigation() {
     { href: '/checklist', label: 'Checklist', icon: '✅' },
   ];
 
+  // Link to admin area (`/admin`)
   const adminItems = [
-    { href: '/admin-panel', label: 'Admin', icon: '⚙️' },
+    { href: '/admin', label: 'Admin', icon: '⚙️' },
   ];
 
   const isActive = (href: string) => {

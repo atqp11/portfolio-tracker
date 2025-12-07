@@ -14,6 +14,7 @@ export class UsersService {
           name: user.name || null,
           tier: user.tier || null,
           is_admin: user.is_admin ?? null,
+          is_active: user.is_active ?? null,
           created_at: user.created_at ?? null,
           stripe_customer_id: user.stripe_customer_id ?? null,
           subscription_status: user.subscription_status ?? null,

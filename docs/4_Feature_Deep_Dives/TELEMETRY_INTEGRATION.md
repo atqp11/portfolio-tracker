@@ -1128,7 +1128,7 @@ export function calculateCustomMetrics(logs: InferenceLog[]) {
 ## Related Documentation
 
 - **AI Router:** [lib/ai/README.md](../lib/ai/README.md) - AI system architecture
-- **Admin Dashboard:** [app/(dashboard)/admin-panel/README.md](../app/(dashboard)/admin-panel/README.md) - Dashboard features
+- **Admin Dashboard:** [app/(dashboard)/admin/README.md](../app/(dashboard)/admin/README.md) - Dashboard features
 - **AI Strategy:** [docs/AI_MODEL_STRATEGY.md](./AI_MODEL_STRATEGY.md) - Model selection strategy
 - **Telemetry Logger:** [lib/telemetry/ai-logger.ts](../lib/telemetry/ai-logger.ts) - Source code
 
@@ -1191,4 +1191,4 @@ Happy tracking!
 ---
 
 *Last updated: November 26, 2025*
-*Consolidated from lib/ai/README.md and app/(dashboard)/admin-panel/README.md*
+*Consolidated from lib/ai/README.md and app/(dashboard)/admin/README.md*

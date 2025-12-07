@@ -220,7 +220,7 @@
 - [ ] Update `/api/admin/users/[userId]/transactions/route.ts`
 
 #### Admin UI (RSC Conversion Needed)
-- [x] User list page exists (`app/(protected)/admin-panel/users/page.tsx`)
+- [x] User list page exists (`app/(protected)/admin/users/page.tsx`)
 - [x] User filters component exists
 - [x] User table component exists
 - [ ] **Convert to Server Component** (currently Client Component with `useEffect`)

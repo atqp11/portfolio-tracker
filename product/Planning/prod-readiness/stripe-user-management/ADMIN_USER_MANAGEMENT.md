@@ -14,12 +14,12 @@ This document outlines the admin panel features for user management, including s
 
 ## Current State
 
-### Existing Admin Panel (`/admin-panel`)
+### Existing Admin Panel (`/admin`)
 
 | Feature | Status | Location |
 |---------|--------|----------|
-| Cost Tracking | ✅ Implemented | `/admin-panel/costs` |
-| Waitlist Management | ✅ Implemented | `/admin-panel/waitlist` |
+| Cost Tracking | ✅ Implemented | `/admin/costs` |
+| Waitlist Management | ✅ Implemented | `/admin/waitlist` |
 | User Management | ❌ Coming Soon | - |
 | Analytics | ❌ Coming Soon | - |
 | System Health | ❌ Coming Soon | - |
@@ -30,7 +30,7 @@ This document outlines the admin panel features for user management, including s
 
 ### 1. User List View
 
-**URL:** `/admin-panel/users`
+**URL:** `/admin/users`
 
 **Features:**
 - Paginated user table (25 per page)
@@ -56,7 +56,7 @@ This document outlines the admin panel features for user management, including s
 
 ### 2. User Detail View
 
-**URL:** `/admin-panel/users/[userId]`
+**URL:** `/admin/users/[userId]`
 
 **Sections:**
 
@@ -414,7 +414,7 @@ CREATE POLICY "Admins can create deactivation logs"
 ```
 app/
 ├── (protected)/
-│   └── admin-panel/
+│   └── admin/
 │       └── users/
 │           ├── page.tsx                    # User list
 │           ├── [userId]/

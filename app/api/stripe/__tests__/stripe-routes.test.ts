@@ -34,11 +34,14 @@ const mockGetPortalInfo = jest.fn() as jest.MockedFunction<
   (profile: any) => Promise<{ hasStripeCustomer: boolean }>
 >;
 
+// typed mock for userHasTier helper used by auth/session
+const mockUserHasTier = jest.fn() as jest.MockedFunction<() => Promise<boolean>>;
+
 // Mock modules with explicit parameter forwarding
 jest.mock('@lib/auth/session', () => ({
   getUser: () => mockGetUser(),
   getUserProfile: () => mockGetUserProfile(),
-  userHasTier: jest.fn().mockResolvedValue(true),
+  userHasTier: () => mockUserHasTier(),
   requireUser: jest.fn(),
   requireUserProfile: jest.fn(),
   requireTier: jest.fn(),

@@ -245,8 +245,8 @@ All new code follows path alias conventions:
    - `/api/admin/users/[userId]/transactions/route.ts`
 
 2. **Admin Panel UI** (Needs RSC Conversion)
-   - `app/(protected)/admin-panel/users/page.tsx` - Client Component with useEffect
-   - `app/(protected)/admin-panel/users/[userId]/page.tsx` - Client Component
+   - `app/(protected)/admin/users/page.tsx` - Client Component with useEffect
+   - `app/(protected)/admin/users/[userId]/page.tsx` - Client Component
    - Should be Server Components with async data fetching
    - Client Components only for interactivity (filters, actions)
 
@@ -289,10 +289,10 @@ All new code follows path alias conventions:
 5. Verify new tables and RLS policies work
 
 ### Phase 3: Admin Panel RSC Conversion (2-3 hours)
-1. Convert `app/(protected)/admin-panel/users/page.tsx` to Server Component
+1. Convert `app/(protected)/admin/users/page.tsx` to Server Component
 2. Fetch data with `async` function instead of `useEffect`
 3. Create Client Component for filters/interactivity
-4. Convert `app/(protected)/admin-panel/users/[userId]/page.tsx`
+4. Convert `app/(protected)/admin/users/[userId]/page.tsx`
 5. Test admin panel functionality
 
 ### Phase 4: Add Comprehensive Tests (2-3 hours)
@@ -368,8 +368,8 @@ All new code follows path alias conventions:
 ## Files That Need Updating (Next Phase)
 
 1. All routes in `app/api/admin/users/[userId]/*` (10 routes)
-2. `app/(protected)/admin-panel/users/page.tsx` (RSC conversion)
-3. `app/(protected)/admin-panel/users/[userId]/page.tsx` (RSC conversion)
+2. `app/(protected)/admin/users/page.tsx` (RSC conversion)
+3. `app/(protected)/admin/users/[userId]/page.tsx` (RSC conversion)
 
 ---
 

@@ -147,9 +147,9 @@ These routes are simple CRUD with no complex business logic:
 - `app/(protected)/risk/page.tsx`
 - `app/(protected)/usage/page.tsx`
 - `app/(protected)/settings/page.tsx`
-- `app/(protected)/admin-panel/page.tsx`
-- `app/(protected)/admin-panel/waitlist/page.tsx`
-- `app/(protected)/admin-panel/costs/page.tsx`
+- `app/(protected)/admin/page.tsx`
+- `app/(protected)/admin/waitlist/page.tsx`
+- `app/(protected)/admin/costs/page.tsx`
 
 **Components using `'use client'`:**
 - Layout components: `DashboardLayout.tsx`, `Sidebar.tsx`, `TopNav.tsx`, `Navigation.tsx`

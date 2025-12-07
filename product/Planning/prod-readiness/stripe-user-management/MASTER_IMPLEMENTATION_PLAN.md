@@ -117,8 +117,8 @@ This plan covers the complete implementation of production-ready Stripe integrat
 | 1 | User list API | `/api/admin/users` |
 | 2 | User detail API | `/api/admin/users/[userId]` |
 | 3 | Admin actions APIs | Refund, cancel, deactivate, etc. |
-| 4 | User list UI | `/admin-panel/users` page |
-| 5 | User detail UI | `/admin-panel/users/[userId]` page |
+| 4 | User list UI | `/admin/users` page |
+| 5 | User detail UI | `/admin/users/[userId]` page |
 
 **Dependencies:** Week 1 (database), Week 2 (Stripe)  
 **Owner:** Full Stack Engineer  
@@ -235,8 +235,8 @@ UPSTASH_REDIS_REST_TOKEN=xxx
 - `app/api/admin/users/[userId]/extend-trial/route.ts`
 - `app/api/admin/users/[userId]/deactivate/route.ts`
 - `app/api/admin/users/[userId]/sync-subscription/route.ts`
-- `app/(protected)/admin-panel/users/page.tsx`
-- `app/(protected)/admin-panel/users/[userId]/page.tsx`
+- `app/(protected)/admin/users/page.tsx`
+- `app/(protected)/admin/users/[userId]/page.tsx`
 
 ### Stripe Updates
 - `src/backend/modules/stripe/webhook-handlers.ts`
