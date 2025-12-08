@@ -80,23 +80,27 @@ export async function getUserDetails(userId: string): Promise<Profile | null> {
 }
 
 /**
- * Get user's billing history
+ * Get user's billing history (Stripe invoices)
  */
 export async function getUserBillingHistory(userId: string) {
   // Get user's Stripe customer ID
   const user = await adminDao.getUserById(userId);
   if (!user?.stripe_customer_id) {
-    throw new Error('User has no Stripe customer ID');
+    return []; // Return empty array if no customer ID
   }
 
-  // Get charges from Stripe
+  // Get invoices from Stripe
   const stripe = getStripe();
-  const charges = await stripe.charges.list({
+  if (!stripe) {
+    return []; // Return empty array if Stripe not configured
+  }
+
+  const invoices = await stripe.invoices.list({
     customer: user.stripe_customer_id,
-    limit: 100, // Adjust as needed
+    limit: 100,
   });
 
-  return charges.data;
+  return invoices.data;
 }
 
 /**
@@ -104,6 +108,32 @@ export async function getUserBillingHistory(userId: string) {
  */
 export async function getUserTransactions(userId: string) {
   return adminDao.getUserTransactions(userId);
+}
+
+/**
+ * Get Stripe subscription status for diagnostics
+ */
+export async function getStripeSubscriptionStatus(userId: string): Promise<{ status: string | null; lastSync: string | null }> {
+  const user = await adminDao.getUserById(userId);
+  if (!user?.stripe_subscription_id) {
+    return { status: null, lastSync: null };
+  }
+
+  const stripe = getStripe();
+  if (!stripe) {
+    return { status: null, lastSync: null }; // Stripe not configured
+  }
+
+  try {
+    const subscription = await stripe.subscriptions.retrieve(user.stripe_subscription_id);
+    return {
+      status: subscription.status,
+      lastSync: user.updated_at || null,
+    };
+  } catch (error) {
+    console.error('Error fetching Stripe subscription:', error);
+    return { status: null, lastSync: null };
+  }
 }
 
 // ============================================================================
@@ -139,9 +169,13 @@ export async function deactivateUser(params: DeactivateUserParams): Promise<Prof
   if (cancelSubscription && userBefore.stripe_subscription_id) {
     try {
       const stripe = getStripe();
-      await stripe.subscriptions.update(userBefore.stripe_subscription_id, {
-        cancel_at_period_end: true,
-      });
+      if (stripe) {
+        await stripe.subscriptions.update(userBefore.stripe_subscription_id, {
+          cancel_at_period_end: true,
+        });
+      } else {
+        console.warn('Stripe not configured, skipping subscription cancellation');
+      }
     } catch (error) {
       console.error('Failed to cancel Stripe subscription:', error);
       // Continue with deactivation even if Stripe fails
@@ -258,6 +292,9 @@ export async function cancelUserSubscription(
   }
 
   const stripe = getStripe();
+  if (!stripe) {
+    throw new Error('Stripe is not configured');
+  }
 
   if (immediate) {
     // Cancel immediately
@@ -295,6 +332,9 @@ export async function refundUser(params: RefundParams): Promise<void> {
   }
 
   const stripe = getStripe();
+  if (!stripe) {
+    throw new Error('Stripe is not configured');
+  }
 
   // Get the latest payment intent
   const paymentIntents = await stripe.paymentIntents.list({
@@ -391,6 +431,10 @@ export async function syncUserSubscription(
   }
 
   const stripe = getStripe();
+  if (!stripe) {
+    throw new Error('Stripe is not configured');
+  }
+  
   const subscriptionResponse = await stripe.subscriptions.retrieve(user.stripe_subscription_id);
   
   // Stripe SDK returns Response<Subscription> wrapper, extract the subscription
@@ -423,4 +467,325 @@ export async function syncUserSubscription(
   });
 
   return userAfter;
+}
+
+// ============================================================================
+// BILLING OVERVIEW
+// ============================================================================
+
+/**
+ * Get user statistics
+ */
+export async function getUserStats() {
+  const allUsers = await adminDao.getAllUsers();
+  const now = new Date();
+  const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+  const totalUsers = allUsers.length;
+  const newUsers = allUsers.filter((u) => {
+    const createdAt = new Date(u.created_at);
+    return createdAt >= thirtyDaysAgo;
+  }).length;
+  const inactiveUsers = allUsers.filter((u) => !u.is_active).length;
+
+  return {
+    totalUsers,
+    newUsers,
+    inactiveUsers,
+  };
+}
+
+/**
+ * Get billing overview metrics
+ */
+export async function getBillingOverview() {
+  const allUsers = await adminDao.getAllUsers();
+  const stripe = getStripe();
+  const isStripeAvailable = stripe !== null;
+
+  // User stats (always available - from DB)
+  const userStats = await getUserStats();
+
+  // Subscription stats (always available - from DB)
+  const activeSubscriptions = allUsers.filter(
+    (u) => u.subscription_status === 'active'
+  ).length;
+
+  const freeCount = allUsers.filter((u) => u.tier === 'free').length;
+  const basicCount = allUsers.filter((u) => u.tier === 'basic').length;
+  const premiumCount = allUsers.filter((u) => u.tier === 'premium').length;
+
+  // MRR and Churn (require Stripe)
+  let mrr = 0;
+  let churn30Days = 0;
+  let churn90Days = 0;
+  let upcomingInvoices = { count: 0, totalAmount: 0 };
+
+  if (isStripeAvailable) {
+    mrr = await calculateMRR();
+    churn30Days = await getChurnEvents(30);
+    churn90Days = await getChurnEvents(90);
+
+    // Upcoming invoices
+    const upcomingInvoicesList = await stripe!.invoices.list({
+      status: 'open',
+      limit: 100,
+    });
+
+    const draftInvoices = await stripe!.invoices.list({
+      status: 'draft',
+      limit: 100,
+    });
+
+    const allUpcomingInvoices = [...upcomingInvoicesList.data, ...draftInvoices.data];
+    upcomingInvoices = {
+      count: allUpcomingInvoices.length,
+      totalAmount: allUpcomingInvoices.reduce(
+        (sum, inv) => sum + (inv.amount_due || 0),
+        0
+      ),
+    };
+  }
+
+  return {
+    userStats,
+    subscriptionStats: {
+      activeSubscriptions,
+      tierBreakdown: {
+        free: freeCount,
+        basic: basicCount,
+        premium: premiumCount,
+      },
+    },
+    mrr,
+    churn: {
+      last30Days: churn30Days,
+      last90Days: churn90Days,
+    },
+    upcomingInvoices,
+    stripeConfigured: isStripeAvailable, // Add flag for UI
+  };
+}
+
+/**
+ * Calculate Monthly Recurring Revenue (MRR)
+ */
+export async function calculateMRR(): Promise<number> {
+  const stripe = getStripe();
+  if (!stripe) {
+    return 0; // Return 0 if Stripe not configured
+  }
+
+  const allUsers = await adminDao.getAllUsers();
+  const STRIPE_PRICES = {
+    basic: 600, // $6.00 in cents
+    premium: 1599, // $15.99 in cents
+  };
+
+  let mrr = 0;
+
+  // Get active paid subscriptions
+  const activePaidUsers = allUsers.filter(
+    (u) =>
+      u.subscription_status === 'active' &&
+      (u.tier === 'basic' || u.tier === 'premium')
+  );
+
+  // For each active paid user, get their subscription from Stripe to get the actual amount
+  // (in case of discounts or custom pricing)
+  for (const user of activePaidUsers) {
+    if (!user.stripe_subscription_id) {
+      // Fallback to tier-based pricing if no Stripe subscription
+      if (user.tier === 'basic') {
+        mrr += STRIPE_PRICES.basic;
+      } else if (user.tier === 'premium') {
+        mrr += STRIPE_PRICES.premium;
+      }
+      continue;
+    }
+
+    try {
+      const subscription = await stripe.subscriptions.retrieve(
+        user.stripe_subscription_id
+      );
+      // Get the amount from the subscription's price
+      const priceId = subscription.items.data[0]?.price?.id;
+      if (priceId) {
+        const price = await stripe.prices.retrieve(priceId);
+        // MRR is the recurring amount per month
+        if (price.recurring?.interval === 'month') {
+          mrr += price.unit_amount || 0;
+        } else if (price.recurring?.interval === 'year') {
+          // Convert annual to monthly
+          mrr += (price.unit_amount || 0) / 12;
+        }
+      }
+    } catch (error) {
+      console.error(
+        `Error fetching subscription ${user.stripe_subscription_id}:`,
+        error
+      );
+      // Fallback to tier-based pricing
+      if (user.tier === 'basic') {
+        mrr += STRIPE_PRICES.basic;
+      } else if (user.tier === 'premium') {
+        mrr += STRIPE_PRICES.premium;
+      }
+    }
+  }
+
+  return mrr;
+}
+
+/**
+ * Get churn events (subscription cancellations) for a given period
+ */
+export async function getChurnEvents(days: number): Promise<number> {
+  const { createAdminClient } = await import('@lib/supabase/admin');
+  const supabase = createAdminClient();
+  const daysAgo = new Date();
+  daysAgo.setDate(daysAgo.getDate() - days);
+
+  const { data, error } = await supabase
+    .from('stripe_transactions')
+    .select('id')
+    .eq('event_type', 'customer.subscription.deleted')
+    .gte('created_at', daysAgo.toISOString())
+    .eq('status', 'completed');
+
+  if (error) {
+    console.error('Error fetching churn events:', error);
+    return 0;
+  }
+
+  return data?.length || 0;
+}
+
+/**
+ * Get webhook logs with latency and retry information
+ */
+export async function getWebhookLogs(limit = 100) {
+  const { createAdminClient } = await import('@lib/supabase/admin');
+  const supabase = createAdminClient();
+
+  const { data, error } = await supabase
+    .from('stripe_transactions')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .limit(limit);
+
+  if (error) {
+    throw new Error(`Failed to fetch webhook logs: ${error.message}`);
+  }
+
+  return (data || []).map((transaction) => {
+    // Calculate latency
+    let latency: number | null = null;
+    if (transaction.created_at && transaction.processed_at) {
+      const created = new Date(transaction.created_at).getTime();
+      const processed = new Date(transaction.processed_at).getTime();
+      latency = processed - created;
+    }
+
+    // Get retry count from metadata
+    const metadata = (transaction.metadata as Record<string, unknown>) || {};
+    const retryCount = (metadata.retryCount as number) || 0;
+    const recoveryStatus = retryCount > 0 ? 'auto' : 'manual';
+
+    return {
+      id: transaction.id,
+      eventId: transaction.stripe_event_id,
+      eventType: transaction.event_type,
+      status: transaction.status,
+      latency,
+      retryCount,
+      recoveryStatus,
+      createdAt: transaction.created_at,
+      processedAt: transaction.processed_at,
+      errorMessage: transaction.error_message,
+    };
+  });
+}
+
+/**
+ * Get sync errors (failed webhooks with mismatch detection)
+ */
+export async function getSyncErrors() {
+  const { createAdminClient } = await import('@lib/supabase/admin');
+  const supabase = createAdminClient();
+  const stripe = getStripe();
+  const isStripeAvailable = stripe !== null;
+
+  // Get all failed webhook transactions
+  const { data: failedTransactions, error } = await supabase
+    .from('stripe_transactions')
+    .select('*')
+    .eq('status', 'failed')
+    .order('created_at', { ascending: false })
+    .limit(100);
+
+  if (error) {
+    throw new Error(`Failed to fetch sync errors: ${error.message}`);
+  }
+
+  const syncErrors = [];
+
+  for (const transaction of failedTransactions || []) {
+    if (!transaction.user_id || !transaction.stripe_subscription_id) {
+      continue;
+    }
+
+    // Get user from DB
+    const user = await adminDao.getUserById(transaction.user_id);
+    if (!user) continue;
+
+    // Get subscription from Stripe (only if Stripe is available)
+    let stripeStatus: string | null = null;
+    if (isStripeAvailable) {
+      try {
+        const subscription = await stripe!.subscriptions.retrieve(
+          transaction.stripe_subscription_id
+        );
+        stripeStatus = subscription.status;
+      } catch (error) {
+        console.error(
+          `Error fetching Stripe subscription ${transaction.stripe_subscription_id}:`,
+          error
+        );
+      }
+    }
+
+    // Check for mismatch (only if we have Stripe status)
+    const dbStatus = user.subscription_status;
+    const hasMismatch = stripeStatus && stripeStatus !== dbStatus;
+
+    // Check last retry status - if last retry succeeded after last failure, don't show error
+    const metadata = (transaction.metadata as Record<string, unknown>) || {};
+    const lastRetryStatus = metadata.lastRetryStatus as string | undefined;
+    const lastRetryAt = metadata.lastRetryAt as string | undefined;
+
+    // If last retry succeeded and was after the failure, don't show this error
+    if (
+      lastRetryStatus === 'completed' &&
+      lastRetryAt &&
+      transaction.created_at &&
+      new Date(lastRetryAt) > new Date(transaction.created_at)
+    ) {
+      continue; // Skip this error as it was resolved
+    }
+
+    if (hasMismatch || transaction.status === 'failed') {
+      syncErrors.push({
+        userId: transaction.user_id,
+        stripeEventId: transaction.stripe_event_id,
+        mismatch: hasMismatch
+          ? `Stripe says ${stripeStatus}, DB says ${dbStatus}`
+          : transaction.error_message || 'Webhook processing failed',
+        lastRetryStatus: lastRetryStatus || 'none',
+        transactionId: transaction.id,
+      });
+    }
+  }
+
+  return syncErrors;
 }

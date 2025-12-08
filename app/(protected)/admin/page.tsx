@@ -37,12 +37,12 @@ export default function DashboardHome() {
             </div>
           </Link>
 
-          {/* User Management */}
+          {/* User & Billing Management */}
           <Link href="/admin/users">
             <div className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg p-6 hover:border-indigo-500 transition cursor-pointer">
               <div className="text-4xl mb-4">👥</div>
-              <h2 className="text-2xl font-bold mb-2 text-gray-900 dark:text-white">User Management</h2>
-              <p className="text-gray-600 dark:text-gray-400">Manage user accounts, tiers, and quotas</p>
+              <h2 className="text-2xl font-bold mb-2 text-gray-900 dark:text-white">User & Billing Management</h2>
+              <p className="text-gray-600 dark:text-gray-400">Manage users, subscriptions, billing events, and webhook diagnostics.</p>
               <div className="mt-4 text-indigo-600 dark:text-indigo-400 font-semibold">Manage Users →</div>
             </div>
           </Link>

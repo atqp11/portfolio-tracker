@@ -44,13 +44,13 @@ export default function UserFilters() {
         placeholder="Search by email"
         value={email}
         onChange={(e) => setEmail(e.target.value)}
-        className="border bg-gray-800 text-gray-100 p-2 rounded w-64"
+        className="border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 w-64 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
       />
       <select 
         name="tier" 
         onChange={handleSelectChange} 
         defaultValue={searchParams.get('tier') || ''}
-        className="border bg-gray-800 text-gray-100 p-2 rounded"
+        className="border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
       >
         <option value="">All Tiers</option>
         <option value="free">Free</option>
@@ -61,7 +61,7 @@ export default function UserFilters() {
         name="status" 
         onChange={handleSelectChange} 
         defaultValue={searchParams.get('status') || ''}
-        className="border bg-gray-800 text-gray-100 p-2 rounded"
+        className="border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
       >
         <option value="">All Statuses</option>
         <option value="active">Active</option>

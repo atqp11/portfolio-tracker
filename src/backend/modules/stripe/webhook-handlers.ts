@@ -27,7 +27,12 @@ export async function handleCheckoutCompleted(
   }
 
   // Get subscription details
-  const subscriptionResponse = await getStripe().subscriptions.retrieve(subscriptionId);
+  const stripe = getStripe();
+  if (!stripe) {
+    throw new Error('Stripe is not configured');
+  }
+  
+  const subscriptionResponse = await stripe.subscriptions.retrieve(subscriptionId);
   // Extract subscription data (Stripe Response wrapper adds headers)
   const subscription = subscriptionResponse as Stripe.Subscription;
   const priceId = subscription.items.data[0]?.price?.id;

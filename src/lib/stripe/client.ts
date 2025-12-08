@@ -10,21 +10,37 @@ import { type StripeTier, type StripePrice } from './types';
 // Initialize Stripe (lazy-loaded to avoid errors at build time)
 let stripeInstance: Stripe | null = null;
 
-export function getStripe(): Stripe {
+/**
+ * Get Stripe client instance
+ * Returns null if STRIPE_SECRET_KEY is not configured (graceful degradation)
+ */
+export function getStripe(): Stripe | null {
   if (!stripeInstance) {
     const apiKey = process.env.STRIPE_SECRET_KEY;
     if (!apiKey) {
-      throw new Error('STRIPE_SECRET_KEY is not configured');
+      return null; // Return null instead of throwing for graceful degradation
     }
     stripeInstance = new Stripe(apiKey);
   }
   return stripeInstance;
 }
 
+/**
+ * Check if Stripe is configured
+ */
+export function isStripeConfigured(): boolean {
+  return !!process.env.STRIPE_SECRET_KEY;
+}
+
 // Keep stripe export for backwards compatibility
+// Note: This will throw if Stripe is not configured, but most code should use getStripe() directly
 export const stripe = new Proxy({} as any, {
   get: (target, prop) => {
-    return getStripe()[prop as keyof Stripe];
+    const stripeClient = getStripe();
+    if (!stripeClient) {
+      throw new Error('STRIPE_SECRET_KEY is not configured');
+    }
+    return stripeClient[prop as keyof Stripe];
   },
 });
 
@@ -93,8 +109,13 @@ export async function createOrRetrieveCustomer(
   email: string,
   metadata?: Record<string, string>
 ): Promise<string> {
+  const stripe = getStripe();
+  if (!stripe) {
+    throw new Error('Stripe is not configured');
+  }
+
   // Search for existing customer
-  const existingCustomers = await getStripe().customers.list({
+  const existingCustomers = await stripe.customers.list({
     email,
     limit: 1,
   });
@@ -104,7 +125,7 @@ export async function createOrRetrieveCustomer(
   }
 
   // Create new customer
-  const customer = await getStripe().customers.create({
+  const customer = await stripe.customers.create({
     email,
     metadata,
   });
@@ -145,7 +166,12 @@ export async function createCheckoutSession(
     };
   }
 
-  const session = await getStripe().checkout.sessions.create(
+  const stripe = getStripe();
+  if (!stripe) {
+    throw new Error('Stripe is not configured');
+  }
+
+  const session = await stripe.checkout.sessions.create(
     sessionParams,
     { idempotencyKey: idempotencyKey || `checkout_${customerId}_${Date.now()}` }
   );
@@ -160,7 +186,11 @@ export async function createCheckoutSession(
  * Get subscription details
  */
 export async function getSubscription(subscriptionId: string) {
-  return getStripe().subscriptions.retrieve(subscriptionId);
+  const stripe = getStripe();
+  if (!stripe) {
+    throw new Error('Stripe is not configured');
+  }
+  return stripe.subscriptions.retrieve(subscriptionId);
 }
 
 /**
@@ -170,13 +200,18 @@ export async function cancelSubscription(
   subscriptionId: string,
   atPeriodEnd = true
 ): Promise<void> {
+  const stripe = getStripe();
+  if (!stripe) {
+    throw new Error('Stripe is not configured');
+  }
+
   if (atPeriodEnd) {
-    await getStripe().subscriptions.update(subscriptionId, {
+    await stripe.subscriptions.update(subscriptionId, {
       cancel_at_period_end: true,
     });
   } else {
     // Use update with immediate cancellation
-    await getStripe().subscriptions.update(subscriptionId, {
+    await stripe.subscriptions.update(subscriptionId, {
       cancel_at_period_end: false,
     });
   }
@@ -189,7 +224,12 @@ export async function createCustomerPortalSession(
   customerId: string,
   returnUrl: string
 ): Promise<string> {
-  const session = await getStripe().billingPortal.sessions.create({
+  const stripe = getStripe();
+  if (!stripe) {
+    throw new Error('Stripe is not configured');
+  }
+
+  const session = await stripe.billingPortal.sessions.create({
     customer: customerId,
     return_url: returnUrl,
   });
@@ -211,7 +251,12 @@ export function constructWebhookEvent(
   }
 
   try {
-    return getStripe().webhooks.constructEvent(body, signature, secret);
+    const stripe = getStripe();
+    if (!stripe) {
+      console.error('Stripe is not configured');
+      return null;
+    }
+    return stripe.webhooks.constructEvent(body, signature, secret);
   } catch (error) {
     console.error('Webhook signature verification failed:', error);
     return null;

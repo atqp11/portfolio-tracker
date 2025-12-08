@@ -1,111 +1,134 @@
 "use client";
 
-import { useState } from "react";
-import RefundModal from "./RefundModal";
-
-interface NormalizedCharge {
-  id: string;
-  amount: number; // cents
-  currency?: string;
-  status?: string;
-  description?: string | null;
-  refunded?: boolean;
-  createdIso?: string | null; // ISO date string
-}
+import type { Profile } from '@lib/supabase/db';
+import type Stripe from 'stripe';
 
 interface BillingHistoryProps {
-  charges: NormalizedCharge[];
+  invoices: Stripe.Invoice[];
   userId: string;
+  user: Profile;
 }
 
-export default function BillingHistory({ charges, userId }: BillingHistoryProps) {
-  const [selectedCharge, setSelectedCharge] = useState<NormalizedCharge | null>(null);
-
-  if (!charges || charges.length === 0) {
+export default function BillingHistory({ invoices, userId, user }: BillingHistoryProps) {
+  // If user is on free tier, show message
+  if (user.tier === 'free' || !user.stripe_customer_id) {
     return (
-      <div className="bg-transparent p-0 mt-0 text-gray-100">
-        <h2 className="text-xl font-bold mb-4 text-gray-100">Billing History</h2>
-        <div className="text-gray-400">No billing history found.</div>
+      <div className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg p-6">
+        <h2 className="text-xl font-bold mb-4 text-gray-900 dark:text-white">Billing History</h2>
+        <div className="text-gray-600 dark:text-gray-400">
+          This user is on a free tier. No billing history.
+        </div>
       </div>
     );
   }
 
-  const sortedCharges = [...charges].sort((a, b) => {
-    const aTs = a.createdIso ? Date.parse(a.createdIso) : 0;
-    const bTs = b.createdIso ? Date.parse(b.createdIso) : 0;
-    return bTs - aTs;
+  if (!invoices || invoices.length === 0) {
+    return (
+      <div className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg p-6">
+        <h2 className="text-xl font-bold mb-4 text-gray-900 dark:text-white">Billing History</h2>
+        <div className="text-gray-600 dark:text-gray-400">No billing history found.</div>
+      </div>
+    );
+  }
+
+  const sortedInvoices = [...invoices].sort((a, b) => {
+    return (b.created || 0) - (a.created || 0);
   });
 
-  const latestChargeId = sortedCharges[0]?.id;
+  const getStatusBadge = (status: string | null) => {
+    if (!status) return { label: 'Unknown', color: 'bg-gray-500' };
+    
+    const statusLower = status.toLowerCase();
+    if (statusLower === 'paid') {
+      return { label: 'Paid', color: 'bg-green-500' };
+    }
+    if (statusLower === 'open') {
+      return { label: 'Open', color: 'bg-yellow-500' };
+    }
+    if (statusLower === 'void') {
+      return { label: 'Void', color: 'bg-gray-500' };
+    }
+    if (statusLower === 'uncollectible') {
+      return { label: 'Uncollectible', color: 'bg-red-500' };
+    }
+    return { label: status, color: 'bg-gray-500' };
+  };
 
   return (
-    <div className="bg-transparent p-0 mt-0 text-gray-100">
-      <h2 className="text-xl font-bold mb-4 text-gray-100">Billing History</h2>
+    <div className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg p-6">
+      <h2 className="text-xl font-bold mb-4 text-gray-900 dark:text-white">Billing History</h2>
       <div className="overflow-x-auto">
-        <table className="min-w-full text-left text-sm text-gray-200">
-          <thead>
-            <tr className="border-b">
-              <th className="py-2">Date</th>
-              <th className="py-2">Amount</th>
-              <th className="py-2">Status</th>
-              <th className="py-2">Description</th>
-              <th className="py-2">Actions</th>
+        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+          <thead className="bg-gray-50 dark:bg-gray-900">
+            <tr>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Invoice ID</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Date</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Amount</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Status</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Next Payment</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Actions</th>
             </tr>
           </thead>
-          <tbody>
-            {sortedCharges.map((charge) => (
-              <tr key={charge.id} className="border-b last:border-0">
-                <td className="py-2">{charge.createdIso ? charge.createdIso.slice(0, 10) : '—'}</td>
-                <td className="py-2">{(charge.amount / 100).toFixed(2)} {charge.currency?.toUpperCase()}</td>
-                <td className="py-2">
-                  <span className={`px-2 py-1 rounded text-xs ${
-                    charge.status === 'succeeded' ? 'bg-green-800 text-green-100' :
-                    charge.status === 'failed' ? 'bg-red-800 text-red-100' :
-                    'bg-gray-700 text-gray-100'
-                  }`}>
-                    {charge.status}
-                  </span>
-                </td>
-                <td className="py-2 text-gray-300">{charge.description || 'N/A'}</td>
-                <td className="py-2">
-                  <a
-                    href={`https://dashboard.stripe.com/payments/${charge.id}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-blue-600 hover:underline mr-2"
-                  >
-                    Stripe
-                  </a>
-                  {charge.status === 'succeeded' && !charge.refunded && charge.id === latestChargeId && (
-                    <button
-                      className="text-red-400 hover:underline"
-                      onClick={() => setSelectedCharge(charge)}
-                    >
-                      Refund
-                    </button>
-                  )}
-                  {charge.status === 'succeeded' && !charge.refunded && charge.id !== latestChargeId && (
-                    <span className="text-gray-400 text-xs" title="Only the latest payment can be refunded via Admin Panel">
-                      Refund (Latest Only)
+          <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+            {sortedInvoices.map((invoice) => {
+              const statusBadge = getStatusBadge(invoice.status);
+              return (
+                <tr key={invoice.id}>
+                  <td className="px-6 py-4 whitespace-nowrap font-mono text-xs text-gray-900 dark:text-gray-100">{invoice.id}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">
+                    {invoice.created ? new Date(invoice.created * 1000).toLocaleDateString() : '—'}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">
+                    ${((invoice.amount_due || 0) / 100).toFixed(2)} {invoice.currency?.toUpperCase() || 'USD'}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span className={`px-2 py-1 rounded text-xs text-white ${statusBadge.color}`}>
+                      {statusBadge.label}
                     </span>
-                  )}
-                </td>
-              </tr>
-            ))}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">
+                    {invoice.next_payment_attempt
+                      ? new Date(invoice.next_payment_attempt * 1000).toLocaleDateString()
+                      : '—'}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm">
+                    {invoice.hosted_invoice_url && (
+                      <a
+                        href={invoice.hosted_invoice_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-600 dark:text-blue-400 hover:underline mr-2"
+                      >
+                        View Invoice
+                      </a>
+                    )}
+                    {invoice.invoice_pdf && (
+                      <a
+                        href={invoice.invoice_pdf}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-600 dark:text-blue-400 hover:underline"
+                      >
+                        Download PDF
+                      </a>
+                    )}
+                    {!invoice.hosted_invoice_url && !invoice.invoice_pdf && (
+                      <a
+                        href={`https://dashboard.stripe.com/invoices/${invoice.id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-600 dark:text-blue-400 hover:underline"
+                      >
+                        Stripe Dashboard
+                      </a>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
-
-      {selectedCharge && (
-        <RefundModal
-          userId={userId}
-          chargeId={selectedCharge.id}
-          amount={selectedCharge.amount}
-          currency={selectedCharge.currency || 'usd'}
-          isOpen={!!selectedCharge}
-          onClose={() => setSelectedCharge(null)}
-        />
-      )}
     </div>
   );
 }
