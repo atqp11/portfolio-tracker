@@ -57,12 +57,20 @@ describe('Stripe Client', () => {
       expect(stripe).toBeDefined();
     });
 
-    it('should throw error if STRIPE_SECRET_KEY is not configured', async () => {
+    it('should return null if STRIPE_SECRET_KEY is not configured', async () => {
+      const originalKey = process.env.STRIPE_SECRET_KEY;
       delete process.env.STRIPE_SECRET_KEY;
       jest.resetModules();
       
       const { getStripe } = await import('@lib/stripe/client');
-      expect(() => getStripe()).toThrow('STRIPE_SECRET_KEY is not configured');
+      const stripe = getStripe();
+      expect(stripe).toBeNull();
+      
+      // Restore for other tests
+      if (originalKey) {
+        process.env.STRIPE_SECRET_KEY = originalKey;
+      }
+      jest.resetModules();
     });
 
     it('should reuse same instance on multiple calls', async () => {

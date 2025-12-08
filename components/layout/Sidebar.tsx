@@ -20,6 +20,7 @@ const baseNavItems: NavItem[] = [
   { label: 'Thesis Tracker', href: '/thesis', icon: '📝' },
   { label: 'Checklist', href: '/checklist', icon: '✓' },
   { label: 'Usage & Quotas', href: '/usage', icon: '📉' },
+  { label: 'Billing', href: '/billing', icon: '💳' },
   { label: 'Settings', href: '/settings', icon: '⚙️' },
 ];
 

@@ -446,6 +446,12 @@ We are adopting **React Query (also known as TanStack Query)** to manage "server
 
 ## Common Commands
 
+### Build Command (REQUIRED)
+Always use the following command to build, so that .env.local is loaded:
+```bash
+npx dotenv -e .env.local -- npm run build
+```
+
 ### Development
 ```bash
 npm run dev          # Start Next.js dev server with hot reload

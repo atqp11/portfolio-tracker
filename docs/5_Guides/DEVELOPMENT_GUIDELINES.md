@@ -2274,7 +2274,7 @@ Before submitting code, verify:
 - [ ] Sensitive data (API keys) never logged
 - [ ] Prisma client used from `@lib/prisma` (not re-instantiated)
 - [ ] Tests pass: `npm test`
-- [ ] Build succeeds: `npm run build`
+- [ ] Build succeeds: `npx dotenv -e .env.local -- npm run build`
 - [ ] Console has no errors in browser dev tools
 
 ## Performance Guidelines
@@ -2635,7 +2635,7 @@ export default function PortfolioPage() {
 **Analyze bundle size:**
 
 ```bash
-npm run build
+npx dotenv -e .env.local -- npm run build
 # Check output for bundle sizes
 # Large client-side bundles (>200KB) should be investigated.
 # Move components to the server where possible.
@@ -3066,7 +3066,7 @@ Before deploying to production:
 - [ ] Database connection pooling configured
 
 ### Build & Tests
-- [ ] Local build succeeds: `npm run build`
+- [ ] Local build succeeds: `npx dotenv -e .env.local -- npm run build`
 - [ ] No TypeScript errors
 - [ ] All tests pass: `npm test`
 - [ ] No console errors in production build
@@ -3480,7 +3480,8 @@ export default function App() {
 
 ```bash
 # Analyze bundle size
-npm run build
+# Always use the following command to build, so that .env.local is loaded:
+npx dotenv -e .env.local -- npm run build
 
 # Look for large bundles (>200KB)
 # Check output:
