@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import type { Profile } from '@lib/supabase/db';
 import { TIER_CONFIG, type TierName } from '@lib/tiers/config';
 import ConfirmModal from '@/components/shared/ConfirmModal';
+import { changeTier, extendTrial } from '../actions';
 
 interface PlanManagementProps {
   user: Profile;
@@ -29,54 +30,35 @@ export default function PlanManagement({ user }: PlanManagementProps) {
   const performAction = async () => {
     if (!pendingAction) return;
 
-    const { action, endpoint, body } = pendingAction;
+    const { action } = pendingAction;
 
     setLoading(true);
     try {
-      let payload: Record<string, unknown> = {};
-      if (pendingRequiresInput && pendingAction?.inputKey) {
+      if (action === 'change tier') {
         if (!pendingInputValue || String(pendingInputValue).trim().length === 0) {
-          alert('Please enter a value before continuing');
+          alert('Please enter a reason before continuing');
           setLoading(false);
           return;
         }
 
-        payload = { ...(body || {}) };
-        if (pendingInputType === 'number') {
-          payload[pendingAction.inputKey] = parseInt(pendingInputValue as string, 10);
-        } else {
-          payload[pendingAction.inputKey] = pendingInputValue;
+        await changeTier(user.id, selectedTier, pendingInputValue);
+      } else if (action === 'extend trial') {
+        if (!pendingInputValue || String(pendingInputValue).trim().length === 0) {
+          alert('Please enter number of days before continuing');
+          setLoading(false);
+          return;
         }
+
+        const days = parseInt(pendingInputValue, 10);
+        if (isNaN(days) || days <= 0) {
+          alert('Please enter a valid number of days');
+          setLoading(false);
+          return;
+        }
+
+        await extendTrial(user.id, days);
       } else {
-        payload = body || {};
-      }
-
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload || {}),
-      });
-
-      if (!response.ok) {
-        const payload = await response.json().catch(() => null);
-        const serverMessage = payload?.error?.message || payload?.message || null;
-        let detailsMsg = '';
-        const details = payload?.error?.details || payload?.details || null;
-        if (Array.isArray(details) && details.length > 0) {
-          const lines = details.map((d: unknown) => {
-            if (typeof d === 'string') return d;
-            if (typeof d === 'object' && d !== null) {
-              const detailObj = d as Record<string, unknown>;
-              const fld = detailObj.field ?? detailObj.path ?? detailObj.key ?? 'field';
-              const m = detailObj.message ?? JSON.stringify(d);
-              return `${fld}: ${m}`;
-            }
-            return String(d);
-          });
-          detailsMsg = ` - Details: ${lines.join('; ')}`;
-        }
-        const msg = `${serverMessage || `Failed to ${action}`}${detailsMsg}`;
-        throw new Error(msg);
+        throw new Error(`Unknown action: ${action}`);
       }
 
       alert(`${action} successful`);
@@ -97,13 +79,11 @@ export default function PlanManagement({ user }: PlanManagementProps) {
   const triggerAction = (
     action: string,
     endpoint: string,
-    body?: Record<string, unknown>,
     requiresInput = false,
     defaultInput = '7',
-    inputType: 'number' | 'text' = 'number',
-    inputKey?: string
+    inputType: 'number' | 'text' = 'number'
   ) => {
-    setPendingAction({ action, endpoint, body, inputKey });
+    setPendingAction({ action, endpoint, inputKey: requiresInput ? (inputType === 'number' ? 'days' : 'reason') : undefined });
     setPendingRequiresInput(requiresInput);
     setPendingInputType(inputType);
     setPendingInputValue(defaultInput);
@@ -140,11 +120,9 @@ export default function PlanManagement({ user }: PlanManagementProps) {
                   triggerAction(
                     'change tier',
                     `/api/admin/users/${user.id}/change-tier`,
-                    { tier: selectedTier },
                     true,
                     '',
-                    'text',
-                    'reason'
+                    'text'
                   );
                 }
               }}
@@ -160,7 +138,7 @@ export default function PlanManagement({ user }: PlanManagementProps) {
         <div>
           <button
             onClick={() => {
-              triggerAction('extend trial', `/api/admin/users/${user.id}/extend-trial`, {}, true, '7', 'number', 'days');
+              triggerAction('extend trial', `/api/admin/users/${user.id}/extend-trial`, true, '7', 'number');
             }}
             disabled={loading}
             className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 disabled:opacity-50"

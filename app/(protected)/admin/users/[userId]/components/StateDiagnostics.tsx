@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Profile } from '@lib/supabase/db';
+import { syncSubscription } from '../actions';
 
 interface TransactionData {
   id: string;
@@ -11,45 +12,20 @@ interface TransactionData {
   createdIso: string | null;
 }
 
-interface StateDiagnosticsProps {
-  user: Profile;
-  transactions: TransactionData[];
-}
-
 interface StripeStatus {
   status: string | null;
   lastSync: string | null;
 }
 
-export default function StateDiagnostics({ user, transactions }: StateDiagnosticsProps) {
+interface StateDiagnosticsProps {
+  user: Profile;
+  transactions: TransactionData[];
+  stripeStatus: StripeStatus;
+}
+
+export default function StateDiagnostics({ user, transactions, stripeStatus: initialStripeStatus }: StateDiagnosticsProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
-  const [stripeStatus, setStripeStatus] = useState<StripeStatus | null>(null);
-  const [loadingStatus, setLoadingStatus] = useState(true);
-
-  // Fetch Stripe subscription status
-  useEffect(() => {
-    const fetchStripeStatus = async () => {
-      if (!user.stripe_subscription_id) {
-        setLoadingStatus(false);
-        return;
-      }
-
-      try {
-        const response = await fetch(`/api/admin/users/${user.id}/stripe-status`);
-        if (response.ok) {
-          const data = await response.json();
-          setStripeStatus(data);
-        }
-      } catch (error) {
-        console.error('Error fetching Stripe status:', error);
-      } finally {
-        setLoadingStatus(false);
-      }
-    };
-
-    fetchStripeStatus();
-  }, [user.id, user.stripe_subscription_id]);
 
   // Get last webhook event
   const lastWebhook = transactions.length > 0 
@@ -62,23 +38,13 @@ export default function StateDiagnostics({ user, transactions }: StateDiagnostic
 
   // Check for mismatch
   const dbStatus = user.subscription_status || 'unknown';
-  const stripeStatusValue = stripeStatus?.status || 'unknown';
-  const hasMismatch = stripeStatus && stripeStatus.status && stripeStatus.status !== dbStatus;
+  const stripeStatusValue = initialStripeStatus?.status || 'unknown';
+  const hasMismatch = initialStripeStatus && initialStripeStatus.status && initialStripeStatus.status !== dbStatus;
 
   const handleSync = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`/api/admin/users/${user.id}/sync-subscription`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      });
-
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({ message: 'Failed to sync' }));
-        alert(error.error?.message || error.message || 'Failed to sync subscription');
-        return;
-      }
-
+      await syncSubscription(user.id);
       alert('Subscription synced successfully');
       router.refresh();
     } catch (error) {
@@ -96,7 +62,7 @@ export default function StateDiagnostics({ user, transactions }: StateDiagnostic
         <div>
           <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">Stripe Status:</div>
           <div className="text-gray-900 dark:text-white font-medium capitalize">
-            {loadingStatus ? 'Loading...' : (stripeStatusValue || 'N/A')}
+            {stripeStatusValue || 'N/A'}
           </div>
         </div>
         
@@ -119,8 +85,8 @@ export default function StateDiagnostics({ user, transactions }: StateDiagnostic
         <div>
           <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">Last Sync:</div>
           <div className="text-gray-900 dark:text-white text-sm">
-            {stripeStatus?.lastSync 
-              ? new Date(stripeStatus.lastSync).toLocaleString()
+            {initialStripeStatus?.lastSync 
+              ? new Date(initialStripeStatus.lastSync).toLocaleString()
               : 'Never'}
           </div>
         </div>
@@ -138,7 +104,7 @@ export default function StateDiagnostics({ user, transactions }: StateDiagnostic
                 Possible Mismatch Detected
               </h3>
               <div className="text-sm text-red-700 dark:text-red-300 space-y-1">
-                <div>Stripe says: <strong>{stripeStatus.status}</strong></div>
+                <div>Stripe says: <strong>{initialStripeStatus.status}</strong></div>
                 <div>DB says: <strong>{dbStatus}</strong></div>
               </div>
               <div className="mt-3">
@@ -155,7 +121,7 @@ export default function StateDiagnostics({ user, transactions }: StateDiagnostic
         </div>
       )}
 
-      {!hasMismatch && stripeStatus && (
+      {!hasMismatch && initialStripeStatus && initialStripeStatus.status && (
         <div className="mt-4">
           <span className="px-2 py-1 rounded text-xs bg-green-500 text-white">
             No Mismatch Detected

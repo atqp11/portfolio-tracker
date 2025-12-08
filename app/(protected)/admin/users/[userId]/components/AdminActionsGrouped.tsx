@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Profile } from '@lib/supabase/db';
 import ConfirmModal from '@/components/shared/ConfirmModal';
+import { syncSubscription, cancelSubscription } from '../actions';
 
 interface AdminActionsGroupedProps {
   user: Profile;
@@ -22,20 +23,16 @@ export default function AdminActionsGrouped({ user }: AdminActionsGroupedProps) 
   const performAction = async () => {
     if (!pendingAction) return;
 
-    const { action, endpoint, body } = pendingAction;
+    const { action, endpoint } = pendingAction;
 
     setLoading(true);
     try {
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body || {}),
-      });
-
-      if (!response.ok) {
-        const payload = await response.json().catch(() => null);
-        const serverMessage = payload?.error?.message || payload?.message || null;
-        throw new Error(serverMessage || `Failed to ${action}`);
+      if (action === 'sync subscription') {
+        await syncSubscription(user.id);
+      } else if (action === 'cancel subscription') {
+        await cancelSubscription(user.id);
+      } else {
+        throw new Error(`Unknown action: ${action}`);
       }
 
       alert(`${action} successful`);
@@ -55,10 +52,9 @@ export default function AdminActionsGrouped({ user }: AdminActionsGroupedProps) 
 
   const triggerAction = (
     action: string,
-    endpoint: string,
-    body?: Record<string, unknown>
+    endpoint: string
   ) => {
-    setPendingAction({ action, endpoint, body });
+    setPendingAction({ action, endpoint });
     setConfirmOpen(true);
   };
 

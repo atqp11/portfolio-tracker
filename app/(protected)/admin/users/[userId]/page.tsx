@@ -1,4 +1,4 @@
-import { getUserDetails, getUserBillingHistory, getUserTransactions } from '@backend/modules/admin/service/admin.service';
+import { getUserDetails, getUserBillingHistory, getUserTransactions, getStripeSubscriptionStatus } from '@backend/modules/admin/service/admin.service';
 import { requireUser, getUserProfile } from '@lib/auth/session';
 import UserHeader from './components/UserHeader';
 import StateDiagnostics from './components/StateDiagnostics';
@@ -34,9 +34,10 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
   }
 
   // Fetch related data in parallel
-  const [billingHistoryRaw, transactionsRaw] = await Promise.all([
+  const [billingHistoryRaw, transactionsRaw, stripeStatus] = await Promise.all([
     getUserBillingHistory(userId).catch(() => []),
     getUserTransactions(userId).catch(() => []),
+    getStripeSubscriptionStatus(userId).catch(() => ({ status: null, lastSync: null })),
   ]);
 
   // Transform invoices from Stripe API
@@ -83,7 +84,7 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
         <UserHeader user={user} />
 
         {/* 2. State Diagnostics */}
-        <StateDiagnostics user={user} transactions={transactions} />
+        <StateDiagnostics user={user} transactions={transactions} stripeStatus={stripeStatus} />
 
         {/* 3. Plan Management */}
         <PlanManagement user={user} />

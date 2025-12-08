@@ -1,5 +1,3 @@
-'use client';
-
 import type { Profile } from '@lib/supabase/db';
 
 interface TransactionData {
