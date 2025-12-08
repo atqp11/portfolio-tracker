@@ -1,5 +1,3 @@
-'use client';
-
 import type Stripe from 'stripe';
 
 interface UserBillingHistoryProps {

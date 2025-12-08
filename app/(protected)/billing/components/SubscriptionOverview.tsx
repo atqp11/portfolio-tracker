@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import TierBadge from '@/components/shared/TierBadge';
 import type { SubscriptionData } from '@lib/types/billing';
+import { createPortalSession } from '../actions';
 
 interface SubscriptionOverviewProps {
   subscriptionData: SubscriptionData;
@@ -16,22 +17,11 @@ export default function SubscriptionOverview({ subscriptionData }: SubscriptionO
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch('/api/stripe/portal', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          returnUrl: `${window.location.origin}/billing`,
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error?.message || 'Failed to create portal session');
-      }
-
-      const { data } = await response.json();
-      if (data?.url) {
-        window.location.href = data.url;
+      const returnUrl = `${window.location.origin}/billing`;
+      const result = await createPortalSession(returnUrl);
+      
+      if (result.url) {
+        window.location.href = result.url;
       } else {
         throw new Error('No portal URL received');
       }

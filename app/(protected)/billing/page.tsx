@@ -1,6 +1,7 @@
 import SubscriptionOverview from './components/SubscriptionOverview';
 import UserBillingHistory from './components/UserBillingHistory';
-import { headers } from 'next/headers';
+import { requireUser, getUserProfile } from '@lib/auth/session';
+import { billingService } from '@backend/modules/billing/service/billing.service';
 import type { SubscriptionData } from '@lib/types/billing';
 import type Stripe from 'stripe';
 
@@ -12,46 +13,29 @@ import type Stripe from 'stripe';
  * - No loading states needed
  * - Reduced client-side JavaScript
  * - SEO-friendly
+ * - Direct service layer calls (no API route overhead)
  */
 export default async function BillingPage(): Promise<React.JSX.Element> {
-  const headersList = await headers();
-  const host = headersList.get('host') || 'localhost:3000';
-  const protocol = process.env.NODE_ENV === 'development' ? 'http' : 'https';
-  const baseUrl = `${protocol}://${host}`;
+  await requireUser();
+  const profile = await getUserProfile();
+  
+  if (!profile) {
+    return (
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <p className="text-gray-600 dark:text-gray-400">Please sign in to view billing information.</p>
+      </div>
+    );
+  }
 
   let subscriptionData: SubscriptionData | null = null;
   let invoices: Stripe.Invoice[] = [];
 
   try {
-    // Fetch subscription data from API
-    const subscriptionResponse = await fetch(`${baseUrl}/api/billing/subscription`, {
-      headers: {
-        cookie: headersList.get('cookie') || '',
-      },
-      cache: 'no-store', // Always fetch fresh data
-    });
+    // Fetch subscription data directly from service layer
+    subscriptionData = await billingService.getSubscriptionInfo(profile.id);
 
-    if (subscriptionResponse.ok) {
-      const subResult = await subscriptionResponse.json();
-      if (subResult.success) {
-        subscriptionData = subResult.data;
-      }
-    }
-
-    // Fetch billing history from API
-    const historyResponse = await fetch(`${baseUrl}/api/billing/history`, {
-      headers: {
-        cookie: headersList.get('cookie') || '',
-      },
-      cache: 'no-store', // Always fetch fresh data
-    });
-
-    if (historyResponse.ok) {
-      const histResult = await historyResponse.json();
-      if (histResult.success) {
-        invoices = histResult.data;
-      }
-    }
+    // Fetch billing history directly from service layer
+    invoices = await billingService.getBillingHistory(profile.id);
   } catch (error) {
     console.error('Error fetching billing data:', error);
     // Continue rendering with empty data rather than crashing
