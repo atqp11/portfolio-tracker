@@ -1,0 +1,385 @@
+# Next.js 16+ Coding Agent & Developer Guide
+
+A consolidated, production-ready guide combining architecture, coding rules, RSC best practices, backend integration, auth patterns, and your custom `/src/backend/modules/*` MVC layout.
+
+---
+
+## 1. High-Level Principles
+
+* **RSC-first**: All pages and layouts are Server Components by default.
+* **Minimum JS**: Only add Client Components for interactivity (sorting, toggles, modals, buttons).
+* **No business logic in pages**: Pages call backend services or controllers only.
+* **Backend organized under**: `src/backend/modules/<module>/{controller,service,dto,zod}`.
+* **DTO in/out everywhere** to enforce consistent shapes.
+* **Zod validates API boundaries** (incoming payloads at API routes or server actions).
+* **Caching uses RSC + fetch cache** unless dynamic.
+
+---
+
+## 2. Project Structure (Your Layout)
+
+```
+src/
+  app/
+    (routes...)
+    api/
+      ... route handlers
+  backend/
+    modules/
+      user/
+        dto/
+        zod/
+        controller/
+        service/
+      auth/
+        session.ts
+        middleware.ts
+        wrappers.ts (withAuth, withErrorHandler)
+```
+
+**Where code lives**:
+
+* **Zod** → Validate request payloads.
+* **DTOs** → Define data shapes for UI & controllers.
+* **Mappers** → Convert DB ↔ DTO shapes.
+* **Repository** → Database queries (Prisma/Supabase).
+* **Service** → Business logic.
+* **Controller** → Orchestrate service + validation.
+* **API/Server Actions** → Entry points that call controllers.
+
+---
+
+## 3. Layer Responsibilities (Strict)
+
+### RSC Pages (`app/`)
+
+**MUST:**
+- Call controller methods, NOT services or repositories directly
+- Be server components unless interactivity required
+- Use `authGuard()` for protected pages
+- Fetch via server actions or API routes
+
+**MUST NOT:**
+- Contain business logic or mapping
+- Import services or repositories directly
+- Query database directly
+
+### Controllers (`src/backend/modules/*/controllers`)
+
+**MUST:**
+- Validate input using Zod schemas from `/zod`
+- Call service layer
+- Return DTOs defined in `/dto`
+
+**MUST NOT:**
+- Directly query DB
+- Implement business logic
+- Perform DTO/DB mapping (services do this)
+
+### Services (`src/backend/modules/*/services`)
+
+**MUST:**
+- Implement domain/business logic
+- Call repositories for data access
+- Use mappers for DB → DTO conversion
+- Return DTOs to controllers
+
+**MUST NOT:**
+- Contain Zod validation (controllers do this)
+- Return raw DB rows to controllers
+- Query database directly (use repositories)
+
+### Repositories (`src/backend/modules/*/repositories`)
+
+**MUST:**
+- Query DB (Prisma/Supabase/etc)
+- Return raw DB models
+
+**MUST NOT:**
+- Apply DTO conversion (services/mappers do this)
+- Use Zod validation
+- Contain business logic
+
+### DTOs (`src/backend/modules/*/dto`)
+
+**Purpose:**
+- Define data shape for UI & controllers
+- Represent stable boundaries between backend ⇆ frontend
+
+**MUST:**
+- Use Zod for runtime validation
+- Be separate from DB models
+
+### Zod Schemas (`src/backend/modules/*/zod`)
+
+**Purpose:**
+- Input params validation (search, route params, body)
+- Output DTO validation
+
+**MUST NOT:**
+- Include DB types directly
+
+### Mappers (`src/backend/modules/*/mappers`)
+
+**MUST:**
+- Convert DB → DTO
+- Convert DTO → DB (for mutations)
+- Be pure functions with no side effects
+- Be used by services only
+
+### Server Actions (`app/*/actions.ts`)
+
+**MUST:**
+- Call controllers
+- Use `authGuard()` before sensitive operations
+- Use `revalidatePath()` after mutations
+
+**MUST NOT:**
+- Call DB or services directly
+
+---
+
+## 4. DB ↔ DTO Conversion Location
+
+* Happens **inside mappers, called by services**.
+* Controller receives raw params → validates with Zod → calls service.
+* Service calls repository → uses mapper to convert DB → DTO → returns DTO to controller.
+
+**Flow:**
+```
+RSC Page → Server Action/API → Controller (validates) → Service (business logic) 
+  → Repository (queries DB) → Service (maps DB → DTO) → Controller → Response
+```
+
+Reason:
+
+* Keeps controllers thin (validation only).
+* Keeps services focused (business logic only).
+* Centralizes conversion in mappers.
+* Makes layers independently testable.
+
+---
+
+## 5. Auth Architecture (Updated)
+
+### Authentication (AuthN) = Am I logged in?
+
+* Enforced in **middleware.ts** for route protection (`/app` routes).
+* Applied to routes by `config.matcher`.
+
+### Authorization (AuthZ) = Should I access this resource?
+
+* Done in **RSC pages using `authGuard()`** or **backend using `authGuard()`**.
+* Example: admin checks, user-specific data access.
+
+**Backend usage:**
+```ts
+const session = await authGuard();
+controller({ userId: session.userId, ...params });
+```
+
+### Why?
+
+* middleware cannot safely perform DB-heavy role checks.
+* RSC and backend can safely decode full session and enforce permissions.
+
+---
+
+## 6. Protecting Pages (RSC)
+
+### Step 1: middleware enforces authentication
+
+```ts
+// middleware.ts
+import { getSessionFromRequest } from "@/backend/modules/auth/session";
+
+export async function middleware(req) {
+  const session = await getSessionFromRequest(req);
+  if (!session) return Response.redirect(new URL("/login", req.url));
+}
+
+export const config = {
+  matcher: ["/dashboard/:path*", "/admin/:path*"],
+};
+```
+
+### Step 2: RSC page enforces authorization
+
+```tsx
+// app/admin/page.tsx
+import { authGuard } from "@/backend/modules/auth/guards";
+
+export default async function AdminPage() {
+  const session = await authGuard();
+  if (session.role !== "admin") return <div>Access denied</div>;
+  return <AdminView user={session.user} />;
+}
+```
+
+---
+
+## 7. Using `withAuth` and `withErrorHandler` (Backend Only)
+
+**Do NOT wrap RSC pages**.
+RSC pages are compiled and cannot be runtime-wrapped. Use `authGuard()` instead.
+
+### Always wrap:
+
+* Server actions
+* API route handlers
+* Controller entry functions (if externally facing)
+
+**Never wrap:**
+* Services (no auth logic)
+* Repositories (no auth logic)
+* Mappers (pure functions)
+
+Example:
+
+```ts
+export const updateUser = withErrorHandler(
+  withAuth(async ({ user }, dto) => {
+    return await userController.update(user.id, dto);
+  })
+);
+```
+
+### Example for route handlers
+
+```ts
+export const POST = withErrorHandler(
+  withAuth(async ({ user }, req) => {
+    const dto = await req.json();
+    return await userController.update(user.id, dto);
+  })
+);
+```
+
+---
+
+## 8. When to Use RSC Auth vs Backend Wrappers
+
+### ✔ Use `authGuard()` in RSC pages
+
+* Pages that must display role-gated UI (admin-only pages)
+* Pages that must show different UI based on user
+* Any route matched by middleware
+* To get session data for UI rendering
+
+### ✔ Use backend wrappers (`withAuth`)
+
+* Server actions making secure mutations
+* Route handlers in `/app/api/*`
+* Controller entry functions (if externally facing)
+
+**Never use `withAuth` in:**
+* Services
+* Repositories
+* Mappers
+
+### ⚠️ Rule of Thumb
+
+> **RSC uses `authGuard()` for UI-level permissions.
+> Backend uses `withAuth` wrappers for API/action-level permissions.
+> Services/repos/mappers never touch auth.**
+
+---
+
+## 9. Error Pages and Loading Pages
+
+**Every route folder MUST contain:**
+
+* `loading.tsx` → Streaming skeleton for slow operations
+* `error.tsx` → Renders on thrown error (server or client)
+
+### Example
+
+```
+app/dashboard/loading.tsx
+app/dashboard/error.tsx
+```
+
+Keep them RSC by default.
+
+---
+
+## 10. Caching Best Practices
+
+### RSC Page-Level Caching
+
+RSC pages control caching via:
+
+```ts
+export const revalidate = 3600; // seconds
+```
+
+### Backend Caching
+
+* Use RSC `fetch()` with built-in caching.
+* For dynamic content: `fetch(url, { cache: "no-store" })`.
+* Backend functions may use `cache()` ONLY if deterministic + user-independent.
+* Service layer may implement Redis/Upstash for cross-route caching.
+
+### Mutations
+
+**Mutations MUST call:**
+
+```ts
+revalidatePath('/dashboard');
+revalidateTag('portfolio');
+```
+
+---
+
+## 11. Example Folder Structure (Users Module)
+
+```
+src/backend/modules/users/
+  controllers/
+    listUsersController.ts       # Validates input, calls service, returns DTO
+  services/
+    listUsersService.ts           # Business logic, calls repo, uses mapper
+  repositories/
+    userRepository.ts             # DB queries (Prisma/Supabase)
+  dto/
+    UserDTO.ts                    # Data shape for UI & controllers
+  zod/
+    userSchemas.ts                # Input/output validation schemas
+  mappers/
+    userMapper.ts                 # DB → DTO, DTO → DB conversion
+```
+
+---
+
+## 12. Summary Rules for Coding Agents
+
+1. **Pages = RSC only.** Use `authGuard()`, call controllers via server actions/API.
+2. **Controllers validate** (Zod), **services contain logic**, **repos query DB**, **mappers convert**.
+3. **RSC pages MUST call controllers**, NOT services/repos directly.
+4. **Server actions and API routes must wrap with:**
+   ```ts
+   withErrorHandler(withAuth(fn))
+   ```
+5. **All inputs validated with Zod** in controllers (from `/zod`).
+6. **All outputs returned as DTO** (from `/dto`).
+7. **Services use mappers** for DB ↔ DTO conversion.
+8. **Client components only when absolutely needed.**
+9. **Every route folder MUST have** `loading.tsx` and `error.tsx`.
+10. **Mutations MUST call** `revalidatePath()` or `revalidateTag()`.
+
+---
+
+## 13. Summary Rules for Developers (Why)
+
+* **RSC keeps JS off the client**, reducing bundle size.
+* **Strict layer separation**: Pages → Controllers → Services → Repos → DB.
+* **Mappers centralize conversion**, keeping services and controllers focused.
+* **Auth split**: Middleware (route protection) + `authGuard()` (RSC) + `withAuth` (API/actions).
+* **Zod at boundaries** prevents runtime shape errors.
+* **DTOs provide stable contracts** between frontend ↔ backend.
+* **Modules under /src/backend/modules** enforce clear domain boundaries.
+* **Caching and revalidation** follow modern Next.js best practices.
+
+---
+
+**This document is the authoritative source for all coding agents and developers. Follow these rules for all new pages and backend code.**

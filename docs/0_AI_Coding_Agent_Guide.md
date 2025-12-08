@@ -1,183 +1,391 @@
-# Guide for AI Coding Agents
 
-This document provides a comprehensive overview of the project's architecture, data strategies, and development workflows. It serves as a guide for developers and AI assistants (like Gemini, Claude Code) working on this codebase.
+# Next.js 16+ Coding Agent & Developer Guide
 
-> **📚 Detailed Guidelines:** See [DEVELOPMENT_GUIDELINES.md](./5_Guides/DEVELOPMENT_GUIDELINES.md) for comprehensive coding patterns and best practices.
+A consolidated, production-ready guide combining architecture, coding rules, RSC best practices, backend integration, auth patterns, and your custom `/src/backend/modules/*` MVC layout.
 
-## 1. Project Overview
+---
 
-This project is a portfolio tracker application built with a modern web stack. It provides users with tools to monitor their investments, analyze market data, and manage their financial portfolio.
+## 1. High-Level Principles
 
-**Core Technologies:**
-- **Frontend:** Next.js (React) with TypeScript
-- **Backend:** Next.js API Routes, running on Node.js
-- **Database:** Supabase (PostgreSQL)
-- **ORM:** Prisma (for specific use cases)
-- **Data Validation:** Zod
+* **RSC-first**: All pages and layouts are Server Components by default.
+* **Minimum JS**: Only add Client Components for interactivity (sorting, toggles, modals, buttons).
+* **No business logic in pages**: Pages call backend services or controllers only.
+* **Backend organized under**: `src/backend/modules/<module>/{controller,service,dto,zod}`.
+* **DTO in/out everywhere** to enforce consistent shapes.
+* **Zod validates API boundaries** (incoming payloads at API routes or server actions).
+* **Caching uses RSC + fetch cache** unless dynamic.
 
-## 2. Project Structure
+---
 
-The project follows a standard Next.js `app` directory structure, with a clear separation between UI, business logic, and data access layers.
-
-### High-Level Overview
-
-This shows the primary architectural directories.
+## 2. Project Structure (Your Layout)
 
 ```
-/
-├── app/                  # Next.js 14 App Router (UI Pages & API Routes)
-├── components/           # Shared, reusable React components
-├── docs/                 # Project documentation
-├── prisma/               # Prisma schema and database configuration
-├── public/               # Static assets (images, fonts)
-├── scripts/              # Standalone scripts for maintenance, seeding, etc.
-└── src/
-    ├── backend/          # Server-side business logic and services (controllers)
-    └── lib/              # Shared libraries, hooks, and utilities
+src/
+  app/
+    (routes...)
+    api/
+      ... route handlers
+  backend/
+    modules/
+      user/
+        dto/
+        zod/
+        controller/
+        service/
+      auth/
+        session.ts
+        middleware.ts
+        wrappers.ts (withAuth, withErrorHandler)
 ```
 
-### Key Directories & Files
+**Where code lives**:
 
-This list highlights the most important files and directories for understanding the project's core functionality. An agent or developer should be familiar with these locations.
+* **Zod** → Validate request payloads.
+* **DTOs** → Define data shapes for UI & controllers.
+* **Mappers** → Convert DB ↔ DTO shapes.
+* **Repository** → Database queries (Prisma/Supabase).
+* **Service** → Business logic.
+* **Controller** → Orchestrate service + validation.
+* **API/Server Actions** → Entry points that call controllers.
 
--   **`app/api/`**: The backend API layer. Per the "Thin Wrapper" principle, these routes delegate logic to the `src/backend/` modules.
--   **`src/backend/modules/`**: Contains the core business logic, organized by feature (e.g., `portfolio`, `user`). This is where controllers and services live.
--   **`src/lib/`**: A collection of shared, reusable code.
-    -   **`src/lib/prisma.ts`**: The singleton instance of the Prisma client for administrative tasks.
-    -   **`src/lib/errors.ts`**: Custom error classes used throughout the application.
-    -   **`src/lib/hooks/`**: Custom React hooks. Note that this is transitioning to React Query for server state.
--   **`prisma/schema.prisma`**: The single source of truth for the database schema.
--   **`docs/DEVELOPMENT_GUIDELINES.md`**: The primary document for all coding patterns, guidelines, and best practices.
+---
 
+## 3. Layer Responsibilities (Strict)
 
-## 3. Architecture Deep Dive
+### RSC Pages (`app/`)
 
-### 3.1. Layer Separation
+**MUST:**
+- Call controller methods, NOT services or repositories directly
+- Be server components unless interactivity required
+- Use `authGuard()` for protected pages
+- Fetch via server actions or API routes
 
-The application follows a strict 5-layer architecture with clear separation of concerns:
+**MUST NOT:**
+- Contain business logic or mapping
+- Import services or repositories directly
+- Query database directly
 
+### Controllers (`src/backend/modules/*/controllers`)
+
+**MUST:**
+- Validate input using Zod schemas from `/zod`
+- Call service layer
+- Return DTOs defined in `/dto`
+
+**MUST NOT:**
+- Directly query DB
+- Implement business logic
+- Perform DTO/DB mapping (services do this)
+
+### Services (`src/backend/modules/*/services`)
+
+**MUST:**
+- Implement domain/business logic
+- Call repositories for data access
+- Use mappers for DB → DTO conversion
+- Return DTOs to controllers
+
+**MUST NOT:**
+- Contain Zod validation (controllers do this)
+- Return raw DB rows to controllers
+- Query database directly (use repositories)
+
+### Repositories (`src/backend/modules/*/repositories`)
+
+**MUST:**
+- Query DB (Prisma/Supabase/etc)
+- Return raw DB models
+
+**MUST NOT:**
+- Apply DTO conversion (services/mappers do this)
+- Use Zod validation
+- Contain business logic
+
+### DTOs (`src/backend/modules/*/dto`)
+
+**Purpose:**
+- Define data shape for UI & controllers
+- Represent stable boundaries between backend ⇆ frontend
+
+**MUST:**
+- Use Zod for runtime validation
+- Be separate from DB models
+
+### Zod Schemas (`src/backend/modules/*/zod`)
+
+**Purpose:**
+- Input params validation (search, route params, body)
+- Output DTO validation
+
+**MUST NOT:**
+- Include DB types directly
+
+### Mappers (`src/backend/modules/*/mappers`)
+
+**MUST:**
+- Convert DB → DTO
+- Convert DTO → DB (for mutations)
+- Be pure functions with no side effects
+- Be used by services only
+
+### Server Actions (`app/*/actions.ts`)
+
+**MUST:**
+- Call controllers
+- Use `authGuard()` before sensitive operations
+- Use `revalidatePath()` after mutations
+
+**MUST NOT:**
+- Call DB or services directly
+
+---
+
+## 4. DB ↔ DTO Conversion Location
+
+* Happens **inside mappers, called by services**.
+* Controller receives raw params → validates with Zod → calls service.
+* Service calls repository → uses mapper to convert DB → DTO → returns DTO to controller.
+
+**Flow:**
 ```
-API Route → Middleware Stack → Controller Class → Service Layer → DAO Layer
-   ↓            ↓                    ↓                 ↓            ↓
-  HTTP      Auth/Quota/         HTTP Logic       Business      Database
-  Entry     Validation                           Logic         Access
+RSC Page → Server Action/API → Controller (validates) → Service (business logic) 
+  → Repository (queries DB) → Service (maps DB → DTO) → Controller → Response
 ```
 
-#### Layer Responsibilities
+Reason:
 
-**1. Presentation Layer (Frontend)**
-- **Location:** `app/` and `components/`
-- **Purpose:** User interface and user experience
-- **Technology:** React and Next.js with Server Components
+* Keeps controllers thin (validation only).
+* Keeps services focused (business logic only).
+* Centralizes conversion in mappers.
+* Makes layers independently testable.
 
-**2. API Route Layer**
-- **Location:** `app/api/*`
-- **Purpose:** HTTP entry point - delegates to middleware and controllers
-- **Rules:** Must be thin wrappers with NO business logic
+---
 
-**3. Middleware Layer**
-- **Location:** `src/backend/common/middleware/`
-- **Handles:**
-  - ✅ Authentication (`withAuth`)
-  - ✅ Request validation (`withValidation` using Zod)
-  - ✅ Quota/rate limiting (`withQuota`)
-  - ✅ Top-level error handling (`withErrorHandler`)
+## 5. Auth Architecture (Updated)
 
-**4. Controller Layer (HTTP Concerns)**
-- **Location:** `src/backend/modules/[feature]/[feature].controller.ts`
-- **Responsibilities:**
-  - ✅ Extract data from NextRequest/query params
-  - ✅ Call appropriate service method
-  - ✅ Format service response into NextResponse
-  - ✅ Set HTTP status codes
-- **Anti-patterns (What NOT to do):**
-  - ❌ NO business logic
-  - ❌ NO validation (done by middleware)
-  - ❌ NO quota checks (done by middleware)
-  - ❌ NO error handling (done by middleware)
-  - ❌ NO direct database access
-  - ❌ NO significant logic beyond extract → delegate → format
+### Authentication (AuthN) = Am I logged in?
 
-**5. Service Layer (Business Logic)**
-- **Location:** `src/backend/modules/[feature]/service/[feature].service.ts`
-- **Responsibilities:**
-  - ✅ Business rules and orchestration
-  - ✅ Usage tracking
-  - ✅ Data transformation
-  - ✅ External API calls
-  - ✅ Multi-step operations
-  - ✅ Domain-specific logic
-- **Anti-patterns:**
-  - ❌ NO HTTP concerns (req/res)
-  - ❌ NO direct database queries (use DAO)
+* Enforced in **middleware.ts** for route protection (`/app` routes).
+* Applied to routes by `config.matcher`.
 
-**6. DAO Layer (Data Access)**
-- **Location:** `src/backend/modules/[feature]/dao/[feature].dao.ts`
-- **Responsibilities:**
-  - ✅ Database queries
-  - ✅ ORM operations (Prisma/Supabase)
-  - ✅ Data mapping
-- **Anti-patterns:**
-  - ❌ NO business logic
+### Authorization (AuthZ) = Should I access this resource?
 
-#### Critical Rule: Controllers Must Be Thin
+* Done in **RSC pages using `authGuard()`** or **backend using `authGuard()`**.
+* Example: admin checks, user-specific data access.
 
-**Warning:** If your controller has significant logic beyond "extract → call service → format response", that logic belongs in the service layer. Controllers should be thin wrappers, NOT boilerplate duplicates of service code.
+**Backend usage:**
+```ts
+const session = await authGuard();
+controller({ userId: session.userId, ...params });
+```
 
-**Example of Proper Separation:**
+### Why?
 
-```typescript
-// ✅ GOOD - Controller is thin
-class PortfolioController {
-  async get(request: NextRequest, { query }: { query: { id?: string } }) {
-    if (query.id) {
-      const portfolio = await portfolioService.findById(query.id);
-      return NextResponse.json({ success: true, data: portfolio });
-    }
-    const portfolios = await portfolioService.findAll();
-    return NextResponse.json({ success: true, data: portfolios });
-  }
+* middleware cannot safely perform DB-heavy role checks.
+* RSC and backend can safely decode full session and enforce permissions.
+
+---
+
+## 6. Protecting Pages (RSC)
+
+### Step 1: middleware enforces authentication
+
+```ts
+// middleware.ts
+import { getSessionFromRequest } from "@/backend/modules/auth/session";
+
+export async function middleware(req) {
+  const session = await getSessionFromRequest(req);
+  if (!session) return Response.redirect(new URL("/login", req.url));
 }
 
-// ❌ BAD - Controller has business logic
-class PortfolioController {
-  async get(request: NextRequest, { query }: { query: { id?: string } }) {
-    // ❌ Quota check belongs in middleware or service
-    const quotaCheck = await checkQuota(userId, 'portfolio');
-    if (!quotaCheck.allowed) throw new Error('Quota exceeded');
-    
-    // ❌ Data transformation belongs in service
-    const portfolio = await portfolioDao.findById(query.id);
-    const enriched = await this.enrichWithMarketData(portfolio);
-    
-    return NextResponse.json({ success: true, data: enriched });
-  }
+export const config = {
+  matcher: ["/dashboard/:path*", "/admin/:path*"],
+};
+```
+
+### Step 2: RSC page enforces authorization
+
+```tsx
+// app/admin/page.tsx
+import { authGuard } from "@/backend/modules/auth/guards";
+
+export default async function AdminPage() {
+  const session = await authGuard();
+  if (session.role !== "admin") return <div>Access denied</div>;
+  return <AdminView user={session.user} />;
 }
 ```
 
-### 3.2. Data Strategy
+---
 
-#### Data Transfer Objects (DTOs) and Validation
+## 7. Using `withAuth` and `withErrorHandler` (Backend Only)
 
-- **Zod as the Contract Language:** Zod is the primary tool for defining data schemas and validating data in motion. It serves as a "single source of truth" for the structure of data moving between the client and server (API requests/responses) and between different layers of the backend. This ensures type safety and data integrity across the entire application.
+**Do NOT wrap RSC pages**.
+RSC pages are compiled and cannot be runtime-wrapped. Use `authGuard()` instead.
 
-```typescript
-// Example of a Zod schema for a user profile update
-import { z } from 'zod';
+### Always wrap:
 
-export const updateUserProfileSchema = z.object({
-  name: z.string().min(2, "Name must be at least 2 characters long."),
-  email: z.string().email("Invalid email address."),
-});
+* Server actions
+* API route handlers
+* Controller entry functions (if externally facing)
 
-export type UpdateUserProfileDTO = z.infer<typeof updateUserProfileSchema>;
+**Never wrap:**
+* Services (no auth logic)
+* Repositories (no auth logic)
+* Mappers (pure functions)
+
+Example:
+
+```ts
+export const updateUser = withErrorHandler(
+  withAuth(async ({ user }, dto) => {
+    return await userController.update(user.id, dto);
+  })
+);
 ```
 
-#### Source of Truth
+### Example for route handlers
 
-- **Supabase as the Ultimate Source of Truth:** The Supabase PostgreSQL database is the definitive source of truth for all data at rest. All application data is persisted here, and its integrity is paramount.
+```ts
+export const POST = withErrorHandler(
+  withAuth(async ({ user }, req) => {
+    const dto = await req.json();
+    return await userController.update(user.id, dto);
+  })
+);
+```
 
-### 3.3. Hybrid Database Access Strategy
+---
+
+## 8. When to Use RSC Auth vs Backend Wrappers
+
+### ✔ Use `authGuard()` in RSC pages
+
+* Pages that must display role-gated UI (admin-only pages)
+* Pages that must show different UI based on user
+* Any route matched by middleware
+* To get session data for UI rendering
+
+### ✔ Use backend wrappers (`withAuth`)
+
+* Server actions making secure mutations
+* Route handlers in `/app/api/*`
+* Controller entry functions (if externally facing)
+
+**Never use `withAuth` in:**
+* Services
+* Repositories
+* Mappers
+
+### ⚠️ Rule of Thumb
+
+> **RSC uses `authGuard()` for UI-level permissions.
+> Backend uses `withAuth` wrappers for API/action-level permissions.
+> Services/repos/mappers never touch auth.**
+
+---
+
+## 9. Error Pages and Loading Pages
+
+**Every route folder MUST contain:**
+
+* `loading.tsx` → Streaming skeleton for slow operations
+* `error.tsx` → Renders on thrown error (server or client)
+
+### Example
+
+```
+app/dashboard/loading.tsx
+app/dashboard/error.tsx
+```
+
+Keep them RSC by default.
+
+---
+
+## 10. Caching Best Practices
+
+### RSC Page-Level Caching
+
+RSC pages control caching via:
+
+```ts
+export const revalidate = 3600; // seconds
+```
+
+### Backend Caching
+
+* Use RSC `fetch()` with built-in caching.
+* For dynamic content: `fetch(url, { cache: "no-store" })`.
+* Backend functions may use `cache()` ONLY if deterministic + user-independent.
+* Service layer may implement Redis/Upstash for cross-route caching.
+
+### Mutations
+
+**Mutations MUST call:**
+
+```ts
+revalidatePath('/dashboard');
+revalidateTag('portfolio');
+```
+
+---
+
+## 11. Example Folder Structure (Users Module)
+
+```
+src/backend/modules/users/
+  controllers/
+    listUsersController.ts       # Validates input, calls service, returns DTO
+  services/
+    listUsersService.ts           # Business logic, calls repo, uses mapper
+  repositories/
+    userRepository.ts             # DB queries (Prisma/Supabase)
+  dto/
+    UserDTO.ts                    # Data shape for UI & controllers
+  zod/
+    userSchemas.ts                # Input/output validation schemas
+  mappers/
+    userMapper.ts                 # DB → DTO, DTO → DB conversion
+```
+
+---
+
+## 12. Summary Rules for Coding Agents
+
+1. **Pages = RSC only.** Use `authGuard()`, call controllers via server actions/API.
+2. **Controllers validate** (Zod), **services contain logic**, **repos query DB**, **mappers convert**.
+3. **RSC pages MUST call controllers**, NOT services/repos directly.
+4. **Server actions and API routes must wrap with:**
+   ```ts
+   withErrorHandler(withAuth(fn))
+   ```
+5. **All inputs validated with Zod** in controllers (from `/zod`).
+6. **All outputs returned as DTO** (from `/dto`).
+7. **Services use mappers** for DB ↔ DTO conversion.
+8. **Client components only when absolutely needed.**
+9. **Every route folder MUST have** `loading.tsx` and `error.tsx`.
+10. **Mutations MUST call** `revalidatePath()` or `revalidateTag()`.
+
+---
+
+## 13. Summary Rules for Developers (Why)
+
+* **RSC keeps JS off the client**, reducing bundle size.
+* **Strict layer separation**: Pages → Controllers → Services → Repos → DB.
+* **Mappers centralize conversion**, keeping services and controllers focused.
+* **Auth split**: Middleware (route protection) + `authGuard()` (RSC) + `withAuth` (API/actions).
+* **Zod at boundaries** prevents runtime shape errors.
+* **DTOs provide stable contracts** between frontend ↔ backend.
+* **Modules under /src/backend/modules** enforce clear domain boundaries.
+* **Caching and revalidation** follow modern Next.js best practices.
+
+**For detailed architectural reasoning and real-world engineering context, see:** [DEVELOPMENT_GUIDELINES.md - Architecture Patterns](../5_Guides/DEVELOPMENT_GUIDELINES.md#architecture-patterns)
+
+---
+
+**This document is the authoritative source for all coding agents and developers. Follow these rules for all new pages and backend code.**
 
 The application utilizes a hybrid approach for database access to balance security, multi-tenancy, and administrative needs. This strategy is crucial for maintaining data integrity and system security, especially in a multi-tenant environment.
 
@@ -724,14 +932,29 @@ if (!stock) throw new Error('Stock not found');
 
 ### Code Review Checklist
 
-- [ ] Uses `@/` path aliases (no `../../../`)
-- [ ] TypeScript strict mode passes
-- [ ] Error states handled
-- [ ] Loading states displayed
-- [ ] API routes have `dynamic = 'force-dynamic'`
-- [ ] Database queries check for null
+Before submitting code, verify:
+
+**Architecture (CRITICAL):**
+- [ ] ✅ Did you use Server Components for data fetching where possible?
+- [ ] ✅ Are Client Components (`'use client'`) only used for interactivity?
+- [ ] ✅ Is client-side data fetching (e.g., in `useEffect` or with SWR) used only when necessary for dynamic updates, not for initial page load?
+
+**Code Quality:**
+- [ ] All imports use `@/` path aliases (no `../../../`)
+- [ ] TypeScript strict mode passes with no `any` types
+- [ ] Error states are handled (try/catch, error boundaries)
+- [ ] Loading states are displayed to users
+- [ ] Theme switching supported (light/dark via `dark:` classes)
+- [ ] API routes have `dynamic = 'force-dynamic'` export
+- [ ] Database queries check for null/undefined results
+- [ ] External API calls respect rate limits and use caching
+- [ ] React components have proper key props (not index)
+- [ ] Environment variables are not hardcoded
+- [ ] Sensitive data (API keys) never logged
+- [ ] Prisma client used from `@lib/prisma` (not re-instantiated)
 - [ ] Tests pass: `npm test`
-- [ ] Build succeeds: `npm run build`
+- [ ] Build succeeds: `npx dotenv -e .env.local -- npm run build`
+- [ ] Console has no errors in browser dev tools
 
 ---
 

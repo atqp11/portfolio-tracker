@@ -34,122 +34,107 @@ src/
 ```
 **Why:** Enhances discoverability, reduces coupling, and simplifies maintenance for larger teams and complex applications.
 
+
 ## Architecture Patterns
 
-### Layer Separation and Responsibilities
+**For all MVC, RSC, controller/service, DTO, Zod, and auth patterns, see:**
 
-All API endpoints must follow this standardized 5-layer architecture:
+> [docs/0_AI_Coding_Agent_Guide.md](../0_AI_Coding_Agent_Guide.md)
 
-```
-API Route → Middleware Stack → Controller Class → Service Layer → DAO Layer
-```
+This is the single source of truth for all coding agents and developers. The development guide now omits detailed duplication of these patterns for maintainability.
 
-#### Layer Responsibilities (Authoritative)
+---
 
-**Middleware Layer** (`src/backend/common/middleware/`)
-- ✅ Authentication checks (`withAuth`)
-- ✅ Request validation using Zod (`withValidation`)
-- ✅ Quota/rate limiting (`withQuota`)
-- ✅ Top-level error handling (`withErrorHandler`)
-- Applied via composition in route handlers
+### Why These Patterns Matter (Real Engineering Context)
 
-**Controller Layer** (`src/backend/modules/[feature]/[feature].controller.ts`)
-- ✅ Extract data from NextRequest/query params
-- ✅ Call appropriate service method
-- ✅ Format service response into NextResponse
-- ✅ Set HTTP status codes
-- ❌ NO business logic
-- ❌ NO validation (middleware's job)
-- ❌ NO quota checks (middleware's job)
-- ❌ NO error handling (middleware's job)
-- ❌ NO direct database access
+Here is more depth and color explaining why these architectural practices matter in real engineering environments:
 
-**Service Layer** (`src/backend/modules/[feature]/service/[feature].service.ts`)
-- ✅ Business rules and orchestration
-- ✅ Usage tracking
-- ✅ Data transformation
-- ✅ External API calls
-- ✅ Multi-step operations
-- ✅ Domain-specific logic
-- ❌ NO HTTP concerns (req/res)
-- ❌ NO direct database queries (use DAO)
+#### 1. RSC-first design reduces complexity and improves performance
 
-**DAO Layer** (`src/backend/modules/[feature]/dao/[feature].dao.ts`)
-- ✅ Database queries
-- ✅ ORM operations (Prisma/Supabase)
-- ✅ Data mapping
-- ❌ NO business logic
+React Server Components eliminate hydration cost, avoid shipping unnecessary JS, and ensure data-fetching happens close to the source. This leads to:
 
-#### Anti-Pattern: Bloated Controllers
+- **Faster initial loads** - Users see content immediately without waiting for JavaScript bundles
+- **Smaller bundles** - Reduced client-side payload improves mobile performance and reduces bandwidth costs
+- **Less client-side state management** - Eliminates complex state synchronization bugs
+- **More predictability in UI behavior** - Server rendering guarantees consistent initial state
 
-**Critical Rule:** Controllers must be thin. If your controller has significant logic beyond "extract → call service → format response", that logic belongs in the service layer.
+#### 2. Strict separation between UI, controllers, and services prevents chaos
 
-```typescript
-// ✅ GOOD - Thin controller
-export class StockController {
-  async getQuote(req: NextRequest, { query }: { query: { symbol: string } }) {
-    const quote = await stockService.getQuote(query.symbol);
-    return NextResponse.json({ success: true, data: quote });
-  }
-}
+When pages start touching DB logic directly, tech debt grows immediately. Keeping business logic inside services:
 
-// ❌ BAD - Controller with business logic
-export class StockController {
-  async getQuote(req: NextRequest, { query }: { query: { symbol: string } }) {
-    // ❌ Quota check belongs in middleware
-    const quotaCheck = await checkQuota(userId, 'quote');
-    if (!quotaCheck.allowed) throw new Error('Quota exceeded');
-    
-    // ❌ Data fetching and transformation belongs in service
-    const quote = await alphavantageDao.fetchQuote(query.symbol);
-    const enriched = this.enrichQuoteWithMetrics(quote);
-    await trackUsage(userId, 'quote');
-    
-    return NextResponse.json({ success: true, data: enriched });
-  }
-}
-```
+- **Makes code reusable** across server actions, CRON jobs, and API routes without duplication
+- **Allows automatic type safety** via DTOs - TypeScript catches breaking changes at compile time
+- **Avoids logic duplication** inside pages or components - single source of truth for business rules
+- **Enables independent testing** - services can be unit tested without spinning up HTTP servers
 
-**Example: Complete Stack**
+#### 3. Auth split (middleware vs RSC) is deliberate, not arbitrary
 
-```typescript
-// app/api/portfolio/route.ts (Thin wrapper)
-export const GET = withErrorHandler(
-  withAuth(
-    withValidation(undefined, getPortfolioQuerySchema)(
-      (req: NextRequest, context: any) => portfolioController.get(req, context)
-    )
-  )
-);
+- **Middleware** is fast, lightweight, and ideal for checking "is user logged in?"
+- But it **cannot perform deep role checks** (DB queries exceed its constraints and would slow down every request)
+- **RSC pages** can safely access full session and make role-based UI decisions without performance penalty
+- This division gives you **security + flexibility** without compromising performance or adding complexity
 
-// src/backend/modules/portfolio/portfolio.controller.ts (HTTP concerns)
-export class PortfolioController {
-  async get(request: NextRequest, { query }: { query: { id?: string } }) {
-    if (query.id) {
-      const portfolio = await portfolioService.findById(query.id);
-      return NextResponse.json({ success: true, data: portfolio });
-    }
-    const portfolios = await portfolioService.findAll();
-    return NextResponse.json({ success: true, data: portfolios });
-  }
-}
+#### 4. Wrapping backend functions ensures consistent security and error handling
 
-// src/backend/modules/portfolio/service/portfolio.service.ts (Business logic)
-class PortfolioService {
-  async findById(id: string): Promise<Portfolio> {
-    const portfolio = await portfolioDao.findById(id);
-    if (!portfolio) throw new NotFoundError('Portfolio');
-    return this.enrichWithMetrics(portfolio);
-  }
-}
+Using `withErrorHandler(withAuth(fn))` provides:
 
-// src/backend/modules/portfolio/dao/portfolio.dao.ts (Data access)
-class PortfolioDao {
-  async findById(id: string): Promise<Portfolio | null> {
-    return await db.portfolio.findUnique({ where: { id } });
-  }
-}
-```
+- **Uniform authorization rules** on all backend entry points - no forgotten auth checks
+- **Catch-all error centralization** - errors are logged and formatted consistently
+- **A predictable contract** for controllers and services - developers know exactly what to expect
+- This prevents **accidental unauthenticated access** when adding new server actions or API routes
+- **Reduces boilerplate** - auth and error handling written once, applied everywhere
+
+#### 5. DTOs and Zod create a strong type boundary
+
+- **Zod validates input** so unsafe user data never reaches services - prevents injection attacks and data corruption
+- **DTOs ensure output is well-defined** for UI or external consumers - no surprise `undefined` fields
+- This pattern **eliminates shape drift and runtime bugs** - breaking changes are caught immediately
+- **Self-documenting APIs** - schemas serve as living documentation for frontend developers
+
+#### 6. Modular backend /src/backend/modules/* enforces domain boundaries
+
+Splitting code by domain instead of by layer (e.g., /controllers, /services) makes the system scale better. Each module becomes:
+
+- **Self-contained** - all related code lives together, reducing cognitive load
+- **Easier to reason about** - clear ownership and responsibility boundaries
+- **Easier for new developers to onboard** - find all user-related code in `/modules/users/`
+- It also mirrors **DDD-style domain modeling** - aligns code structure with business domains
+- **Enables team scaling** - different teams can own different modules with minimal conflicts
+
+#### 7. Minimal JS leads to better maintainability
+
+Every line of client JS adds:
+
+- **Bundle weight** - slower downloads, especially on mobile networks
+- **Hydration cost** - React must rebuild the component tree on client, blocking interactivity
+- **Testing overhead** - more code paths to test, more mocking required
+- **State complexity** - more opportunities for sync bugs between server and client
+
+RSC-first architecture avoids all of this, only opting into Client Components when truly needed (forms, modals, interactive widgets).
+
+#### 8. Caching and revalidation leverage Next.js core strengths
+
+By using built-in caching instead of custom wrappers, you get:
+
+- **Automatic cache invalidation hooks** (`revalidatePath`, `revalidateTag`) - no manual cache busting
+- **Smarter deduping** - Next.js deduplicates identical requests automatically
+- **Better integration with RSC** - caching respects component boundaries
+- **Less manual caching logic** - framework handles the hard parts (stale-while-revalidate, etc.)
+
+Good caching discipline makes apps far more scalable - reduces database load, API costs, and response times.
+
+#### 9. Error and loading conventions simplify the user experience
+
+Using `error.tsx` and `loading.tsx` per route provides:
+
+- **Predictable UX during async fetches** - users always see loading skeletons, never blank screens
+- **Clear fallback and recovery behavior** - errors are caught and displayed gracefully
+- **No need to manually sprinkle try/catch wrappers in UI** - framework handles error boundaries
+- **Streaming-friendly** - parts of the page render as soon as their data is ready
+
+This results in a **cleaner codebase and a smoother UI** - less boilerplate, better perceived performance, and fewer support tickets about "broken" pages.
+
+---
 
 ## Code Conventions
 
