@@ -7,6 +7,7 @@
 import * as adminDao from '@backend/modules/admin/dao/admin.dao';
 import type { Profile } from '@lib/supabase/db';
 import { getStripe } from '@lib/stripe/client';
+import { getCacheAdapter } from '@lib/cache/adapter';
 import type Stripe from 'stripe';
 
 // ============================================================================
@@ -112,27 +113,62 @@ export async function getUserTransactions(userId: string) {
 
 /**
  * Get Stripe subscription status for diagnostics
+ * Returns status, tier, and mismatch information
  */
-export async function getStripeSubscriptionStatus(userId: string): Promise<{ status: string | null; lastSync: string | null }> {
+export async function getStripeSubscriptionStatus(userId: string): Promise<{ 
+  status: string | null; 
+  tier: string | null;
+  lastSync: string | null;
+  hasMismatch?: boolean;
+  mismatchDetails?: {
+    statusMismatch?: boolean;
+    tierMismatch?: boolean;
+    expectedTier?: string;
+    expectedStatus?: string;
+  };
+}> {
   const user = await adminDao.getUserById(userId);
   if (!user?.stripe_subscription_id) {
-    return { status: null, lastSync: null };
+    return { status: null, tier: null, lastSync: null };
   }
 
   const stripe = getStripe();
   if (!stripe) {
-    return { status: null, lastSync: null }; // Stripe not configured
+    return { status: null, tier: null, lastSync: null }; // Stripe not configured
   }
 
   try {
     const subscription = await stripe.subscriptions.retrieve(user.stripe_subscription_id);
+    
+    // Get tier from subscription's price ID
+    const priceId = subscription.items.data[0]?.price?.id;
+    const { getTierFromPriceId } = await import('@lib/stripe/client');
+    const expectedTier = getTierFromPriceId(priceId) || 'free';
+    const isActive = subscription.status === 'active' || subscription.status === 'trialing';
+    const expectedFinalTier = isActive ? expectedTier : 'free';
+    
+    // Check for mismatches
+    const dbStatus = user.subscription_status || null;
+    const stripeStatus = subscription.status;
+    const statusMismatch = dbStatus !== stripeStatus;
+    const tierMismatch = user.tier !== expectedFinalTier;
+    const hasMismatch = statusMismatch || tierMismatch;
+    
     return {
-      status: subscription.status,
+      status: stripeStatus,
+      tier: expectedFinalTier,
       lastSync: user.updated_at || null,
+      hasMismatch,
+      mismatchDetails: hasMismatch ? {
+        statusMismatch,
+        tierMismatch,
+        expectedTier: expectedFinalTier,
+        expectedStatus: stripeStatus,
+      } : undefined,
     };
   } catch (error) {
     console.error('Error fetching Stripe subscription:', error);
-    return { status: null, lastSync: null };
+    return { status: null, tier: null, lastSync: null };
   }
 }
 
@@ -416,6 +452,7 @@ export async function extendTrial(
 
 /**
  * Sync user's subscription from Stripe
+ * This includes syncing subscription status AND tier based on the subscription's price ID
  */
 export async function syncUserSubscription(
   userId: string,
@@ -445,12 +482,26 @@ export async function syncUserSubscription(
   };
   const subscription = subscriptionResponse as unknown as Stripe.Subscription & SubscriptionWithPeriods;
 
-  // Update user with Stripe data
+  // Get tier from subscription's price ID
+  const priceId = subscription.items.data[0]?.price?.id;
+  const { getTierFromPriceId } = await import('@lib/stripe/client');
+  const tier = getTierFromPriceId(priceId) || 'free';
+
+  // Determine if subscription is active (for tier assignment)
+  const isActive = subscription.status === 'active' || subscription.status === 'trialing';
+  const finalTier = isActive ? tier : 'free';
+
+  // Update user with Stripe data including tier
   const userAfter = await adminDao.updateUser(userId, {
     subscription_status: subscription.status,
+    subscription_tier: tier, // Store the tier from subscription
+    tier: finalTier, // Update the tier field used by quota system (free if not active)
     current_period_start: new Date(subscription.current_period_start * 1000).toISOString(),
     current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
     cancel_at_period_end: subscription.cancel_at_period_end,
+    trial_ends_at: subscription.trial_end 
+      ? new Date(subscription.trial_end * 1000).toISOString() 
+      : null,
   });
 
   // Log admin action
@@ -460,8 +511,13 @@ export async function syncUserSubscription(
     action: 'sync_subscription',
     entity_type: 'subscription',
     entity_id: user.stripe_subscription_id,
+    before_state: {
+      status: user.subscription_status,
+      tier: user.tier,
+    },
     after_state: {
       status: subscription.status,
+      tier: finalTier,
       cancel_at_period_end: subscription.cancel_at_period_end,
     },
   });
@@ -877,9 +933,6 @@ export async function clearCache(): Promise<{
     after: Record<string, unknown>;
   };
 }> {
-  const cacheModule = await import('@lib/cache/adapter');
-  const { getCacheAdapter } = cacheModule;
-  
   const cache = getCacheAdapter();
 
   // Get stats before clear

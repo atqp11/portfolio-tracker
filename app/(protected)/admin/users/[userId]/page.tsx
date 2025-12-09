@@ -35,7 +35,11 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
   const [billingHistoryRaw, transactionsRaw, stripeStatus] = await Promise.all([
     adminController.getUserBillingHistoryData(userId).catch(() => []),
     adminController.getUserTransactionsData(userId).catch(() => []),
-    adminController.getStripeSubscriptionStatusData(userId).catch(() => ({ status: null, lastSync: null })),
+    adminController.getStripeSubscriptionStatusData(userId).catch(() => ({ 
+      status: null, 
+      tier: null,
+      lastSync: null 
+    })),
   ]);
 
   // Transform invoices from Stripe API

@@ -1,10 +1,13 @@
 /**
- * Stripe Controller - HTTP Request/Response Layer
+ * Stripe Controller - Request/Response Layer
  * 
- * Handles HTTP concerns for Stripe API endpoints.
+ * Handles HTTP concerns for Stripe API endpoints and provides data methods for Server Actions.
  * Delegates business logic to stripe.service.ts.
  * 
- * Pattern: Controller → Service → External API (Stripe)
+ * Pattern: 
+ * - API Routes → Controller (returns NextResponse)
+ * - Server Actions → Controller (returns DTOs)
+ * - Controller → Service → External API (Stripe)
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -17,129 +20,84 @@ import {
 } from './stripe.service';
 import { getUserProfile } from '@lib/auth/session';
 import type { CheckoutRequest, PortalRequest } from '@lib/stripe/validation';
-
-/**
- * Extended request context with validated data
- */
-interface StripeRequestContext {
-  body?: CheckoutRequest | PortalRequest;
-  query?: Record<string, unknown>;
-}
+import type {
+  CreateCheckoutSessionResult,
+  GetCheckoutInfoResult,
+  CreatePortalSessionResult,
+} from './stripe.service';
+import type { Profile } from '@lib/supabase/db';
 
 /**
  * Stripe Controller
+ * 
+ * Provides both:
+ * - HTTP methods (for API routes) - return NextResponse
+ * - Data methods (for Server Actions) - return DTOs
  */
 export const stripeController = {
-  /**
-   * POST /api/stripe/checkout - Create checkout session
-   */
-  async createCheckoutSession(
-    req: NextRequest,
-    context: StripeRequestContext
-  ): Promise<NextResponse> {
-    const body = context.body as CheckoutRequest;
-    const { tier, successUrl, cancelUrl, trialDays } = body;
-    
-    // Get profile - auth middleware already verified user exists
-    const profile = await getUserProfile();
-    if (!profile) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'User profile not found' } },
-        { status: 401 }
-      );
-    }
+  // ============================================================================
+  // DATA METHODS (For Server Actions - return DTOs)
+  // ============================================================================
 
-    const result = await createStripeCheckoutSession({
+  /**
+   * Create checkout session (for Server Actions)
+   * Returns DTO, not HTTP response
+   * 
+   * Note: priceId should be server-resolved, not client-provided
+   */
+  async createCheckoutSessionData(
+    profile: Profile,
+    params: {
+      tier: string;
+      priceId: string; // Required: server-resolved price ID
+      successUrl: string;
+      cancelUrl: string;
+      trialDays?: number;
+    }
+  ): Promise<CreateCheckoutSessionResult> {
+    return await createStripeCheckoutSession({
       profile,
-      tier,
-      successUrl,
-      cancelUrl,
-      trialDays,
-    });
-
-    return NextResponse.json({
-      success: true,
-      data: result,
+      tier: params.tier as 'basic' | 'premium',
+      priceId: params.priceId, // Server-resolved price ID
+      successUrl: params.successUrl,
+      cancelUrl: params.cancelUrl,
+      trialDays: params.trialDays,
     });
   },
 
   /**
-   * GET /api/stripe/checkout - Get checkout info
+   * Get checkout info (for Server Actions)
+   * Returns DTO, not HTTP response
    */
-  async getCheckoutInfo(
-    req: NextRequest,
-    context: StripeRequestContext
-  ): Promise<NextResponse> {
-    // Get profile - auth middleware already verified user exists
-    const profile = await getUserProfile();
-    if (!profile) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'User profile not found' } },
-        { status: 401 }
-      );
-    }
-
-    const result = await getCheckoutInfo(profile);
-
-    return NextResponse.json({
-      success: true,
-      data: result,
-    });
+  async getCheckoutInfoData(profile: Profile): Promise<GetCheckoutInfoResult> {
+    return await getCheckoutInfo(profile);
   },
 
   /**
-   * POST /api/stripe/portal - Create portal session
+   * Create portal session (for Server Actions)
+   * Returns DTO, not HTTP response
    */
-  async createPortalSession(
-    req: NextRequest,
-    context: StripeRequestContext
-  ): Promise<NextResponse> {
-    const body = context.body as PortalRequest;
-    const { returnUrl } = body;
-    
-    // Get profile - auth middleware already verified user exists
-    const profile = await getUserProfile();
-    if (!profile) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'User profile not found' } },
-        { status: 401 }
-      );
-    }
-
-    const result = await createStripePortalSession({
+  async createPortalSessionData(
+    profile: Profile,
+    returnUrl: string
+  ): Promise<CreatePortalSessionResult> {
+    return await createStripePortalSession({
       profile,
       returnUrl,
     });
-
-    return NextResponse.json({
-      success: true,
-      data: result,
-    });
   },
 
   /**
-   * GET /api/stripe/portal - Get portal info
+   * Get portal info (for Server Actions)
+   * Returns DTO, not HTTP response
    */
-  async getPortalInfo(
-    req: NextRequest,
-    context: StripeRequestContext
-  ): Promise<NextResponse> {
-    // Get profile - auth middleware already verified user exists
-    const profile = await getUserProfile();
-    if (!profile) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'User profile not found' } },
-        { status: 401 }
-      );
-    }
-
-    const result = await getPortalInfo(profile);
-
-    return NextResponse.json({
-      success: true,
-      data: result,
-    });
+  async getPortalInfoData(profile: Profile) {
+    return await getPortalInfo(profile);
   },
+
+  // ============================================================================
+  // HTTP METHODS (For API Routes - return NextResponse)
+  // ============================================================================
 
   /**
    * POST /api/stripe/webhook - Process webhook event

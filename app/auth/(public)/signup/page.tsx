@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, useRef, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@lib/supabase/client';
 import Link from 'next/link';
 import { TrendingUp } from 'lucide-react';
@@ -156,13 +156,14 @@ const GalaxyCanvas = () => {
   );
 };
 
-export default function SignUpPage() {
+function SignUpContent() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
+  const searchParams = useSearchParams();
   const supabase = createClient();
 
   const handleSignUp = async (e: React.FormEvent) => {
@@ -194,7 +195,30 @@ export default function SignUpPage() {
         // Wait a moment for trigger to complete
         await new Promise(resolve => setTimeout(resolve, 500));
 
-        // Success - redirect to dashboard
+        // Check if user selected a paid tier before signup
+        const redirectParam = searchParams.get('redirect');
+        const savedPlan = sessionStorage.getItem('selectedPlan');
+        
+        // If user was trying to checkout or has a saved plan, redirect to pricing
+        if (redirectParam === 'checkout' || savedPlan) {
+          let tier = 'free';
+          if (savedPlan) {
+            try {
+              const plan = JSON.parse(savedPlan);
+              tier = plan.tier;
+            } catch (e) {
+              // Invalid JSON, ignore
+            }
+          }
+          
+          // Only redirect to checkout for paid tiers (not free)
+          if (tier !== 'free') {
+            router.push('/pricing?resume=checkout');
+            return;
+          }
+        }
+
+        // Default: redirect to dashboard (free tier or no plan selected)
         router.push('/dashboard');
       }
     } catch (err) {
@@ -352,5 +376,20 @@ export default function SignUpPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function SignUpPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-[#0a001f] text-white font-sans flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-500 mx-auto mb-4"></div>
+          <p className="text-gray-400">Loading...</p>
+        </div>
+      </div>
+    }>
+      <SignUpContent />
+    </Suspense>
   );
 }

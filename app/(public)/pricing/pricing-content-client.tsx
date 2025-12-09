@@ -1,17 +1,22 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, useTransition } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { PRICING_TIERS } from '@/src/lib/pricing/tiers';
-import { useAuth } from '@/components/auth/AuthProvider';
 import { PricingCard } from '@/components/pricing/PricingCard';
 import { BillingToggle } from '@/components/pricing/BillingToggle';
+import { createCheckoutSession } from './actions';
 
-export default function PricingContent() {
+interface PricingContentClientProps {
+  isAuthenticated: boolean;
+}
+
+export default function PricingContentClient({ isAuthenticated }: PricingContentClientProps) {
   const [billingPeriod, setBillingPeriod] = useState<'monthly' | 'annual'>('monthly');
   const [loading, setLoading] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
   const router = useRouter();
-  const { user, isLoading } = useAuth();
+  const searchParams = useSearchParams();
 
   const handleSelectPlan = async (tierId: string) => {
     setLoading(tierId);
@@ -19,7 +24,7 @@ export default function PricingContent() {
     try {
       // Free tier - just sign up
       if (tierId === 'free') {
-        if (user) {
+        if (isAuthenticated) {
           router.push('/dashboard');
         } else {
           router.push('/auth/signup');
@@ -28,7 +33,7 @@ export default function PricingContent() {
       }
 
       // Paid tiers - need authentication first
-      if (!user) {
+      if (!isAuthenticated) {
         // Store selected tier in session storage for post-auth redirect
         sessionStorage.setItem('selectedPlan', JSON.stringify({
           tier: tierId,
@@ -38,44 +43,46 @@ export default function PricingContent() {
         return;
       }
 
-      // Already authenticated - go to checkout
+      // Already authenticated - use server action
       const tier = PRICING_TIERS.find(t => t.id === tierId);
-      const priceId = tier?.priceId[billingPeriod];
 
-      if (!priceId) {
-        throw new Error('Price ID not configured');
+      if (!tier) {
+        throw new Error('Tier not found');
       }
 
-      const response = await fetch('/api/stripe/checkout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          tier: tierId,
-          priceId,
-          successUrl: `${window.location.origin}/dashboard?upgraded=true`,
-          cancelUrl: `${window.location.origin}/pricing?canceled=true`,
-          trialDays: tier?.trialDays,
-        }),
+      startTransition(async () => {
+        try {
+          // Pass billingPeriod instead of priceId - server will resolve it
+          const result = await createCheckoutSession({
+            tier: tierId,
+            billingPeriod, // Server will resolve priceId from this
+            successUrl: `${window.location.origin}/dashboard?upgraded=true`,
+            cancelUrl: `${window.location.origin}/pricing?canceled=true`,
+            trialDays: tier?.trialDays,
+          });
+
+          if (result.success && result.url) {
+            window.location.href = result.url;
+          } else {
+            throw new Error('Failed to create checkout session');
+          }
+        } catch (error) {
+          console.error('Checkout error:', error);
+          alert(error instanceof Error ? error.message : 'Failed to create checkout session');
+          setLoading(null);
+        }
       });
-
-      if (!response.ok) {
-        throw new Error('Failed to create checkout session');
-      }
-
-      const { url } = await response.json();
-      window.location.href = url;
     } catch (error) {
       console.error('Checkout error:', error);
-      // Show error toast
-    } finally {
+      alert(error instanceof Error ? error.message : 'Failed to create checkout session');
       setLoading(null);
     }
   };
 
   useEffect(() => {
     // Resume checkout if redirected from auth
-    const params = new URLSearchParams(window.location.search);
-    if (params.get('resume') === 'checkout' && user) {
+    const resume = searchParams.get('resume');
+    if (resume === 'checkout' && isAuthenticated) {
       const savedPlan = sessionStorage.getItem('selectedPlan');
       if (savedPlan) {
         const { tier, billing } = JSON.parse(savedPlan);
@@ -84,7 +91,18 @@ export default function PricingContent() {
         handleSelectPlan(tier);
       }
     }
-  }, [user]);
+
+    // Handle checkout cancellation - clear any saved plan and ensure user stays on free tier
+    const canceled = searchParams.get('canceled');
+    if (canceled === 'true') {
+      // Clear any saved plan from sessionStorage
+      sessionStorage.removeItem('selectedPlan');
+      // User remains on free tier (database trigger sets it, and no webhook fired)
+      // Optionally show a message to the user
+    }
+  }, [isAuthenticated, searchParams]);
+
+  const isLoading = loading !== null || isPending;
 
   return (
     <div className="min-h-screen bg-gray-950 py-20">
@@ -115,7 +133,7 @@ export default function PricingContent() {
               key={tier.id}
               tier={tier}
               billingPeriod={billingPeriod}
-              loading={loading === tier.id}
+              loading={isLoading && loading === tier.id}
               onSelect={() => handleSelectPlan(tier.id)}
             />
           ))}
@@ -132,3 +150,4 @@ export default function PricingContent() {
     </div>
   );
 }
+

@@ -55,10 +55,11 @@ export const PRICING_TIERS: PricingTier[] = [
     name: 'Basic',
     description: 'For active investors who want more insights',
     price: {
-      monthly: 6,
-      annual: 60, // 2 months free
+      monthly: 5.99,
+      annual: 59.99, // ~2 months free
     },
     priceId: {
+      // Client-side display only - server resolves actual priceId server-side
       monthly: process.env.NEXT_PUBLIC_STRIPE_PRICE_BASIC_MONTHLY || '',
       annual: process.env.NEXT_PUBLIC_STRIPE_PRICE_BASIC_ANNUAL || '',
     },
@@ -89,6 +90,7 @@ export const PRICING_TIERS: PricingTier[] = [
       annual: 159, // ~2 months free
     },
     priceId: {
+      // Client-side display only - server resolves actual priceId server-side
       monthly: process.env.NEXT_PUBLIC_STRIPE_PRICE_PREMIUM_MONTHLY || '',
       annual: process.env.NEXT_PUBLIC_STRIPE_PRICE_PREMIUM_ANNUAL || '',
     },

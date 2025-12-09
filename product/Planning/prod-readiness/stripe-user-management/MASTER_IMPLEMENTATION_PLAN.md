@@ -94,7 +94,7 @@ This plan covers the complete implementation of production-ready Stripe integrat
 
 **Dependencies:** Week 1 (database)  
 **Owner:** Backend Engineer  
-**Docs:** `STRIPE_PRODUCTION_PLAN.md`
+**Docs:** `STRIPE_INTEGRATION_GUIDE.md`
 
 ### Week 3: Pricing & Landing Pages
 
@@ -108,7 +108,7 @@ This plan covers the complete implementation of production-ready Stripe integrat
 
 **Dependencies:** Week 2 (Stripe APIs working)  
 **Owner:** Frontend Engineer  
-**Docs:** `PRICING_LANDING_INTEGRATION.md`
+**Docs:** `STRIPE_INTEGRATION_GUIDE.md`
 
 ### Week 4: Admin User Management
 
@@ -249,9 +249,8 @@ UPSTASH_REDIS_REST_TOKEN=xxx
 
 1. **Read the documentation** in this folder in order:
    - `DATABASE_SCHEMA_CHANGES.md`
-   - `STRIPE_PRODUCTION_PLAN.md`
    - `RATE_LIMITING_IMPLEMENTATION.md`
-   - `PRICING_LANDING_INTEGRATION.md`
+   - `STRIPE_INTEGRATION_GUIDE.md`
    - `ADMIN_USER_MANAGEMENT.md`
 
 2. **Create a feature branch:**

@@ -7,7 +7,6 @@
 import { 
   createOrRetrieveCustomer, 
   createCheckoutSession, 
-  getPriceIdForTier,
   createCustomerPortalSession,
   constructWebhookEvent,
   getTierFromPriceId
@@ -32,6 +31,7 @@ import * as stripeDao from '@backend/modules/stripe/dao/stripe.dao';
 export interface CreateCheckoutSessionParams {
   profile: Profile;
   tier: StripeTier;
+  priceId?: string; // Optional: if provided, use this instead of tier-based lookup
   successUrl: string;
   cancelUrl: string;
   trialDays?: number;
@@ -79,7 +79,7 @@ export interface ProcessWebhookResult {
 export async function createStripeCheckoutSession(
   params: CreateCheckoutSessionParams
 ): Promise<CreateCheckoutSessionResult> {
-  const { profile, tier, successUrl, cancelUrl, trialDays } = params;
+  const { profile, tier, priceId: providedPriceId, successUrl, cancelUrl, trialDays } = params;
 
   // Business rule: Free tier doesn't need checkout
   if (tier === 'free') {
@@ -91,23 +91,24 @@ export async function createStripeCheckoutSession(
     userId: profile.id,
   });
 
-  // Get price ID for tier
-  const priceId = getPriceIdForTier(tier);
-  if (!priceId) {
-    throw new Error(`Price ID not configured for ${tier} tier`);
+  // Use provided priceId (must be server-resolved via resolvePriceId(), not client-provided)
+  if (!providedPriceId) {
+    throw new Error(`Price ID is required for ${tier} tier`);
   }
+  const priceId = providedPriceId;
 
   // Create idempotency key
   const idempotencyKey = `checkout_${profile.id}_${Date.now()}`;
 
-  // Create checkout session
+  // Create checkout session with userId metadata for webhook processing
   const { sessionId, url } = await createCheckoutSession(
     customerId,
     priceId,
     successUrl,
     cancelUrl,
     trialDays,
-    idempotencyKey
+    idempotencyKey,
+    { userId: profile.id } // Critical: Include userId so webhook can update correct user
   );
 
   return {

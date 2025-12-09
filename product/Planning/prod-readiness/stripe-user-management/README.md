@@ -25,7 +25,7 @@ This folder contains planning documentation for production-ready Stripe integrat
 |----------|-------------|--------|
 | [IMPLEMENTATION_SUMMARY.md](./IMPLEMENTATION_SUMMARY.md) | **Latest implementation details (Dec 6)** | ✅ Current |
 | [RATE_LIMITING_IMPLEMENTATION.md](./RATE_LIMITING_IMPLEMENTATION.md) | Rate limiting implementation | 📋 Not Started |
-| [PRICING_LANDING_INTEGRATION.md](./PRICING_LANDING_INTEGRATION.md) | Pricing & landing page integration | 📋 Not Started |
+| [STRIPE_INTEGRATION_GUIDE.md](./STRIPE_INTEGRATION_GUIDE.md) | Complete Stripe integration guide (design, flows, setup, testing) | ✅ Complete |
 | [ADMIN_USER_MANAGEMENT.md](./ADMIN_USER_MANAGEMENT.md) | Admin panel user management | 🚧 In Progress |
 ## Phase Status
 

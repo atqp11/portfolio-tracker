@@ -81,31 +81,20 @@ describe('Stripe Client', () => {
     });
   });
 
-  describe('getPriceIdForTier', () => {
-    it('should return correct price ID for each tier', async () => {
-      process.env.STRIPE_PRODUCT_FREE_PRICE_ID = 'price_free';
-      process.env.STRIPE_PRODUCT_BASIC_PRICE_ID = 'price_basic';
-      process.env.STRIPE_PRODUCT_PREMIUM_PRICE_ID = 'price_premium';
-      
-      jest.resetModules();
-      const { getPriceIdForTier } = await import('@lib/stripe/client');
-      
-      expect(getPriceIdForTier('free')).toBe('price_free');
-      expect(getPriceIdForTier('basic')).toBe('price_basic');
-      expect(getPriceIdForTier('premium')).toBe('price_premium');
-    });
-  });
-
   describe('getTierFromPriceId', () => {
     it('should return correct tier for price ID', async () => {
-      process.env.STRIPE_PRODUCT_BASIC_PRICE_ID = 'price_basic_123';
-      process.env.STRIPE_PRODUCT_PREMIUM_PRICE_ID = 'price_premium_456';
+      process.env.STRIPE_PRICE_BASIC_MONTHLY = 'price_basic_monthly_123';
+      process.env.STRIPE_PRICE_BASIC_ANNUAL = 'price_basic_annual_123';
+      process.env.STRIPE_PRICE_PREMIUM_MONTHLY = 'price_premium_monthly_456';
+      process.env.STRIPE_PRICE_PREMIUM_ANNUAL = 'price_premium_annual_456';
       
       jest.resetModules();
       const { getTierFromPriceId } = await import('@lib/stripe/client');
       
-      expect(getTierFromPriceId('price_basic_123')).toBe('basic');
-      expect(getTierFromPriceId('price_premium_456')).toBe('premium');
+      expect(getTierFromPriceId('price_basic_monthly_123')).toBe('basic');
+      expect(getTierFromPriceId('price_basic_annual_123')).toBe('basic');
+      expect(getTierFromPriceId('price_premium_monthly_456')).toBe('premium');
+      expect(getTierFromPriceId('price_premium_annual_456')).toBe('premium');
     });
 
     it('should return null for unknown price ID', async () => {

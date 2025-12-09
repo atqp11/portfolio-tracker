@@ -13,6 +13,9 @@ export const checkoutRequestSchema = z.object({
   tier: z.enum(['free', 'basic', 'premium'], {
     message: 'Tier must be one of: free, basic, premium',
   }),
+  billingPeriod: z.enum(['monthly', 'annual'], {
+    message: 'Billing period must be one of: monthly, annual',
+  }),
   successUrl: z.string().url('Invalid success URL format'),
   cancelUrl: z.string().url('Invalid cancel URL format'),
   trialDays: z.number().int().positive().optional(),

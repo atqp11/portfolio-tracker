@@ -45,60 +45,28 @@ export const stripe = new Proxy({} as any, {
 });
 
 /**
- * Stripe product and price configuration
- * These should match your Stripe dashboard products and prices
- * 
- * Set these environment variables:
- * - STRIPE_PRODUCT_FREE_PRICE_ID
- * - STRIPE_PRODUCT_BASIC_PRICE_ID  
- * - STRIPE_PRODUCT_PREMIUM_PRICE_ID
- */
-export const STRIPE_PRICES: Record<StripeTier, StripePrice> = {
-  free: {
-    id: process.env.STRIPE_PRODUCT_FREE_PRICE_ID || '',
-    productId: '',
-    tier: 'free',
-    amount: 0,
-    currency: 'usd',
-    interval: 'month',
-    intervalCount: 1,
-  },
-  basic: {
-    id: process.env.STRIPE_PRODUCT_BASIC_PRICE_ID || '',
-    productId: '',
-    tier: 'basic',
-    amount: 600, // $6.00
-    currency: 'usd',
-    interval: 'month',
-    intervalCount: 1,
-  },
-  premium: {
-    id: process.env.STRIPE_PRODUCT_PREMIUM_PRICE_ID || '',
-    productId: '',
-    tier: 'premium',
-    amount: 1599, // $15.99
-    currency: 'usd',
-    interval: 'month',
-    intervalCount: 1,
-  },
-};
-
-/**
- * Get price ID for a tier
- */
-export function getPriceIdForTier(tier: StripeTier): string {
-  return STRIPE_PRICES[tier]?.id || '';
-}
-
-/**
  * Get tier from price ID
+ * 
+ * Checks all configured price IDs (monthly and annual) to determine tier.
+ * Uses server-only env vars: STRIPE_PRICE_{TIER}_{BILLING}
  */
 export function getTierFromPriceId(priceId: string): StripeTier | null {
-  for (const [tier, price] of Object.entries(STRIPE_PRICES)) {
-    if (price.id === priceId) {
-      return tier as StripeTier;
+  if (!priceId) return null;
+
+  // Check all possible tier/billing combinations
+  const tiers: StripeTier[] = ['free', 'basic', 'premium'];
+  const billings = ['monthly', 'annual'];
+
+  for (const tier of tiers) {
+    for (const billing of billings) {
+      const envVarName = `STRIPE_PRICE_${tier.toUpperCase()}_${billing.toUpperCase()}`;
+      const configuredPriceId = process.env[envVarName];
+      if (configuredPriceId === priceId) {
+        return tier;
+      }
     }
   }
+
   return null;
 }
 
@@ -142,7 +110,8 @@ export async function createCheckoutSession(
   successUrl: string,
   cancelUrl: string,
   trialDays?: number,
-  idempotencyKey?: string
+  idempotencyKey?: string,
+  metadata?: Record<string, string>
 ): Promise<{ sessionId: string; url: string | null }> {
   const sessionParams: Stripe.Checkout.SessionCreateParams = {
     customer: customerId,
@@ -157,6 +126,7 @@ export async function createCheckoutSession(
     success_url: successUrl,
     cancel_url: cancelUrl,
     billing_address_collection: 'auto',
+    metadata: metadata || {},
   };
 
   // Add trial period if provided

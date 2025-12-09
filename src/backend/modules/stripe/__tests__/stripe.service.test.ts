@@ -44,7 +44,6 @@ describe('Stripe Service', () => {
   describe('createStripeCheckoutSession', () => {
     it('should create checkout session with idempotency key', async () => {
       mockStripeClient.createOrRetrieveCustomer.mockResolvedValue('cus_123');
-      mockStripeClient.getPriceIdForTier.mockReturnValue('price_basic');
       mockStripeClient.createCheckoutSession.mockResolvedValue({
         sessionId: 'cs_123',
         url: 'https://checkout.stripe.com/session',
@@ -53,6 +52,7 @@ describe('Stripe Service', () => {
       const result = await stripeService.createStripeCheckoutSession({
         profile: mockProfile,
         tier: 'basic',
+        priceId: 'price_basic_monthly', // Server-resolved price ID
         successUrl: 'https://example.com/success',
         cancelUrl: 'https://example.com/cancel',
         trialDays: 14,
@@ -65,20 +65,19 @@ describe('Stripe Service', () => {
         'user@example.com',
         { userId: 'user-1' }
       );
-      expect(mockStripeClient.getPriceIdForTier).toHaveBeenCalledWith('basic');
       expect(mockStripeClient.createCheckoutSession).toHaveBeenCalledWith(
         'cus_123',
-        'price_basic',
+        'price_basic_monthly',
         'https://example.com/success',
         'https://example.com/cancel',
         14,
-        expect.stringMatching(/^checkout_user-1_\d+$/)
+        expect.stringMatching(/^checkout_user-1_\d+$/),
+        { userId: 'user-1' }
       );
     });
 
     it('should generate unique idempotency keys', async () => {
       mockStripeClient.createOrRetrieveCustomer.mockResolvedValue('cus_123');
-      mockStripeClient.getPriceIdForTier.mockReturnValue('price_basic');
       mockStripeClient.createCheckoutSession.mockResolvedValue({
         sessionId: 'cs_123',
         url: 'https://checkout.stripe.com/session',
@@ -91,6 +90,7 @@ describe('Stripe Service', () => {
         await stripeService.createStripeCheckoutSession({
           profile: mockProfile,
           tier: 'basic',
+          priceId: 'price_basic_monthly', // Server-resolved price ID
           successUrl: 'https://example.com/success',
           cancelUrl: 'https://example.com/cancel',
         });
@@ -109,15 +109,15 @@ describe('Stripe Service', () => {
         stripeService.createStripeCheckoutSession({
           profile: mockProfile,
           tier: 'free',
+          priceId: 'price_free',
           successUrl: 'https://example.com/success',
           cancelUrl: 'https://example.com/cancel',
         })
       ).rejects.toThrow('Free tier does not require checkout');
     });
 
-    it('should throw error when price ID not configured', async () => {
+    it('should throw error when price ID not provided', async () => {
       mockStripeClient.createOrRetrieveCustomer.mockResolvedValue('cus_123');
-      mockStripeClient.getPriceIdForTier.mockReturnValue('');
 
       await expect(
         stripeService.createStripeCheckoutSession({
@@ -126,12 +126,11 @@ describe('Stripe Service', () => {
           successUrl: 'https://example.com/success',
           cancelUrl: 'https://example.com/cancel',
         })
-      ).rejects.toThrow('Price ID not configured for premium tier');
+      ).rejects.toThrow('Price ID is required for premium tier');
     });
 
     it('should handle Stripe API errors', async () => {
       mockStripeClient.createOrRetrieveCustomer.mockResolvedValue('cus_123');
-      mockStripeClient.getPriceIdForTier.mockReturnValue('price_basic');
       mockStripeClient.createCheckoutSession.mockRejectedValue(
         new Error('Stripe API error')
       );
@@ -140,6 +139,7 @@ describe('Stripe Service', () => {
         stripeService.createStripeCheckoutSession({
           profile: mockProfile,
           tier: 'basic',
+          priceId: 'price_basic_monthly', // Provide priceId so validation passes
           successUrl: 'https://example.com/success',
           cancelUrl: 'https://example.com/cancel',
         })

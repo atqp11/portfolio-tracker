@@ -56,6 +56,7 @@ export async function handleCheckoutCompleted(
       stripe_subscription_id: subscriptionId,
       subscription_status: subscription.status,
       subscription_tier: tier,
+      tier: tier, // Update the tier field used by quota system
       trial_ends_at: subscription.trial_end 
         ? new Date(subscription.trial_end * 1000).toISOString() 
         : null,
@@ -124,6 +125,7 @@ export async function handleSubscriptionUpdated(
     .update({
       subscription_status: subscription.status,
       subscription_tier: newTier,
+      tier: newTier, // Update the tier field used by quota system
       cancel_at_period_end: subscription.cancel_at_period_end,
       current_period_start: new Date(periodStart * 1000).toISOString(),
       current_period_end: new Date(periodEnd * 1000).toISOString(),

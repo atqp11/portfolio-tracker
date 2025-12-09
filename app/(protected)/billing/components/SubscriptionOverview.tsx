@@ -1,16 +1,19 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import TierBadge from '@/components/shared/TierBadge';
 import type { SubscriptionData } from '@lib/types/billing';
-import { createPortalSession } from '../actions';
+import { createPortalSession, syncMySubscription } from '../actions';
 
 interface SubscriptionOverviewProps {
   subscriptionData: SubscriptionData;
 }
 
 export default function SubscriptionOverview({ subscriptionData }: SubscriptionOverviewProps) {
+  const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleManageSubscription = async () => {
@@ -30,6 +33,21 @@ export default function SubscriptionOverview({ subscriptionData }: SubscriptionO
       setError(error instanceof Error ? error.message : 'Failed to open billing portal. Please try again.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSyncSubscription = async () => {
+    setSyncing(true);
+    setError(null);
+    try {
+      await syncMySubscription();
+      // Refresh the page to show updated data
+      router.refresh();
+    } catch (error) {
+      console.error('Error syncing subscription:', error);
+      setError(error instanceof Error ? error.message : 'Failed to sync subscription. Please try again.');
+    } finally {
+      setSyncing(false);
     }
   };
 
@@ -76,6 +94,80 @@ export default function SubscriptionOverview({ subscriptionData }: SubscriptionO
           </button>
         )}
       </div>
+
+      {/* Mismatch Warning - Prominent Red Card (shown if auto-sync failed or mismatch persists) */}
+      {subscriptionData.hasMismatch && subscriptionData.mismatchDetails && (
+        <div className="mb-6 p-6 bg-red-50 dark:bg-red-900/30 border-2 border-red-500 dark:border-red-600 rounded-lg shadow-lg">
+          <div className="flex items-start gap-3">
+            <div className="flex-shrink-0">
+              <svg className="w-6 h-6 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+            </div>
+            <div className="flex-1">
+              <h3 className="text-lg font-bold text-red-800 dark:text-red-200 mb-2">
+                Subscription Mismatch Detected
+              </h3>
+              {subscriptionData.syncAttempted && subscriptionData.syncError && (
+                <div className="mb-3 p-3 bg-red-100 dark:bg-red-900/40 border border-red-300 dark:border-red-700 rounded-lg">
+                  <p className="text-sm text-red-800 dark:text-red-200">
+                    <strong>Auto-sync failed:</strong> {subscriptionData.syncError}
+                  </p>
+                </div>
+              )}
+              {subscriptionData.syncAttempted && !subscriptionData.syncError && (
+                <div className="mb-3 p-3 bg-yellow-100 dark:bg-yellow-900/40 border border-yellow-300 dark:border-yellow-700 rounded-lg">
+                  <p className="text-sm text-yellow-800 dark:text-yellow-200">
+                    <strong>Auto-sync attempted</strong> but mismatch persists. Please try manual sync or contact support.
+                  </p>
+                </div>
+              )}
+              <div className="text-sm text-red-700 dark:text-red-300 space-y-2 mb-4">
+                {subscriptionData.mismatchDetails.statusMismatch && (
+                  <div>
+                    <strong>Status Mismatch:</strong> Database shows <strong>{subscriptionData.subscriptionStatus || 'unknown'}</strong>, 
+                    but Stripe shows <strong>{subscriptionData.mismatchDetails.expectedStatus}</strong>
+                  </div>
+                )}
+                {subscriptionData.mismatchDetails.tierMismatch && (
+                  <div>
+                    <strong>Tier Mismatch:</strong> Database shows <strong>{subscriptionData.tier}</strong>, 
+                    but Stripe subscription indicates <strong>{subscriptionData.mismatchDetails.expectedTier}</strong>
+                  </div>
+                )}
+                <p className="mt-2 font-medium">
+                  This usually happens when a webhook fails. Please try syncing your subscription or contact support if the issue persists.
+                </p>
+              </div>
+              <div className="flex flex-col sm:flex-row gap-3">
+                <button
+                  onClick={handleSyncSubscription}
+                  disabled={syncing}
+                  className="px-6 py-3 bg-red-600 hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white rounded-lg font-semibold transition-colors shadow-md hover:shadow-lg"
+                >
+                  {syncing ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <svg className="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Syncing...
+                    </span>
+                  ) : (
+                    'Sync Subscription Now'
+                  )}
+                </button>
+                <a
+                  href="mailto:support@portfoliotracker.com?subject=Subscription%20Sync%20Issue&body=Hi,%20I%20am%20experiencing%20a%20subscription%20sync%20issue.%20My%20account%20shows%20a%20mismatch%20between%20the%20database%20and%20Stripe.%20Please%20help%20me%20resolve%20this."
+                  className="px-6 py-3 bg-gray-600 hover:bg-gray-700 text-white rounded-lg font-semibold transition-colors shadow-md hover:shadow-lg text-center"
+                >
+                  Contact Support
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Error Message */}
       {error && (

@@ -5,8 +5,6 @@
 export {
   getStripe,
   stripe,
-  STRIPE_PRICES,
-  getPriceIdForTier,
   getTierFromPriceId,
   createOrRetrieveCustomer,
   createCheckoutSession,

@@ -19,6 +19,15 @@ export interface SubscriptionData {
   cancelAtPeriodEnd: boolean;
   trialEndsAt: string | null;
   subscription: SubscriptionDetails | null;
+  hasMismatch?: boolean;
+  mismatchDetails?: {
+    statusMismatch?: boolean;
+    tierMismatch?: boolean;
+    expectedTier?: string;
+    expectedStatus?: string;
+  };
+  syncAttempted?: boolean;
+  syncError?: string;
 }
 
 /**

@@ -82,7 +82,7 @@ describe('Stripe Integration - Checkout Flow', () => {
     it('should handle full checkout flow from free to paid tier', async () => {
       // Step 1: Create checkout session
       mockStripeClient.createOrRetrieveCustomer.mockResolvedValue('cus_123');
-      mockStripeClient.getPriceIdForTier.mockReturnValue('price_basic');
+      // priceId is provided directly (server-resolved)
       mockStripeClient.createCheckoutSession.mockResolvedValue({
         sessionId: 'cs_123',
         url: 'https://checkout.stripe.com/session',
@@ -91,6 +91,7 @@ describe('Stripe Integration - Checkout Flow', () => {
       const checkoutResult = await stripeService.createStripeCheckoutSession({
         profile: mockProfile,
         tier: 'basic',
+        priceId: 'price_basic_monthly', // Server-resolved price ID
         successUrl: 'https://example.com/success',
         cancelUrl: 'https://example.com/cancel',
       });
@@ -136,7 +137,7 @@ describe('Stripe Integration - Checkout Flow', () => {
     it('should handle idempotency in checkout flow', async () => {
       // First checkout attempt
       mockStripeClient.createOrRetrieveCustomer.mockResolvedValue('cus_123');
-      mockStripeClient.getPriceIdForTier.mockReturnValue('price_basic');
+      // priceId is provided directly (server-resolved)
       mockStripeClient.createCheckoutSession.mockResolvedValue({
         sessionId: 'cs_123',
         url: 'https://checkout.stripe.com/session',
@@ -145,6 +146,7 @@ describe('Stripe Integration - Checkout Flow', () => {
       const firstResult = await stripeService.createStripeCheckoutSession({
         profile: mockProfile,
         tier: 'basic',
+        priceId: 'price_basic_monthly', // Server-resolved price ID
         successUrl: 'https://example.com/success',
         cancelUrl: 'https://example.com/cancel',
       });
@@ -156,6 +158,7 @@ describe('Stripe Integration - Checkout Flow', () => {
       const secondResult = await stripeService.createStripeCheckoutSession({
         profile: mockProfile,
         tier: 'basic',
+        priceId: 'price_basic_monthly', // Server-resolved price ID
         successUrl: 'https://example.com/success',
         cancelUrl: 'https://example.com/cancel',
       });

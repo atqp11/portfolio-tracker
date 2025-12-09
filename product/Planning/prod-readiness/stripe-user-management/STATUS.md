@@ -219,7 +219,7 @@
 - [x] Integrated prebuild check into `package.json`
 - [x] Removed all client-side fallbacks
 - [x] Added comprehensive unit tests
-- [x] Documented annual pricing discounts (Basic: $60/yr, Premium: $159/yr)
+- [x] Documented annual pricing discounts (Basic: $59.99/yr, Premium: $159.99/yr)
 
 ### Artifacts
 - `src/lib/pricing/tiers.ts` - Canonical pricing module
@@ -267,7 +267,7 @@
 
 ## 🚧 Phase 3: Stripe Hardening (95% COMPLETE)
 
-**Reference:** `STRIPE_PRODUCTION_PLAN.md`
+**Reference:** `STRIPE_INTEGRATION_GUIDE.md`
 
 ### ✅ Completed Items
 
@@ -428,7 +428,7 @@ await sendPaymentFailureEmail({
 
 ## 📋 Phase 4: Pricing & Landing Pages (NOT STARTED)
 
-**Reference:** `PRICING_LANDING_INTEGRATION.md`
+**Reference:** `STRIPE_INTEGRATION_GUIDE.md`
 
 ### Remaining Tasks
 
@@ -725,32 +725,35 @@ await sendPaymentFailureEmail({
 
 ## 📝 Related Documentation
 
-- `docs/5_Guides/STRIPE_CODE_REVIEW.md` - Comprehensive code review
-- `docs/5_Guides/STRIPE_SETUP_CHECKLIST.md` - Setup instructions
-- `product/Planning/prod-readiness/stripe-user-management/STRIPE_PRODUCTION_PLAN.md` - Production plan
+- `STRIPE_INTEGRATION_GUIDE.md` - Complete Stripe integration guide (design, flows, setup, testing)
 - `product/Planning/prod-readiness/stripe-user-management/ADMIN_USER_MANAGEMENT.md` - Admin features
 
 ## 🔧 Required Environment Variables
 
-**Stripe Configuration (Server-Side Only):**
+**Stripe Configuration:**
 ```env
 # API Keys (from https://dashboard.stripe.com/apikeys)
-# Secret key used server-side for Stripe API calls
 STRIPE_SECRET_KEY=sk_test_your_secret_key_here
+STRIPE_PUBLISHABLE_KEY=pk_test_your_publishable_key_here
+NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_your_publishable_key_here
 
 # Webhook Secret (from https://dashboard.stripe.com/webhooks)
-# Used to verify webhook signatures from Stripe
 STRIPE_WEBHOOK_SECRET=whsec_your_webhook_secret_here
 
-# Product Price IDs (from https://dashboard.stripe.com/products)
-# Server resolves price IDs from tier names - no client-side variables needed
-STRIPE_PRODUCT_FREE_PRICE_ID=price_free_tier_id
-STRIPE_PRODUCT_BASIC_PRICE_ID=price_basic_tier_id
-STRIPE_PRODUCT_PREMIUM_PRICE_ID=price_premium_tier_id
+# Server-side Price IDs (required - used by resolvePriceId())
+STRIPE_PRICE_BASIC_MONTHLY=price_test_xxx...
+STRIPE_PRICE_BASIC_ANNUAL=price_test_xxx...
+STRIPE_PRICE_PREMIUM_MONTHLY=price_test_xxx...
+STRIPE_PRICE_PREMIUM_ANNUAL=price_test_xxx...
+
+# Client-side Price IDs (optional - for pricing page display only)
+NEXT_PUBLIC_STRIPE_PRICE_BASIC_MONTHLY=price_test_xxx...
+NEXT_PUBLIC_STRIPE_PRICE_BASIC_ANNUAL=price_test_xxx...
+NEXT_PUBLIC_STRIPE_PRICE_PREMIUM_MONTHLY=price_test_xxx...
+NEXT_PUBLIC_STRIPE_PRICE_PREMIUM_ANNUAL=price_test_xxx...
 ```
 
 **Note:** 
-- All Stripe operations are server-side only - no `NEXT_PUBLIC_*` variables needed
-- The server resolves price IDs from tier names using `getPriceIdForTier()`
-- For local development, create a `.env.local` file in the project root with these variables
-- See `docs/5_Guides/STRIPE_SETUP_CHECKLIST.md` for detailed setup instructions
+- Server resolves price IDs using `resolvePriceId(tier, billingPeriod)` with server-only env vars
+- Client-side price IDs are optional and used only for display
+- See `STRIPE_INTEGRATION_GUIDE.md` for detailed setup instructions

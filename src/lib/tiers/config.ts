@@ -139,10 +139,10 @@ export const TIER_CONFIG: Record<TierName, TierLimits> = {
 
   basic: {
     // Pricing
-    price: 6,
-    // Discounted annual: 2 months free -> $6 * 10 = $60
-    annualPrice: 60,
-    priceDisplay: '$6/month',
+    price: 5.99,
+    // Discounted annual: ~2 months free -> $5.99 * 10 = $59.99
+    annualPrice: 59.99,
+    priceDisplay: '$5.99/month',
 
     // Portfolio Limits
     maxPortfolios: 5, // Not specified, but reasonable default
