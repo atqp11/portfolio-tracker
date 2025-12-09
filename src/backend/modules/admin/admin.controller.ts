@@ -891,6 +891,53 @@ export class AdminController {
 
     return { success: true, userId };
   }
+
+  /**
+   * Clear cache (for server actions)
+   * Validates input with Zod schema
+   */
+  async clearCacheData(adminId: string) {
+    // Validate admin access (adminId is already validated by authGuard)
+    const result = await adminService.clearCache();
+    
+    // Log admin action
+    const adminDao = await import('@backend/modules/admin/dao/admin.dao');
+    await adminDao.logAdminAction({
+      admin_id: adminId,
+      action: 'clear_cache',
+      entity_type: 'system',
+      entity_id: 'cache',
+      after_state: { stats: result.stats },
+    });
+
+    return result;
+  }
+
+  /**
+   * Retry webhook event (for server actions)
+   * Validates input with Zod schema
+   */
+  async retryWebhookData(eventId: string, adminId: string) {
+    // Validate input
+    const { retryWebhookInputSchema } = await import('@backend/modules/admin/zod/admin.schemas');
+    retryWebhookInputSchema.parse({ eventId });
+    
+    // Call retry service
+    const { retryWebhookEvent } = await import('@backend/modules/admin/service/retry.service');
+    const result = await retryWebhookEvent(eventId);
+    
+    // Log admin action
+    const adminDao = await import('@backend/modules/admin/dao/admin.dao');
+    await adminDao.logAdminAction({
+      admin_id: adminId,
+      action: 'retry_webhook',
+      entity_type: 'webhook',
+      entity_id: eventId,
+      after_state: { retryCount: result.retryCount, success: result.success },
+    });
+
+    return result;
+  }
 }
 
 export const adminController = new AdminController();

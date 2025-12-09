@@ -13,9 +13,18 @@ import { ZodError } from 'zod';
 
 jest.mock('@backend/modules/admin/service/users.service');
 jest.mock('@backend/modules/admin/service/admin.service');
+jest.mock('@backend/modules/admin/dao/admin.dao');
+jest.mock('@backend/modules/admin/service/retry.service');
 
 const mockUsersService = usersService as jest.Mocked<typeof usersService>;
 const mockAdminService = adminService as jest.Mocked<typeof adminService>;
+
+// Import mocked modules for dynamic imports
+import * as adminDao from '@backend/modules/admin/dao/admin.dao';
+import * as retryService from '@backend/modules/admin/service/retry.service';
+
+const mockAdminDao = adminDao as jest.Mocked<typeof adminDao>;
+const mockRetryService = retryService as jest.Mocked<typeof retryService>;
 
 describe('Admin Controller - RSC Methods', () => {
   let controller: AdminController;
@@ -869,6 +878,92 @@ describe('Admin Controller - RSC Methods', () => {
       await expect(
         controller.refundUserData('invalid-uuid', validAdminId, 1000, 'reason')
       ).rejects.toThrow(ZodError);
+    });
+  });
+
+  describe('clearCacheData', () => {
+    const validAdminId = '123e4567-e89b-12d3-a456-426614174000';
+
+    beforeEach(() => {
+      jest.clearAllMocks();
+    });
+
+    it('should clear cache and log admin action', async () => {
+      const mockCacheResult = {
+        success: true,
+        timestamp: '2024-01-01T00:00:00Z',
+        message: 'Redis cache cleared successfully',
+        stats: {
+          before: { type: 'memory', size: 100, hits: 50, misses: 10 },
+          after: { type: 'memory', size: 0, hits: 50, misses: 10 },
+        },
+      };
+
+      mockAdminService.clearCache.mockResolvedValue(mockCacheResult);
+      mockAdminDao.logAdminAction.mockResolvedValue(undefined);
+
+      const result = await controller.clearCacheData(validAdminId);
+
+      expect(result).toEqual(mockCacheResult);
+      expect(mockAdminService.clearCache).toHaveBeenCalledTimes(1);
+      expect(mockAdminDao.logAdminAction).toHaveBeenCalledWith({
+        admin_id: validAdminId,
+        action: 'clear_cache',
+        entity_type: 'system',
+        entity_id: 'cache',
+        after_state: { stats: mockCacheResult.stats },
+      });
+    });
+
+    it('should handle cache service errors', async () => {
+      mockAdminService.clearCache.mockRejectedValue(new Error('Cache error'));
+
+      await expect(controller.clearCacheData(validAdminId)).rejects.toThrow('Cache error');
+    });
+  });
+
+  describe('retryWebhookData', () => {
+    const validAdminId = '123e4567-e89b-12d3-a456-426614174000';
+    const validEventId = 'evt_1234567890';
+
+    beforeEach(() => {
+      jest.clearAllMocks();
+    });
+
+    it('should retry webhook and log admin action', async () => {
+      const mockRetryResult = {
+        success: true,
+        retryCount: 1,
+      };
+
+      mockRetryService.retryWebhookEvent.mockResolvedValue(mockRetryResult);
+      mockAdminDao.logAdminAction.mockResolvedValue(undefined);
+
+      const result = await controller.retryWebhookData(validEventId, validAdminId);
+
+      expect(result).toEqual(mockRetryResult);
+      expect(mockRetryService.retryWebhookEvent).toHaveBeenCalledWith(validEventId);
+      expect(mockAdminDao.logAdminAction).toHaveBeenCalledWith({
+        admin_id: validAdminId,
+        action: 'retry_webhook',
+        entity_type: 'webhook',
+        entity_id: validEventId,
+        after_state: { retryCount: 1, success: true },
+      });
+    });
+
+    it('should throw ZodError for empty event ID', async () => {
+      await expect(
+        controller.retryWebhookData('', validAdminId)
+      ).rejects.toThrow(ZodError);
+    });
+
+    it('should handle retry service errors', async () => {
+      mockRetryService.retryWebhookEvent.mockRejectedValue(new Error('Retry failed'));
+
+      await expect(
+        controller.retryWebhookData(validEventId, validAdminId)
+      ).rejects.toThrow('Retry failed');
     });
   });
 });

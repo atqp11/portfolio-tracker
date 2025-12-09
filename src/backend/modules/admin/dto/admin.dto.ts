@@ -46,3 +46,29 @@ export const adminUsersResponseSchema = z.object({
 
 export type AdminUserDto = z.infer<typeof adminUserSchema>;
 export type AdminUsersResponseDto = z.infer<typeof adminUsersResponseSchema>;
+
+/**
+ * Clear cache response schema
+ */
+export const clearCacheResponseSchema = z.object({
+  success: z.boolean(),
+  timestamp: z.string(),
+  message: z.string(),
+  stats: z.object({
+    before: z.record(z.string(), z.unknown()),
+    after: z.record(z.string(), z.unknown()),
+  }).optional(),
+});
+
+export type ClearCacheResponseDto = z.infer<typeof clearCacheResponseSchema>;
+
+/**
+ * Retry webhook response schema
+ */
+export const retryWebhookResponseSchema = z.object({
+  success: z.boolean(),
+  retryCount: z.number(),
+  error: z.string().optional(),
+});
+
+export type RetryWebhookResponseDto = z.infer<typeof retryWebhookResponseSchema>;

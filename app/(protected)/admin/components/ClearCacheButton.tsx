@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useTransition } from 'react';
+import { clearCache } from '../actions';
 
 interface ClearCacheResponse {
   success: boolean;
@@ -12,54 +13,38 @@ interface ClearCacheResponse {
   };
 }
 
-interface ClearCacheError {
-  success: false;
-  error: string;
-  message: string;
-}
-
-type ClearCacheResult = ClearCacheResponse | ClearCacheError;
-
 export default function ClearCacheButton() {
-  const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<ClearCacheResult | null>(null);
+  const [isPending, startTransition] = useTransition();
+  const [result, setResult] = useState<ClearCacheResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  async function clearCache() {
+  async function handleClearCache() {
     if (!confirm('Are you sure you want to clear the Redis cache?')) return;
-    setLoading(true);
+    
     setResult(null);
     setError(null);
-    try {
-      const res = await fetch('/api/admin/clear-cache', { method: 'POST' });
-      const json = await res.json();
-      
-      if (!res.ok) {
-        setError(json.message || json.error || 'Failed to clear cache');
-        return;
+    
+    startTransition(async () => {
+      try {
+        const cacheResult = await clearCache();
+        setResult(cacheResult);
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'Failed to clear cache';
+        console.error('Clear cache error:', err);
+        setError(errorMessage);
       }
-      
-      setResult(json);
-      alert('Cache cleared successfully');
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to clear cache';
-      console.error('Clear cache error:', err);
-      setError(errorMessage);
-      alert(errorMessage);
-    } finally {
-      setLoading(false);
-    }
+    });
   }
 
   return (
     <div className="flex flex-col space-y-2">
       <div className="flex items-center space-x-2">
         <button
-          onClick={clearCache}
-          disabled={loading}
+          onClick={handleClearCache}
+          disabled={isPending}
           className="px-3 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
-          {loading ? 'Clearing...' : 'Clear Cache'}
+          {isPending ? 'Clearing...' : 'Clear Cache'}
         </button>
         {result && result.success && (
           <div className="text-xs text-gray-600 dark:text-gray-300">

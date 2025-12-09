@@ -110,3 +110,53 @@ export type GetUsersResultDto = z.infer<typeof getUsersResultSchema>;
 
 // Re-export from admin.dto for convenience
 export { adminUserSchema, adminUsersResponseSchema };
+
+// ============================================================================
+// CACHE OPERATIONS
+// ============================================================================
+
+/**
+ * Clear cache input schema (no input needed, but keeping for consistency)
+ */
+export const clearCacheInputSchema = z.object({}).optional();
+
+export type ClearCacheInput = z.infer<typeof clearCacheInputSchema>;
+
+/**
+ * Clear cache output schema
+ */
+export const clearCacheOutputSchema = z.object({
+  success: z.boolean(),
+  timestamp: z.string(),
+  message: z.string(),
+  stats: z.object({
+    before: z.record(z.string(), z.unknown()),
+    after: z.record(z.string(), z.unknown()),
+  }).optional(),
+});
+
+export type ClearCacheOutput = z.infer<typeof clearCacheOutputSchema>;
+
+// ============================================================================
+// WEBHOOK OPERATIONS
+// ============================================================================
+
+/**
+ * Retry webhook input schema
+ */
+export const retryWebhookInputSchema = z.object({
+  eventId: z.string().min(1, 'Event ID is required'),
+});
+
+export type RetryWebhookInput = z.infer<typeof retryWebhookInputSchema>;
+
+/**
+ * Retry webhook output schema
+ */
+export const retryWebhookOutputSchema = z.object({
+  success: z.boolean(),
+  retryCount: z.number(),
+  error: z.string().optional(),
+});
+
+export type RetryWebhookOutput = z.infer<typeof retryWebhookOutputSchema>;

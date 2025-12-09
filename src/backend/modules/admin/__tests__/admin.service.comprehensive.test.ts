@@ -7,8 +7,12 @@
 import * as adminService from '@backend/modules/admin/service/admin.service';
 import * as adminDao from '@backend/modules/admin/dao/admin.dao';
 import { getStripe } from '@lib/stripe/client';
+import { getCacheAdapter } from '@lib/cache/adapter';
 
 jest.mock('@backend/modules/admin/dao/admin.dao');
+jest.mock('@lib/cache/adapter', () => ({
+  getCacheAdapter: jest.fn(),
+}));
 jest.mock('@lib/stripe/client', () => {
   const mockStripe = {
     subscriptions: {
@@ -33,6 +37,7 @@ jest.mock('@lib/stripe/client', () => {
 
 const mockAdminDao = adminDao as jest.Mocked<typeof adminDao>;
 const mockGetStripe = getStripe as jest.MockedFunction<typeof getStripe>;
+const mockGetCacheAdapter = getCacheAdapter as jest.MockedFunction<typeof getCacheAdapter>;
 
 describe('Admin Service - Comprehensive', () => {
   const mockUser = {
@@ -631,6 +636,62 @@ describe('Admin Service - Comprehensive', () => {
       const churn = await adminService.getChurnEvents(30);
 
       expect(churn).toBe(2);
+    });
+  });
+
+  describe('clearCache', () => {
+    it('should clear cache and return stats', async () => {
+      // Mock the cache adapter
+      const mockCacheAdapter = {
+        getStats: jest.fn()
+          .mockResolvedValueOnce({
+            type: 'memory' as const,
+            size: 100,
+            hits: 50,
+            misses: 10,
+          })
+          .mockResolvedValueOnce({
+            type: 'memory' as const,
+            size: 0,
+            hits: 50,
+            misses: 10,
+          }),
+        clear: jest.fn().mockResolvedValue(undefined),
+      };
+
+      mockGetCacheAdapter.mockReturnValue(mockCacheAdapter as any);
+
+      const result = await adminService.clearCache();
+
+      expect(result.success).toBe(true);
+      expect(result.message).toBe('Redis cache cleared successfully');
+      expect(result.stats).toBeDefined();
+      expect(result.stats?.before).toEqual({
+        type: 'memory',
+        size: 100,
+        hits: 50,
+        misses: 10,
+      });
+      expect(result.stats?.after).toEqual({
+        type: 'memory',
+        size: 0,
+        hits: 50,
+        misses: 10,
+      });
+      expect(mockCacheAdapter.getStats).toHaveBeenCalledTimes(2);
+      expect(mockCacheAdapter.clear).toHaveBeenCalledTimes(1);
+      expect(result.timestamp).toBeDefined();
+    });
+
+    it('should handle cache errors gracefully', async () => {
+      const mockCacheAdapter = {
+        getStats: jest.fn().mockRejectedValue(new Error('Cache error')),
+        clear: jest.fn(),
+      };
+
+      mockGetCacheAdapter.mockReturnValue(mockCacheAdapter as any);
+
+      await expect(adminService.clearCache()).rejects.toThrow('Cache error');
     });
   });
 });

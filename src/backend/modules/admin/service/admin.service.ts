@@ -863,3 +863,56 @@ export async function getSyncErrors() {
 
   return syncErrors;
 }
+
+/**
+ * Clear cache service
+ * Clears all Redis cache entries and returns stats
+ */
+export async function clearCache(): Promise<{
+  success: boolean;
+  timestamp: string;
+  message: string;
+  stats?: {
+    before: Record<string, unknown>;
+    after: Record<string, unknown>;
+  };
+}> {
+  const cacheModule = await import('@lib/cache/adapter');
+  const { getCacheAdapter } = cacheModule;
+  
+  const cache = getCacheAdapter();
+
+  // Get stats before clear
+  const statsBefore = await cache.getStats();
+
+  // Clear all cache entries
+  await cache.clear();
+
+  // Get stats after clear
+  const statsAfter = await cache.getStats();
+
+  // Convert CacheStats to Record<string, unknown> for DTO compatibility
+  const statsBeforeRecord: Record<string, unknown> = {
+    type: statsBefore.type,
+    size: statsBefore.size,
+    hits: statsBefore.hits,
+    misses: statsBefore.misses,
+  };
+  
+  const statsAfterRecord: Record<string, unknown> = {
+    type: statsAfter.type,
+    size: statsAfter.size,
+    hits: statsAfter.hits,
+    misses: statsAfter.misses,
+  };
+
+  return {
+    success: true,
+    timestamp: new Date().toISOString(),
+    message: 'Redis cache cleared successfully',
+    stats: {
+      before: statsBeforeRecord,
+      after: statsAfterRecord,
+    },
+  };
+}
