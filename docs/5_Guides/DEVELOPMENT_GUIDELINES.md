@@ -476,6 +476,277 @@ describe('updateUser', () => {
 
 ---
 
+## Server-Side Imports (Static vs Dynamic)
+
+When to Use import at the Top vs await import() Inside Functions
+
+🧭 Purpose of This Section
+
+This guide defines clear rules for when to use function-scoped dynamic imports (await import()) and when to use static, top-level imports in our codebase.
+
+It is designed for:
+
+- Next.js 16+
+- React 19 (RSC)
+- Route Handlers (app/api/**)
+- MVC backend modules (src/backend/modules/**)
+- Server Actions
+- Edge/serverless runtimes
+- Supabase (service vs RLS clients)
+
+### 1. Architectural Overview: How Imports Affect Next.js
+
+#### 1.1 Static Import Graph (Top-Level import)
+```
+ ┌────────────────────┐
+ │ Page / Component   │
+ └─────────┬──────────┘
+           │
+           ▼
+   ┌───────────────┐
+   │ Static Imports │  <-- analyzed by compiler/bundler
+   └───────┬───────┘
+           │
+           ▼
+  Affects Client Bundle ⚠  
+  Affects RSC graph  
+  Hoisted by optimizer  
+```
+
+Static imports define the bundle graph.
+They determine:
+
+- client vs server inclusion
+- tree-shaking
+- which modules load on boot
+
+#### 1.2 Dynamic Import Graph (await import() inside function)
+```
+ ┌──────────────────────┐
+ │ Function Execution   │
+ └───────────┬─────────┘
+             │ runtime
+             ▼
+   ┌───────────────────┐
+   │  Dynamic Import   │  <-- NOT analyzed by bundler
+   └───────────────────┘
+```
+
+Dynamic imports:
+
+- are not part of client bundle analysis
+- never leak server libs to the browser
+- load only when needed
+- reduce cold-start cost
+
+### 2. When to Use Dynamic Import (await import())
+✔ Recommended in backend, forbidden or limited in frontend
+
+#### 2.1 Use Case: Server-Only Dependencies
+
+(Supabase service role, Prisma, AWS SDK, FS, crypto, image/PDF libs)
+
+Why
+
+Static import risks leaking the module into client bundles.
+Dynamic import guarantees backend isolation.
+
+Example
+```typescript
+export async function getUser() {
+  const { prisma } = await import("@/backend/db/prisma");
+  return prisma.user.findMany();
+}
+```
+
+#### 2.2 Use Case: Heavy or Expensive Libraries
+
+(Sharp, pdf-lib, AWS clients, OpenAI, Redis, Cheerio, XML parsers)
+
+Why
+
+Reduce cold start in serverless runtimes.
+
+Example
+```typescript
+export async function resizeImage() {
+  const sharp = await import("sharp");
+  return sharp.default().resize(200);
+}
+```
+
+#### 2.3 Use Case: Conditional Logic
+
+(strategy pattern, feature flags, AB tests)
+
+Diagram
+```
+              ┌─────────────┐
+Request ─────▶│ Controller  │
+              └──────┬──────┘
+                     ▼
+             ┌────────────────┐
+             │ if A → import A │
+             │ if B → import B │
+             └────────────────┘
+```
+
+Example
+```typescript
+export async function runStrategy(type) {
+  if (type === "premium")
+    return (await import("./premium")).execute();
+
+  return (await import("./basic")).execute();
+}
+```
+
+#### 2.4 Use Case: MVC Controller → Service Lazy Loading
+
+This keeps heavy service modules out of the RSC graph.
+
+Example
+```typescript
+export const createSession = withAuth(
+  withErrorHandler(async (req) => {
+    const { createSessionService } = await import("./session.service");
+    return createSessionService(req);
+  })
+);
+```
+
+#### 2.5 Use Case: Avoiding RSC Hoisting / Client Bundling Bugs
+
+RSC may hoist static imports into the client graph.
+Dynamic imports avoid this entirely.
+
+### 3. When NOT to Use Dynamic Import
+
+#### 3.1 DO NOT use inside Client Components
+
+Client bundles require static analysis.
+
+Bad:
+```typescript
+"use client";
+async function Comp() {
+  const Editor = (await import("./Editor")).default; // ❌
+}
+```
+
+Correct:
+```typescript
+"use client";
+const Editor = dynamic(() => import("./Editor"));
+```
+
+#### 3.2 DO NOT use for Small Utilities
+```typescript
+export async function add(a, b) {
+  const { add } = await import("date-fns"); // ❌ Overkill
+  return add(a, b);
+}
+```
+
+Use static:
+```typescript
+import { add } from "date-fns";
+```
+
+#### 3.3 DO NOT use inside loops or hot paths
+
+Dynamic import adds async overhead.
+
+Bad:
+```typescript
+for (...) await import("heavy"); // ❌
+```
+
+#### 3.4 DO NOT use when build-time static analysis is required
+
+Examples:
+
+- types
+- module federation
+- tree-shaking
+- bundler optimizations
+
+### 4. Decision Table
+| Scenario | Static Import | Dynamic Import |
+|----------|---------------|----------------|
+| Server-only dependency (Prisma, AWS, Sharp) | ❌ | ✔ |
+| Heavy library | ❌ | ✔ |
+| Conditional import | ❌ | ✔ |
+| MVC backend controller/service | ❌ | ✔ |
+| Server Action / Route Handler | Optional | ✔ Recommended |
+| Client Component | ✔ | ❌ |
+| Small shared utilities | ✔ | ❌ |
+| Code running in loops | ✔ | ❌ |
+| Code needed at build time | ✔ | ❌ |
+
+### 5. Patterns for Our Project Structure
+
+You use:
+
+- src/backend/modules/**/controller.ts
+- src/backend/modules/**/service.ts
+- src/backend/modules/**/repository.ts
+- withAuth()
+- withErrorHandler()
+- RLS + service role
+
+#### 5.1 Controller Layer (dynamic import recommended)
+```typescript
+export const updateUser = withAuth(
+  withErrorHandler(async (req) => {
+    const { updateUserService } = await import("./updateUser.service");
+    return updateUserService(req);
+  })
+);
+```
+
+#### 5.2 Service Layer (dynamic for heavy libs)
+```typescript
+export async function updateUserService(input) {
+  const { prisma } = await import("@/backend/db/prisma");
+  return prisma.user.update(...);
+}
+```
+
+#### 5.3 Repository Layer (static imports OK)
+
+Most repositories use light DB helpers.
+
+```typescript
+import { db } from "@/backend/db"; // static OK
+```
+
+### 6. Visual Summary Diagram
+```
+                 ┌───────────────────────────────┐
+                 │           CODEPATH            │
+                 └──────────────┬────────────────┘
+                                ▼
+                         Is it server-only?
+                                │
+               ┌───────────────┴───────────────┐
+               │                               │
+             YES                               NO
+               │                               │
+       Use dynamic import               Is it client-side?
+               │                               │
+               ▼                          ┌────┴─────┐
+     Heavy? Conditional?                  │    YES    │
+               │                          └────┬─────┘
+      ┌────────┴────────┐                     ▼
+      │                 │               Use static or dynamic()
+      ▼                 ▼               
+ Use dynamic      Not heavy? small?  
+ import           static is better
+```
+
+---
+
 ## Code Conventions
 
 ### Import Patterns

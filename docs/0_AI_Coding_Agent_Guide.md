@@ -451,6 +451,30 @@ src/backend/modules/users/
 9. **Client components only when absolutely needed.**
 10. **Every route folder MUST have** `loading.tsx` and `error.tsx`.
 11. **Mutations MUST call** `revalidatePath()` or `revalidateTag()`.
+12. **Coding Agent Rule — Function-Scoped Imports**
+
+    Use a dynamic `await import()` only when:
+
+    - importing a server-only library (DB, cloud SDK, FS, image/PDF/crypto libs)
+    - lazy-loading a heavy module to reduce cold-start
+    - module is conditional (feature flags, strategies, variations)
+    - inside Server Components, Route Handlers, Server Actions, or MVC backend modules
+    - you need to avoid client bundling or RSC hoisting
+    - initializing heavy objects should be deferred (DB, cache, parser, etc.)
+
+    Use top-level static import for:
+
+    - small utilities
+    - shared helpers
+    - code used frequently
+    - client components
+    - libraries expected to be tree-shaken
+    - anything that must be analyzed at build
+    - tight-loop or high-frequency execution paths
+
+    Dynamic import is a server-only optimization tool, not a default pattern.
+
+    **For detailed guidance on static vs dynamic imports, see:** [DEVELOPMENT_GUIDELINES.md - Server-Side Imports](../5_Guides/DEVELOPMENT_GUIDELINES.md#server-side-imports-static-vs-dynamic)
 
 ---
 
@@ -1057,6 +1081,29 @@ Before submitting code, verify:
 - [ ] Console has no errors in browser dev tools
 
 ---
+
+### Rule for Function-Scoped Imports
+
+Use a dynamic `await import()` only when:
+
+- Importing a server-only library (DB, cloud SDK, FS, image/PDF/crypto libs)
+- Lazy-loading a heavy module to reduce cold-start
+- Module is conditional (feature flags, strategies, variations)
+- Inside Server Components, Route Handlers, Server Actions, or MVC backend modules
+- You need to avoid client bundling or RSC hoisting
+- Initializing heavy objects should be deferred (DB, cache, parser, etc.)
+
+Use top-level static import for:
+
+- Small utilities
+- Shared helpers
+- Code used frequently
+- Client components
+- Libraries expected to be tree-shaken
+- Anything that must be analyzed at build
+- Tight-loop or high-frequency execution paths
+
+**Dynamic import is a server-only optimization tool, not a default pattern.**
 
 
 
