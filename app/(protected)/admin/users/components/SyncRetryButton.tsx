@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { syncSubscription } from '../[userId]/actions';
 
 interface SyncRetryButtonProps {
   userId: string;
@@ -14,17 +15,7 @@ export default function SyncRetryButton({ userId }: SyncRetryButtonProps) {
   const handleSync = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`/api/admin/users/${userId}/sync-subscription`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      });
-
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({ message: 'Failed to sync' }));
-        alert(error.error?.message || error.message || 'Failed to sync subscription');
-        return;
-      }
-
+      await syncSubscription(userId);
       alert('Subscription synced successfully');
       router.refresh();
     } catch (error) {

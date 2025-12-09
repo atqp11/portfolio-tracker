@@ -34,7 +34,7 @@ export async function getUser(): Promise<User | null> {
     return null;
   }
 
-  console.log('User fetched successfully:', user);
+ // console.log('User fetched successfully:', user);
   return user;
 }
 

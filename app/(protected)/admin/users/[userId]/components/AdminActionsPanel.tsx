@@ -1,15 +1,20 @@
- 'use client';
+'use client';
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Profile } from '@lib/supabase/db';
 import { TIER_CONFIG, type TierName } from '@lib/tiers/config';
+import ConfirmModal from '@/components/shared/ConfirmModal';
+import {
+  syncSubscription,
+  cancelSubscription,
+  changeTier,
+  extendTrial,
+} from '../actions';
 
 interface AdminActionsPanelProps {
   user: Profile;
 }
-
-import ConfirmModal from '@/components/shared/ConfirmModal';
 
 export default function AdminActionsPanel({ user }: AdminActionsPanelProps) {
   const router = useRouter();
@@ -17,8 +22,6 @@ export default function AdminActionsPanel({ user }: AdminActionsPanelProps) {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [pendingAction, setPendingAction] = useState<{
     action: string;
-    endpoint: string;
-    body?: Record<string, unknown>;
     inputKey?: string; // key to attach input value to in payload (eg 'days' or 'reason')
   } | null>(null);
   const [pendingRequiresInput, setPendingRequiresInput] = useState(false);
@@ -30,76 +33,50 @@ export default function AdminActionsPanel({ user }: AdminActionsPanelProps) {
   const performAction = async () => {
     if (!pendingAction) return;
 
-    const { action, endpoint, body } = pendingAction;
+    const { action } = pendingAction;
 
     setLoading(true);
     try {
-      // Build payload and attach typed input under the configured inputKey
-      let payload: Record<string, unknown> = {};
-      if (pendingRequiresInput && pendingAction?.inputKey) {
+      // Validate input if required
+      if (pendingRequiresInput) {
         if (!pendingInputValue || String(pendingInputValue).trim().length === 0) {
           alert('Please enter a value before continuing');
           setLoading(false);
           return;
         }
-
-        payload = { ...(body || {}) };
-        if (pendingInputType === 'number') {
-          payload[pendingAction.inputKey] = parseInt(pendingInputValue as string, 10);
-        } else {
-          payload[pendingAction.inputKey] = pendingInputValue;
-        }
-      } else {
-        payload = body || {};
       }
 
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload || {}),
-      });
-
-      if (!response.ok) {
-        // Try to extract a useful error message from the server response.
-        // API errors commonly come back as { success: false, error: { message, details } }
-        const payload = await response.json().catch(() => null);
-        const serverMessage = payload?.error?.message || payload?.message || null;
-
-        // Format validation details (array of { field, message }) into a readable string
-        let detailsMsg = '';
-        const details = payload?.error?.details || payload?.details || null;
-        if (Array.isArray(details) && details.length > 0) {
-          const lines = details.map((d: unknown) => {
-            if (typeof d === 'string') return d;
-            if (typeof d === 'object' && d !== null) {
-              const detailObj = d as Record<string, unknown>;
-              const fld = detailObj.field ?? detailObj.path ?? detailObj.key ?? 'field';
-              const m = detailObj.message ?? JSON.stringify(d);
-              return `${fld}: ${m}`;
-            }
-            return String(d);
-          });
-          detailsMsg = ` - Details: ${lines.join('; ')}`;
+      // Call appropriate server action based on action type
+      if (action === 'sync subscription') {
+        await syncSubscription(user.id);
+      } else if (action === 'cancel subscription') {
+        await cancelSubscription(user.id);
+      } else if (action === 'change tier') {
+        if (!pendingInputValue || String(pendingInputValue).trim().length === 0) {
+          alert('Please enter a reason before continuing');
+          setLoading(false);
+          return;
         }
-
-        const msg = `${serverMessage || `Failed to ${action}`}${detailsMsg}`;
-        throw new Error(msg);
+        await changeTier(user.id, selectedTier, pendingInputValue);
+      } else if (action === 'extend trial') {
+        const days = parseInt(pendingInputValue, 10);
+        if (isNaN(days) || days <= 0) {
+          alert('Please enter a valid number of days');
+          setLoading(false);
+          return;
+        }
+        await extendTrial(user.id, days);
+      } else {
+        throw new Error(`Unknown action: ${action}`);
       }
 
       alert(`${action} successful`);
       router.refresh();
     } catch (error) {
-      // Prefer Error.message when available, otherwise try to stringify an object payload
       if (error instanceof Error) {
         alert(error.message);
-      } else if (typeof error === 'object' && error !== null) {
-        try {
-          alert(JSON.stringify(error));
-        } catch {
-          alert('An error occurred');
-        }
       } else {
-        alert(String(error || 'An error occurred'));
+        alert('An error occurred');
       }
     } finally {
       setLoading(false);
@@ -110,14 +87,12 @@ export default function AdminActionsPanel({ user }: AdminActionsPanelProps) {
 
   const triggerAction = (
     action: string,
-    endpoint: string,
-    body?: Record<string, unknown>,
     requiresInput = false,
     defaultInput = '7',
     inputType: 'number' | 'text' = 'number',
     inputKey?: string
   ) => {
-    setPendingAction({ action, endpoint, body, inputKey });
+    setPendingAction({ action, inputKey });
     setPendingRequiresInput(requiresInput);
     setPendingInputType(inputType);
     setPendingInputValue(defaultInput);
@@ -129,7 +104,7 @@ export default function AdminActionsPanel({ user }: AdminActionsPanelProps) {
       <h2 className="text-xl font-bold mb-4 text-gray-100">Admin Actions</h2>
       <div className="flex flex-wrap gap-2">
         <button
-          onClick={() => triggerAction('sync subscription', `/api/admin/users/${user.id}/sync-subscription`)}
+          onClick={() => triggerAction('sync subscription')}
           disabled={loading}
           className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 disabled:opacity-50"
         >
@@ -138,9 +113,7 @@ export default function AdminActionsPanel({ user }: AdminActionsPanelProps) {
 
         {user.subscription_status !== 'canceled' && (
           <button
-            onClick={() =>
-              triggerAction('cancel subscription', `/api/admin/users/${user.id}/cancel-subscription`)
-            }
+            onClick={() => triggerAction('cancel subscription')}
             disabled={loading}
             className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 disabled:opacity-50"
           >
@@ -149,10 +122,10 @@ export default function AdminActionsPanel({ user }: AdminActionsPanelProps) {
         )}
 
         <button
-            onClick={() => {
-              // Open modal with numeric input
-              triggerAction('extend trial', `/api/admin/users/${user.id}/extend-trial`, {}, true, '7', 'number', 'days');
-            }}
+          onClick={() => {
+            // Open modal with numeric input
+            triggerAction('extend trial', true, '7', 'number', 'days');
+          }}
           disabled={loading}
           className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 disabled:opacity-50"
         >
@@ -183,8 +156,6 @@ export default function AdminActionsPanel({ user }: AdminActionsPanelProps) {
                 // Prompt admin for a required reason (changeTier schema requires `reason` and `tier`)
                 triggerAction(
                   'change tier',
-                  `/api/admin/users/${user.id}/change-tier`,
-                  { tier: selectedTier },
                   true,
                   '',
                   'text',

@@ -128,6 +128,9 @@ export class AdminController {
   /**
    * GET /api/admin/users/[userId]
    * Get single user details
+   * 
+   * @deprecated This HTTP route has been removed. Use `getUserDetailsData()` for RSC pages instead.
+   * This method is kept for reference only and is no longer accessible via HTTP.
    */
   async getUserById(
     req: NextRequest,
@@ -203,6 +206,9 @@ export class AdminController {
   /**
    * POST /api/admin/users/[userId]/deactivate
    * Deactivate user account
+   * 
+   * @deprecated This HTTP route is deprecated. Use the `deactivateUser()` server action instead.
+   * This method is kept for backward compatibility but should not be used in new code.
    */
   async deactivateUser(
     req: NextRequest,
@@ -245,6 +251,9 @@ export class AdminController {
   /**
    * POST /api/admin/users/[userId]/reactivate
    * Reactivate user account
+   * 
+   * @deprecated This HTTP route is deprecated. Use the `reactivateUser()` server action instead.
+   * This method is kept for backward compatibility but should not be used in new code.
    */
   async reactivateUser(
     req: NextRequest,
@@ -273,6 +282,9 @@ export class AdminController {
   /**
    * POST /api/admin/users/[userId]/change-tier
    * Change user's tier
+   * 
+   * @deprecated This HTTP route is deprecated. Use the `changeTier()` or `updateUserTier()` server action instead.
+   * This method is kept for backward compatibility but should not be used in new code.
    */
   async changeTier(
     req: NextRequest,
@@ -303,6 +315,9 @@ export class AdminController {
   /**
    * POST /api/admin/users/[userId]/cancel-subscription
    * Cancel user's subscription
+   * 
+   * @deprecated This HTTP route is deprecated. Use the `cancelSubscription()` server action instead.
+   * This method is kept for backward compatibility but should not be used in new code.
    */
   async cancelSubscription(
     req: NextRequest,
@@ -333,6 +348,9 @@ export class AdminController {
   /**
    * POST /api/admin/users/[userId]/refund
    * Process refund for user
+   * 
+   * @deprecated This HTTP route is deprecated. Use the `refundUser()` server action instead.
+   * This method is kept for backward compatibility but should not be used in new code.
    */
   async refundUser(
     req: NextRequest,
@@ -364,6 +382,9 @@ export class AdminController {
   /**
    * POST /api/admin/users/[userId]/extend-trial
    * Extend user's trial period
+   * 
+   * @deprecated This HTTP route is deprecated. Use the `extendTrial()` server action instead.
+   * This method is kept for backward compatibility but should not be used in new code.
    */
   async extendTrial(
     req: NextRequest,
@@ -390,6 +411,9 @@ export class AdminController {
   /**
    * POST /api/admin/users/[userId]/sync-subscription
    * Sync user's subscription from Stripe
+   * 
+   * @deprecated This HTTP route is deprecated. Use the `syncSubscription()` server action instead.
+   * This method is kept for backward compatibility but should not be used in new code.
    */
   async syncSubscription(
     req: NextRequest,
@@ -418,7 +442,12 @@ export class AdminController {
 
   /**
    * PUT /api/admin/users/[id]
-   * Update user tier or admin status (legacy route)
+   * Update user tier or admin status
+   * 
+   * @deprecated This HTTP route has been removed. Use server actions instead:
+   * - For tier updates: `updateUserTierData()` controller method (called by `updateUserTier()` server action)
+   * - For admin status updates: `updateAdminStatusData()` controller method (called by `updateAdminStatus()` server action)
+   * This method is kept for reference only and is no longer accessible via HTTP.
    */
   async updateUser(
     req: NextRequest,
@@ -476,6 +505,9 @@ export class AdminController {
   /**
    * DELETE /api/admin/users/[userId]/quota
    * Reset user's quota (delete usage tracking records)
+   * 
+   * @deprecated This HTTP route is deprecated. Use the `resetUserQuota()` server action instead.
+   * This method is kept for backward compatibility but should not be used in new code.
    */
   async resetUserQuota(
     req: NextRequest,
@@ -700,6 +732,164 @@ export class AdminController {
     z.number().int().positive().max(365, 'Cannot extend trial more than 365 days').parse(days);
     
     return await adminService.extendTrial(userId, adminId, days);
+  }
+
+  /**
+   * Deactivate user account (for server actions)
+   * Validates input with Zod schema
+   */
+  async deactivateUserData(
+    userId: string,
+    adminId: string,
+    reason?: string,
+    notes?: string,
+    cancelSubscription?: boolean
+  ) {
+    // Validate input
+    getUserByIdInputSchema.parse({ userId });
+    
+    return await adminService.deactivateUser({
+      userId,
+      adminId,
+      reason: reason || 'Admin deactivation',
+      notes,
+      cancelSubscription: cancelSubscription || false,
+    });
+  }
+
+  /**
+   * Reactivate user account (for server actions)
+   * Validates input with Zod schema
+   */
+  async reactivateUserData(userId: string, adminId: string) {
+    // Validate input
+    getUserByIdInputSchema.parse({ userId });
+    
+    return await adminService.reactivateUser({
+      userId,
+      adminId,
+    });
+  }
+
+  /**
+   * Update user tier (for server actions)
+   * Alias for changeTierData - can be used for simple tier updates without reason requirement
+   * Validates input with Zod schema
+   */
+  async updateUserTierData(userId: string, adminId: string, newTier: 'free' | 'basic' | 'premium') {
+    // Validate input
+    getUserByIdInputSchema.parse({ userId });
+    z.enum(['free', 'basic', 'premium']).parse(newTier);
+    
+    return await adminService.changeUserTier({
+      userId,
+      adminId,
+      newTier,
+    });
+  }
+
+  /**
+   * Update user admin status (for server actions)
+   * Validates input with Zod schema
+   */
+  async updateAdminStatusData(userId: string, adminId: string, isAdmin: boolean) {
+    // Validate input
+    getUserByIdInputSchema.parse({ userId });
+    z.boolean().parse(isAdmin);
+    
+    // Get current user to log before state
+    const user = await adminService.getUserDetails(userId);
+    if (!user) {
+      throw new Error('User not found');
+    }
+    
+    // Import the database function
+    const { updateUserAdminStatus } = await import('@lib/supabase/db');
+    const result = await updateUserAdminStatus(userId, isAdmin);
+    
+    if (!result) {
+      throw new Error('Failed to update admin status');
+    }
+    
+    // Log admin action
+    const adminDao = await import('@backend/modules/admin/dao/admin.dao');
+    await adminDao.logAdminAction({
+      admin_id: adminId,
+      target_user_id: userId,
+      action: isAdmin ? 'grant_admin' : 'revoke_admin',
+      entity_type: 'user',
+      entity_id: userId,
+      before_state: { is_admin: user.is_admin },
+      after_state: { is_admin: isAdmin },
+    });
+    
+    return result;
+  }
+
+  /**
+   * Reset user quota (for server actions)
+   * Validates input with Zod schema
+   */
+  async resetUserQuotaData(userId: string, adminId: string) {
+    // Validate input
+    getUserByIdInputSchema.parse({ userId });
+    
+    // Verify user exists
+    const user = await adminService.getUserDetails(userId);
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    // Delete all usage tracking records for this user
+    const { createAdminClient } = await import('@lib/supabase/admin');
+    const supabase = createAdminClient();
+    const { error } = await supabase
+      .from('usage_tracking')
+      .delete()
+      .eq('user_id', userId);
+
+    if (error) {
+      throw new Error(`Failed to reset quota: ${error.message}`);
+    }
+
+    // Log admin action
+    const adminDao = await import('@backend/modules/admin/dao/admin.dao');
+    await adminDao.logAdminAction({
+      admin_id: adminId,
+      target_user_id: userId,
+      action: 'reset_user_quota',
+      entity_type: 'user',
+      entity_id: userId,
+      after_state: { quota_reset: true },
+    });
+
+    return { success: true, userId };
+  }
+
+  /**
+   * Refund user payment (for server actions)
+   * Validates input with Zod schema
+   */
+  async refundUserData(
+    userId: string,
+    adminId: string,
+    amountCents: number,
+    reason: string,
+    note?: string
+  ) {
+    // Validate input
+    getUserByIdInputSchema.parse({ userId });
+    z.number().int().positive().parse(amountCents);
+    z.string().min(1, 'Reason is required').parse(reason);
+    
+    await adminService.refundUser({
+      userId,
+      adminId,
+      amount: amountCents,
+      reason,
+    });
+
+    return { success: true, userId };
   }
 }
 

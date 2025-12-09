@@ -533,4 +533,342 @@ describe('Admin Controller - RSC Methods', () => {
       expect(mockAdminService.getWebhookLogsPaginated).toHaveBeenCalledWith(1, 50);
     });
   });
+
+  // ============================================================================
+  // RSC SERVER ACTION METHODS TESTS
+  // ============================================================================
+
+  describe('syncSubscriptionData', () => {
+    const validUserId = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11';
+    const validAdminId = 'b1ffcd00-ad1c-5fg9-cc7e-7cc0ce491b22';
+
+    it('should sync subscription for valid user ID', async () => {
+      const mockUser = {
+        id: validUserId,
+        email: 'user@example.com',
+        tier: 'premium',
+        is_active: true,
+      };
+
+      mockAdminService.syncUserSubscription.mockResolvedValue(mockUser as any);
+
+      const result = await controller.syncSubscriptionData(validUserId, validAdminId);
+
+      expect(result).toEqual(mockUser);
+      expect(mockAdminService.syncUserSubscription).toHaveBeenCalledWith(validUserId, validAdminId);
+    });
+
+    it('should throw ZodError for invalid user ID', async () => {
+      await expect(
+        controller.syncSubscriptionData('invalid-uuid', validAdminId)
+      ).rejects.toThrow(ZodError);
+
+      expect(mockAdminService.syncUserSubscription).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('cancelSubscriptionData', () => {
+    const validUserId = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11';
+    const validAdminId = 'b1ffcd00-ad1c-5fg9-cc7e-7cc0ce491b22';
+
+    it('should cancel subscription with default immediately=false', async () => {
+      await controller.cancelSubscriptionData(validUserId, validAdminId);
+
+      expect(mockAdminService.cancelUserSubscription).toHaveBeenCalledWith(
+        validUserId,
+        validAdminId,
+        false
+      );
+    });
+
+    it('should cancel subscription immediately when specified', async () => {
+      await controller.cancelSubscriptionData(validUserId, validAdminId, true);
+
+      expect(mockAdminService.cancelUserSubscription).toHaveBeenCalledWith(
+        validUserId,
+        validAdminId,
+        true
+      );
+    });
+
+    it('should throw ZodError for invalid user ID', async () => {
+      await expect(
+        controller.cancelSubscriptionData('invalid-uuid', validAdminId)
+      ).rejects.toThrow(ZodError);
+    });
+  });
+
+  describe('changeTierData', () => {
+    const validUserId = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11';
+    const validAdminId = 'b1ffcd00-ad1c-5fg9-cc7e-7cc0ce491b22';
+
+    it('should change tier for valid inputs', async () => {
+      const mockUser = {
+        id: validUserId,
+        tier: 'premium',
+      };
+
+      mockAdminService.changeUserTier.mockResolvedValue(mockUser as any);
+
+      const result = await controller.changeTierData(validUserId, validAdminId, 'premium');
+
+      expect(result).toEqual(mockUser);
+      expect(mockAdminService.changeUserTier).toHaveBeenCalledWith({
+        userId: validUserId,
+        adminId: validAdminId,
+        newTier: 'premium',
+      });
+    });
+
+    it('should throw ZodError for invalid tier', async () => {
+      await expect(
+        controller.changeTierData(validUserId, validAdminId, 'invalid' as any)
+      ).rejects.toThrow(ZodError);
+    });
+
+    it('should throw ZodError for invalid user ID', async () => {
+      await expect(
+        controller.changeTierData('invalid-uuid', validAdminId, 'premium')
+      ).rejects.toThrow(ZodError);
+    });
+  });
+
+  describe('extendTrialData', () => {
+    const validUserId = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11';
+    const validAdminId = 'b1ffcd00-ad1c-5fg9-cc7e-7cc0ce491b22';
+
+    it('should extend trial for valid inputs', async () => {
+      const mockUser = {
+        id: validUserId,
+        trial_ends_at: '2024-12-31T00:00:00Z',
+      };
+
+      mockAdminService.extendTrial.mockResolvedValue(mockUser as any);
+
+      const result = await controller.extendTrialData(validUserId, validAdminId, 30);
+
+      expect(result).toEqual(mockUser);
+      expect(mockAdminService.extendTrial).toHaveBeenCalledWith(validUserId, validAdminId, 30);
+    });
+
+    it('should throw ZodError for invalid days (too large)', async () => {
+      await expect(
+        controller.extendTrialData(validUserId, validAdminId, 400)
+      ).rejects.toThrow(ZodError);
+    });
+
+    it('should throw ZodError for invalid days (negative)', async () => {
+      await expect(
+        controller.extendTrialData(validUserId, validAdminId, -1)
+      ).rejects.toThrow(ZodError);
+    });
+
+    it('should throw ZodError for invalid user ID', async () => {
+      await expect(
+        controller.extendTrialData('invalid-uuid', validAdminId, 30)
+      ).rejects.toThrow(ZodError);
+    });
+  });
+
+  describe('deactivateUserData', () => {
+    const validUserId = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11';
+    const validAdminId = 'b1ffcd00-ad1c-5fg9-cc7e-7cc0ce491b22';
+
+    it('should deactivate user with default reason', async () => {
+      const mockUser = {
+        id: validUserId,
+        is_active: false,
+      };
+
+      mockAdminService.deactivateUser.mockResolvedValue(mockUser as any);
+
+      const result = await controller.deactivateUserData(validUserId, validAdminId);
+
+      expect(result).toEqual(mockUser);
+      expect(mockAdminService.deactivateUser).toHaveBeenCalledWith({
+        userId: validUserId,
+        adminId: validAdminId,
+        reason: 'Admin deactivation',
+        notes: undefined,
+        cancelSubscription: false,
+      });
+    });
+
+    it('should deactivate user with custom reason and options', async () => {
+      const mockUser = {
+        id: validUserId,
+        is_active: false,
+      };
+
+      mockAdminService.deactivateUser.mockResolvedValue(mockUser as any);
+
+      const result = await controller.deactivateUserData(
+        validUserId,
+        validAdminId,
+        'Violation of terms',
+        'User violated terms of service',
+        true
+      );
+
+      expect(result).toEqual(mockUser);
+      expect(mockAdminService.deactivateUser).toHaveBeenCalledWith({
+        userId: validUserId,
+        adminId: validAdminId,
+        reason: 'Violation of terms',
+        notes: 'User violated terms of service',
+        cancelSubscription: true,
+      });
+    });
+
+    it('should throw ZodError for invalid user ID', async () => {
+      await expect(
+        controller.deactivateUserData('invalid-uuid', validAdminId)
+      ).rejects.toThrow(ZodError);
+    });
+  });
+
+  describe('reactivateUserData', () => {
+    const validUserId = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11';
+    const validAdminId = 'b1ffcd00-ad1c-5fg9-cc7e-7cc0ce491b22';
+
+    it('should reactivate user', async () => {
+      const mockUser = {
+        id: validUserId,
+        is_active: true,
+      };
+
+      mockAdminService.reactivateUser.mockResolvedValue(mockUser as any);
+
+      const result = await controller.reactivateUserData(validUserId, validAdminId);
+
+      expect(result).toEqual(mockUser);
+      expect(mockAdminService.reactivateUser).toHaveBeenCalledWith({
+        userId: validUserId,
+        adminId: validAdminId,
+      });
+    });
+
+    it('should throw ZodError for invalid user ID', async () => {
+      await expect(
+        controller.reactivateUserData('invalid-uuid', validAdminId)
+      ).rejects.toThrow(ZodError);
+    });
+  });
+
+  describe('updateUserTierData', () => {
+    const validUserId = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11';
+    const validAdminId = 'b1ffcd00-ad1c-5fg9-cc7e-7cc0ce491b22';
+
+    it('should update user tier', async () => {
+      const mockUser = {
+        id: validUserId,
+        tier: 'basic',
+      };
+
+      mockAdminService.changeUserTier.mockResolvedValue(mockUser as any);
+
+      const result = await controller.updateUserTierData(validUserId, validAdminId, 'basic');
+
+      expect(result).toEqual(mockUser);
+      expect(mockAdminService.changeUserTier).toHaveBeenCalledWith({
+        userId: validUserId,
+        adminId: validAdminId,
+        newTier: 'basic',
+      });
+    });
+
+    it('should throw ZodError for invalid tier', async () => {
+      await expect(
+        controller.updateUserTierData(validUserId, validAdminId, 'invalid' as any)
+      ).rejects.toThrow(ZodError);
+    });
+  });
+
+  describe('resetUserQuotaData', () => {
+    const validUserId = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11';
+    const validAdminId = 'b1ffcd00-ad1c-5fg9-cc7e-7cc0ce491b22';
+
+    beforeEach(() => {
+      // Mock dynamic imports
+      jest.mock('@lib/supabase/admin', () => ({
+        createAdminClient: jest.fn(() => ({
+          from: jest.fn(() => ({
+            delete: jest.fn(() => ({
+              eq: jest.fn().mockResolvedValue({ data: null, error: null }),
+            })),
+          })),
+        })),
+      }));
+
+      jest.mock('@backend/modules/admin/dao/admin.dao', () => ({
+        logAdminAction: jest.fn().mockResolvedValue(undefined),
+      }));
+    });
+
+    it('should validate user ID before processing', async () => {
+      await expect(
+        controller.resetUserQuotaData('invalid-uuid', validAdminId)
+      ).rejects.toThrow(ZodError);
+
+      expect(mockAdminService.getUserDetails).not.toHaveBeenCalled();
+    });
+
+    it('should throw error when user not found', async () => {
+      mockAdminService.getUserDetails.mockResolvedValue(null);
+
+      await expect(
+        controller.resetUserQuotaData(validUserId, validAdminId)
+      ).rejects.toThrow('User not found');
+
+      expect(mockAdminService.getUserDetails).toHaveBeenCalledWith(validUserId);
+    });
+
+    // Note: Full integration test for resetUserQuotaData would require
+    // mocking Supabase client and adminDao, which is better suited for
+    // integration tests. This test focuses on validation and error handling.
+  });
+
+  describe('refundUserData', () => {
+    const validUserId = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11';
+    const validAdminId = 'b1ffcd00-ad1c-5fg9-cc7e-7cc0ce491b22';
+
+    it('should process refund successfully', async () => {
+      mockAdminService.refundUser.mockResolvedValue(undefined);
+
+      const result = await controller.refundUserData(
+        validUserId,
+        validAdminId,
+        1000,
+        'Customer requested refund',
+        'Refund note'
+      );
+
+      expect(result.success).toBe(true);
+      expect(result.userId).toBe(validUserId);
+      expect(mockAdminService.refundUser).toHaveBeenCalledWith({
+        userId: validUserId,
+        adminId: validAdminId,
+        amount: 1000,
+        reason: 'Customer requested refund',
+      });
+    });
+
+    it('should throw ZodError for invalid amount (negative)', async () => {
+      await expect(
+        controller.refundUserData(validUserId, validAdminId, -100, 'reason')
+      ).rejects.toThrow(ZodError);
+    });
+
+    it('should throw ZodError for empty reason', async () => {
+      await expect(
+        controller.refundUserData(validUserId, validAdminId, 1000, '')
+      ).rejects.toThrow(ZodError);
+    });
+
+    it('should throw ZodError for invalid user ID', async () => {
+      await expect(
+        controller.refundUserData('invalid-uuid', validAdminId, 1000, 'reason')
+      ).rejects.toThrow(ZodError);
+    });
+  });
 });

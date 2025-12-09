@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { deactivateUser, reactivateUser } from '../[userId]/actions';
 
 interface UserActionsProps {
   userId: string;
@@ -19,18 +20,7 @@ export default function UserActions({ userId, isActive, currentUserId }: UserAct
     
     setLoading(true);
     try {
-      const response = await fetch(`/api/admin/users/${userId}/deactivate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reason: 'Admin deactivation' }),
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        const errorMessage = errorData.error || errorData.message || 'Failed to deactivate user';
-        throw new Error(errorMessage);
-      }
-      
+      await deactivateUser(userId, 'Admin deactivation');
       router.refresh();
     } catch (error) {
       alert(error instanceof Error ? error.message : 'Error deactivating user');
@@ -45,17 +35,10 @@ export default function UserActions({ userId, isActive, currentUserId }: UserAct
 
     setLoading(true);
     try {
-      const response = await fetch(`/api/admin/users/${userId}/reactivate`, {
-        method: 'POST',
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to reactivate user');
-      }
-
+      await reactivateUser(userId);
       router.refresh();
     } catch (error) {
-      alert('Error reactivating user');
+      alert(error instanceof Error ? error.message : 'Error reactivating user');
       console.error(error);
     } finally {
       setLoading(false);

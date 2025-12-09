@@ -17,8 +17,6 @@ export default function PlanManagement({ user }: PlanManagementProps) {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [pendingAction, setPendingAction] = useState<{
     action: string;
-    endpoint: string;
-    body?: Record<string, unknown>;
     inputKey?: string;
   } | null>(null);
   const [pendingRequiresInput, setPendingRequiresInput] = useState(false);
@@ -78,12 +76,11 @@ export default function PlanManagement({ user }: PlanManagementProps) {
 
   const triggerAction = (
     action: string,
-    endpoint: string,
     requiresInput = false,
     defaultInput = '7',
     inputType: 'number' | 'text' = 'number'
   ) => {
-    setPendingAction({ action, endpoint, inputKey: requiresInput ? (inputType === 'number' ? 'days' : 'reason') : undefined });
+    setPendingAction({ action, inputKey: requiresInput ? (inputType === 'number' ? 'days' : 'reason') : undefined });
     setPendingRequiresInput(requiresInput);
     setPendingInputType(inputType);
     setPendingInputValue(defaultInput);
@@ -119,7 +116,6 @@ export default function PlanManagement({ user }: PlanManagementProps) {
                 if (selectedTier && selectedTier !== user.tier) {
                   triggerAction(
                     'change tier',
-                    `/api/admin/users/${user.id}/change-tier`,
                     true,
                     '',
                     'text'
@@ -138,7 +134,7 @@ export default function PlanManagement({ user }: PlanManagementProps) {
         <div>
           <button
             onClick={() => {
-              triggerAction('extend trial', `/api/admin/users/${user.id}/extend-trial`, true, '7', 'number');
+              triggerAction('extend trial', true, '7', 'number');
             }}
             disabled={loading}
             className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 disabled:opacity-50"

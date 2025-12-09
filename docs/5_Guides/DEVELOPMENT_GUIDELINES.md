@@ -136,6 +136,346 @@ This results in a **cleaner codebase and a smoother UI** - less boilerplate, bet
 
 ---
 
+### Server Action Validation Pattern - Deep Dive
+
+> **For quick reference and coding agent instructions, see:** [0_AI_Coding_Agent_Guide.md - Server Actions](../0_AI_Coding_Agent_Guide.md#server-actions-appactionsts)
+
+#### Why `safeParse()` Instead of `parse()`?
+
+Understanding the difference between these two Zod methods is crucial for robust error handling:
+
+**The Problem with `.parse()`:**
+```typescript
+// ❌ This looks clean but has a critical flaw
+export async function updateUser(userId: string) {
+  const validatedId = userIdSchema.parse(userId); // Throws ZodError directly
+  await controller.update(validatedId);
+}
+```
+
+When validation fails, `.parse()` throws a `ZodError` **immediately**, before your try-catch can wrap it. This means:
+- The error bypasses your error handling logic
+- Next.js receives an uncaught exception
+- Users see generic error pages instead of helpful validation messages
+- Error boundaries get raw ZodError objects (not user-friendly)
+
+**The Solution with `.safeParse()`:**
+```typescript
+// ✅ Controlled error handling
+export async function updateUser(userId: string) {
+  try {
+    const result = userIdSchema.safeParse(userId);
+    if (!result.success) {
+      // We control what happens with the error
+      throw new Error(formatValidationError(result.error));
+    }
+    // result.data is now type-safe and validated
+    await controller.update(result.data);
+  } catch (error) {
+    // All errors (validation + runtime) caught here
+    throw new Error(error instanceof Error ? error.message : 'Update failed');
+  }
+}
+```
+
+**Key Benefits:**
+1. **Controlled Flow:** Validation errors are data, not exceptions
+2. **User-Friendly Messages:** You format errors before throwing
+3. **Type Safety:** `result.data` is properly typed after validation
+4. **Consistent Handling:** All errors go through the same path
+5. **Better Testing:** Easy to test validation separately from business logic
+
+#### Why Throw Errors Instead of Returning `{ success, error }`?
+
+You might wonder why we throw errors instead of returning structured responses like:
+```typescript
+return { success: false, error: 'Validation failed' };
+```
+
+**Reasons for Throwing:**
+
+1. **Next.js Error Boundaries:** React/Next.js error boundaries (`error.tsx`) are specifically designed to catch thrown errors. They provide:
+   - Automatic error UI rendering
+   - Error recovery (reset functionality)
+   - Error logging integration
+   - Simplified client component code
+
+2. **Cleaner Client Code:**
+   ```typescript
+   // With throwing (cleaner)
+   try {
+     await updateUser(userId);
+     toast.success('Updated!');
+   } catch (error) {
+     toast.error(error.message); // Error boundary also catches
+   }
+
+   // With returning (more boilerplate)
+   const result = await updateUser(userId);
+   if (result.success) {
+     toast.success('Updated!');
+   } else {
+     toast.error(result.error);
+     // Also need to manually show error UI
+   }
+   ```
+
+3. **Framework Conventions:** Aligns with Next.js 14+ server action patterns where errors are expected to be thrown and caught by error boundaries.
+
+4. **Automatic Error Display:** The `error.tsx` boundary shows errors without any client-side code needed.
+
+**Trade-offs:**
+- ✅ Simpler client components
+- ✅ Automatic error UI via error.tsx
+- ✅ Framework-standard pattern
+- ⚠️ Requires error.tsx in every route folder
+- ⚠️ Less granular control (use structured responses for complex UIs)
+
+#### The `formatValidationError()` Helper Explained
+
+```typescript
+function formatValidationError(error: z.ZodError): string {
+  if (error.issues && error.issues.length > 0) {
+    const firstError = error.issues[0];
+    const field = firstError.path.length > 0 ? firstError.path.join('.') : '';
+    return field ? `${field}: ${firstError.message}` : firstError.message;
+  }
+  return 'Validation failed';
+}
+```
+
+**What it does:**
+- Extracts the first validation error (usually most relevant)
+- Builds field path (e.g., `user.email` or `address.zip`)
+- Combines field + message for clarity
+- Falls back gracefully if error structure is unexpected
+
+**Example outputs:**
+- `email: Invalid email format`
+- `age: Expected number, received string`
+- `address.zip: String must contain at least 5 characters`
+
+**Why not show all errors?**
+- User experience: One clear error is better than overwhelming users
+- Error boundaries: Simpler to display single error message
+- Progressive disclosure: Fix one, see next (guides users)
+
+**For multi-field forms:** Consider using structured responses instead of throwing, or enhance the helper to return all errors.
+
+#### Error Boundary (`error.tsx`) Deep Dive
+
+Every route folder needs an error boundary to catch thrown errors from Server Actions:
+
+```typescript
+'use client';
+
+import { useEffect } from 'react';
+
+export default function Error({
+  error,
+  reset,
+}: {
+  error: Error & { digest?: string };
+  reset: () => void;
+}) {
+  useEffect(() => {
+    // Optional: Log to error reporting service
+    console.error('Route error:', error);
+  }, [error]);
+
+  return (
+    <div className="flex min-h-screen flex-col items-center justify-center p-4">
+      <div className="w-full max-w-md space-y-4 rounded-lg border border-red-200 bg-red-50 p-6 dark:border-red-900 dark:bg-red-950">
+        <div className="flex items-start space-x-3">
+          <svg className="h-6 w-6 flex-shrink-0 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+          <div>
+            <h2 className="text-lg font-semibold text-red-900 dark:text-red-100">
+              Something went wrong
+            </h2>
+            <p className="mt-1 text-sm text-red-700 dark:text-red-300">
+              {error.message || 'An unexpected error occurred'}
+            </p>
+          </div>
+        </div>
+        <button
+          onClick={reset}
+          className="w-full rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
+        >
+          Try again
+        </button>
+      </div>
+    </div>
+  );
+}
+```
+
+**Key Features:**
+1. **`'use client'` Directive:** Error boundaries must be Client Components
+2. **Error Object:** Receives the thrown error with message and optional digest
+3. **Reset Function:** Allows users to retry the failed operation
+4. **Theme Support:** Uses dark mode classes for consistent UI
+5. **Error Logging:** Optional `useEffect` for error reporting services
+
+**Why This Pattern Works:**
+- Automatic: Catches all errors from Server Actions in this route
+- User-Friendly: Custom UI instead of blank screen
+- Recoverable: Reset button lets users try again
+- Maintainable: One error boundary per route keeps it scoped
+
+#### Complete Server Action Example with All Patterns
+
+```typescript
+'use server';
+
+import { z } from 'zod';
+import { revalidatePath } from 'next/cache';
+import { authGuard } from '@/backend/modules/auth/guards';
+import { userController } from '@/backend/modules/user/controller';
+
+// 1. Define validation schemas (reusable)
+const userIdSchema = z.string().uuid('Invalid user ID format');
+const updateUserSchema = z.object({
+  name: z.string().min(1, 'Name is required').max(100, 'Name too long'),
+  email: z.string().email('Invalid email format'),
+  age: z.number().int().positive('Age must be positive').optional(),
+});
+
+// 2. Validation error formatter (reusable)
+function formatValidationError(error: z.ZodError): string {
+  if (error.issues && error.issues.length > 0) {
+    const firstError = error.issues[0];
+    const field = firstError.path.length > 0 ? firstError.path.join('.') : '';
+    return field ? `${field}: ${firstError.message}` : firstError.message;
+  }
+  return 'Validation failed';
+}
+
+/**
+ * Updates a user's profile information
+ * @throws Error with user-friendly message if validation or update fails
+ */
+export async function updateUser(
+  userId: string,
+  data: { name: string; email: string; age?: number }
+) {
+  try {
+    // Step 1: Authentication check
+    const session = await authGuard();
+    
+    // Step 2: Authorization check
+    if (session.userId !== userId && !session.isAdmin) {
+      throw new Error('Unauthorized: You can only update your own profile');
+    }
+
+    // Step 3: Validate userId
+    const userIdResult = userIdSchema.safeParse(userId);
+    if (!userIdResult.success) {
+      throw new Error(formatValidationError(userIdResult.error));
+    }
+
+    // Step 4: Validate data payload
+    const dataResult = updateUserSchema.safeParse(data);
+    if (!dataResult.success) {
+      throw new Error(formatValidationError(dataResult.error));
+    }
+
+    // Step 5: Call controller (business logic)
+    const updatedUser = await userController.update(
+      userIdResult.data,
+      dataResult.data,
+      session.userId
+    );
+
+    // Step 6: Revalidate affected paths
+    revalidatePath(`/users/${userIdResult.data}`);
+    revalidatePath('/users'); // If user list needs refresh
+
+    // Step 7: Return success
+    return { 
+      success: true, 
+      data: updatedUser // Optional: return data for client
+    };
+  } catch (error) {
+    // Step 8: Centralized error handling
+    console.error('Update user failed:', error);
+    
+    // Re-throw with user-friendly message
+    throw new Error(
+      error instanceof Error ? error.message : 'Failed to update user'
+    );
+  }
+}
+```
+
+**Why This Example is Complete:**
+1. ✅ Schema validation with `safeParse()`
+2. ✅ Error formatting with helper
+3. ✅ Authentication with `authGuard()`
+4. ✅ Authorization (ownership check)
+5. ✅ Controller delegation (no direct DB)
+6. ✅ Path revalidation after mutation
+7. ✅ Comprehensive error handling
+8. ✅ JSDoc documentation
+9. ✅ Type-safe throughout
+10. ✅ Follows all architectural rules
+
+#### Testing Server Actions
+
+```typescript
+// __tests__/actions/updateUser.test.ts
+import { updateUser } from '@/app/(protected)/users/actions';
+import { authGuard } from '@/backend/modules/auth/guards';
+import { userController } from '@/backend/modules/user/controller';
+
+jest.mock('@/backend/modules/auth/guards');
+jest.mock('@/backend/modules/user/controller');
+
+describe('updateUser', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('should throw error for invalid userId format', async () => {
+    (authGuard as jest.Mock).mockResolvedValue({ userId: '123', isAdmin: false });
+
+    await expect(
+      updateUser('not-a-uuid', { name: 'John', email: 'john@example.com' })
+    ).rejects.toThrow('Invalid user ID format');
+  });
+
+  it('should throw error for invalid email', async () => {
+    (authGuard as jest.Mock).mockResolvedValue({ userId: 'valid-uuid', isAdmin: false });
+
+    await expect(
+      updateUser('valid-uuid', { name: 'John', email: 'invalid-email' })
+    ).rejects.toThrow('email: Invalid email format');
+  });
+
+  it('should successfully update user', async () => {
+    const mockUser = { id: 'valid-uuid', name: 'John', email: 'john@example.com' };
+    (authGuard as jest.Mock).mockResolvedValue({ userId: 'valid-uuid', isAdmin: false });
+    (userController.update as jest.Mock).mockResolvedValue(mockUser);
+
+    const result = await updateUser('valid-uuid', { 
+      name: 'John', 
+      email: 'john@example.com' 
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.data).toEqual(mockUser);
+    expect(userController.update).toHaveBeenCalledWith(
+      'valid-uuid',
+      { name: 'John', email: 'john@example.com' },
+      'valid-uuid'
+    );
+  });
+});
+```
+
+---
+
 ## Code Conventions
 
 ### Import Patterns

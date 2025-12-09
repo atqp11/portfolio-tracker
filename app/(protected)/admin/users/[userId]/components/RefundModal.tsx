@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { refundUser } from '../actions';
 
 interface RefundModalProps {
   userId: string;
@@ -28,20 +29,12 @@ export default function RefundModal({ userId, chargeId, amount, currency, isOpen
 
     setLoading(true);
     try {
-      const response = await fetch(`/api/admin/users/${userId}/refund`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          amountCents: Math.round(refundAmount * 100),
-          reason,
-          note,
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to process refund');
-      }
+      await refundUser(
+        userId,
+        Math.round(refundAmount * 100),
+        reason,
+        note
+      );
 
       alert('Refund processed successfully');
       router.refresh();

@@ -131,12 +131,91 @@ src/
 ### Server Actions (`app/*/actions.ts`)
 
 **MUST:**
-- Call controllers
+- Call controllers (NOT services or repositories directly)
 - Use `authGuard()` before sensitive operations
 - Use `revalidatePath()` after mutations
+- **Use `safeParse()` for validation, NOT `parse()`**
+- Throw errors after validation failures (caught by `error.tsx`)
+- Include `formatValidationError()` helper for user-friendly error messages
 
 **MUST NOT:**
 - Call DB or services directly
+- Use Zod's `.parse()` method (throws uncaught errors)
+
+**Validation Pattern (Required):**
+
+```typescript
+'use server';
+
+import { z } from 'zod';
+import { revalidatePath } from 'next/cache';
+import { authGuard } from '@/backend/modules/auth/guards';
+import { someController } from '@/backend/modules/some-module/controller';
+
+// Define schemas at top of file
+const inputSchema = z.object({
+  field: z.string().min(1, 'Field is required'),
+});
+
+/**
+ * Helper to format Zod validation errors into user-friendly messages
+ */
+function formatValidationError(error: z.ZodError): string {
+  if (error.issues && error.issues.length > 0) {
+    const firstError = error.issues[0];
+    const field = firstError.path.length > 0 ? firstError.path.join('.') : '';
+    return field ? `${field}: ${firstError.message}` : firstError.message;
+  }
+  return 'Validation failed';
+}
+
+export async function myAction(userId: string, data: unknown) {
+  try {
+    // 1. Auth check
+    const session = await authGuard();
+    if (!session.somePermission) {
+      throw new Error('Unauthorized');
+    }
+
+    // 2. Validate with safeParse (NOT parse)
+    const result = inputSchema.safeParse(data);
+    if (!result.success) {
+      throw new Error(formatValidationError(result.error));
+    }
+
+    // 3. Call controller
+    await someController.doSomething(result.data, session.userId);
+
+    // 4. Revalidate paths
+    revalidatePath('/some/path');
+
+    return { success: true };
+  } catch (error) {
+    // Re-throw with user-friendly message
+    throw new Error(error instanceof Error ? error.message : 'Action failed');
+  }
+}
+```
+
+**Error Handling with error.tsx:**
+
+Every route folder with Server Actions **MUST have**:
+- `loading.tsx` - Loading UI during async operations
+- `error.tsx` - Error boundary to catch thrown errors
+
+```
+app/(protected)/feature/
+├── page.tsx         # RSC page
+├── actions.ts       # Server actions
+├── loading.tsx      # REQUIRED
+└── error.tsx        # REQUIRED
+```
+
+**Why this pattern:**
+- `safeParse()` returns `{ success, data?, error? }` - allows controlled error handling
+- `parse()` throws `ZodError` immediately - bypasses try-catch, breaks error boundaries
+- Throwing errors lets Next.js `error.tsx` boundaries display user-friendly UI
+- `formatValidationError()` provides clear, actionable error messages
 
 ---
 
@@ -357,16 +436,21 @@ src/backend/modules/users/
 1. **Pages = RSC only.** Use `authGuard()`, call controllers via server actions/API.
 2. **Controllers validate** (Zod), **services contain logic**, **repos query DB**, **mappers convert**.
 3. **RSC pages MUST call controllers**, NOT services/repos directly.
-4. **Server actions and API routes must wrap with:**
+4. **Server actions validation:**
+   - **Use `safeParse()` NOT `parse()`** for all Zod validation
+   - **Include `formatValidationError()` helper** in actions.ts
+   - **Throw errors** after validation failures (caught by error.tsx)
+   - **Wrap entire action in try-catch**
+5. **Server actions and API routes must wrap with:**
    ```ts
    withErrorHandler(withAuth(fn))
    ```
-5. **All inputs validated with Zod** in controllers (from `/zod`).
-6. **All outputs returned as DTO** (from `/dto`).
-7. **Services use mappers** for DB ↔ DTO conversion.
-8. **Client components only when absolutely needed.**
-9. **Every route folder MUST have** `loading.tsx` and `error.tsx`.
-10. **Mutations MUST call** `revalidatePath()` or `revalidateTag()`.
+6. **All inputs validated with Zod** in controllers (from `/zod`).
+7. **All outputs returned as DTO** (from `/dto`).
+8. **Services use mappers** for DB ↔ DTO conversion.
+9. **Client components only when absolutely needed.**
+10. **Every route folder MUST have** `loading.tsx` and `error.tsx`.
+11. **Mutations MUST call** `revalidatePath()` or `revalidateTag()`.
 
 ---
 
@@ -382,6 +466,22 @@ src/backend/modules/users/
 * **Caching and revalidation** follow modern Next.js best practices.
 
 **For detailed architectural reasoning and real-world engineering context, see:** [DEVELOPMENT_GUIDELINES.md - Architecture Patterns](../5_Guides/DEVELOPMENT_GUIDELINES.md#architecture-patterns)
+
+---
+
+## 14. Developer Deep Dive
+
+**For detailed explanations, rationale, and real-world engineering context, see:**
+
+> [5_Guides/DEVELOPMENT_GUIDELINES.md - Architecture Patterns](5_Guides/DEVELOPMENT_GUIDELINES.md#architecture-patterns)
+
+This includes:
+- Why `safeParse()` vs `parse()`
+- Why throw errors vs return `{ success, error }`
+- How `formatValidationError()` works
+- Complete error.tsx boundary examples
+- Full working examples with all patterns
+- Testing strategies for Server Actions
 
 ---
 

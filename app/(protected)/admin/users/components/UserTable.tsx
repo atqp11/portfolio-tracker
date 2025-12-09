@@ -4,6 +4,7 @@ import type { AdminUserDto } from '@backend/modules/admin/dto/admin.dto';
 import UserActions from './UserActions';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { updateUserTier, resetUserQuota } from '../[userId]/actions';
 
 // (old Profile-based typing removed — this component now receives AdminUserDto)
 
@@ -48,13 +49,7 @@ export default function UserTable({ users, currentUserId }: UserTableProps) {
                   onChange={async (e) => {
                     const newTier = e.target.value;
                     try {
-                        const res = await fetch(`/api/admin/users/${user.id}`, {
-                          method: 'PUT',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ tier: newTier }),
-                        });
-                        if (!res.ok) throw new Error('Failed to update tier');
-                      // refresh to reflect changes without full page reload
+                      await updateUserTier(user.id, newTier);
                       router.refresh();
                     } catch (err) {
                       alert(err instanceof Error ? err.message : 'Failed to update tier');
@@ -103,8 +98,7 @@ export default function UserTable({ users, currentUserId }: UserTableProps) {
                   onClick={async () => {
                     if (!confirm('Reset quota for this user?')) return;
                     try {
-                      const r = await fetch(`/api/admin/users/${user.id}/quota`, { method: 'DELETE' });
-                      if (!r.ok) throw new Error('Failed to reset quota');
+                      await resetUserQuota(user.id);
                       alert('Quota reset');
                       router.refresh();
                     } catch (err) {
