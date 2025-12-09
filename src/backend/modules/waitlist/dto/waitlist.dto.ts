@@ -41,6 +41,16 @@ export const updateWaitlistStatusSchema = z.object({
 
 export type UpdateWaitlistStatusRequest = z.infer<typeof updateWaitlistStatusSchema>;
 
+/**
+ * Schema for public waitlist signup (no auth required)
+ */
+export const createWaitlistEntrySchema = z.object({
+  email: z.string().email('Please provide a valid email address'),
+  name: z.string().max(100).optional(),
+});
+
+export type CreateWaitlistEntryRequest = z.infer<typeof createWaitlistEntrySchema>;
+
 // ============================================================================
 // RESPONSE TYPES
 // ============================================================================
@@ -90,4 +100,13 @@ export interface DeleteWaitlistResponseDto {
 export interface UpdateWaitlistStatusResponseDto {
   message: string;
   updatedCount: number;
+}
+
+/**
+ * Create waitlist entry response (public signup)
+ */
+export interface CreateWaitlistEntryResponseDto {
+  message: string;
+  id: string;
+  alreadyExists?: boolean;
 }

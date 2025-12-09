@@ -639,52 +639,40 @@ The dashboard shows warnings when metrics exceed thresholds:
 | High cost/request | Review model selection, increase caching |
 | Low confidence rate | Improve prompt engineering, add examples |
 
-### API Endpoints
+### Accessing Telemetry Data
 
-#### Get Telemetry Stats
+Telemetry data is accessed via the Cost Tracking Dashboard at `/admin/costs`. The dashboard uses Server Components to call the telemetry service directly, providing real-time metrics without API overhead.
 
-```bash
-GET /api/telemetry/ai?period=24h
+**Programmatic Access:**
 
-# Response:
+If you need to access telemetry data programmatically, use the controller or service directly:
+
+```typescript
+import { telemetryController } from '@backend/modules/telemetry/telemetry.controller';
+
+// From a Server Component or Server Action
+const stats = await telemetryController.getTelemetryStats({ period: '24h' });
+```
+
+**Response Structure:**
+```typescript
 {
-  "period": "24h",
-  "stats": {
-    "totalRequests": 1234,
-    "cacheHitRate": 0.87,
-    "escalationRate": 0.08,
-    "totalCostUsd": 2.34,
-    "avgLatencyMs": 1250,
-    "p50LatencyMs": 1050,
-    "p95LatencyMs": 3200,
-    "avgCostPerRequest": 0.0019,
-    "costByProvider": { "gemini": 1.80, "groq": 0.54 },
-    "requestsByTaskType": { "chat": 1100, "filing_summary": 134 },
-    "avgConfidence": 0.913,
-    "lowConfidenceCount": 12
+  period: '24h',
+  stats: {
+    totalRequests: 1234,
+    cacheHitRate: 0.87,
+    escalationRate: 0.08,
+    totalCostUsd: 2.34,
+    avgLatencyMs: 1250,
+    p50LatencyMs: 1050,
+    p95LatencyMs: 3200,
+    avgCostPerRequest: 0.0019,
+    costByProvider: { gemini: 1.80, groq: 0.54 },
+    requestsByTaskType: { chat: 1100, filing_summary: 134 },
+    avgConfidence: 0.913,
+    lowConfidenceCount: 12
   },
-  "warnings": ["⚠️ P95 latency 7200ms > 7s target"],
-  "recentLogs": [...]
-}
-```
-
-#### Export Logs
-
-```bash
-GET /api/telemetry/ai?export=true
-
-# Downloads JSON file with all logs
-```
-
-#### Clear Logs (Admin)
-
-```bash
-POST /api/telemetry/ai/clear
-
-# Response:
-{
-  "success": true,
-  "message": "Telemetry logs cleared"
+  warnings: ["⚠️ P95 latency 7200ms > 7s target"]
 }
 ```
 

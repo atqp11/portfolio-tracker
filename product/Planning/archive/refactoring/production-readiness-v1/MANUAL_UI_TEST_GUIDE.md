@@ -137,8 +137,8 @@ curl http://localhost:3000/api/fundamentals
 # Expected: 400 "Ticker parameter is required"
 
 # Deprecated endpoint
-curl http://localhost:3000/api/scrape-news
-# Expected: 410 Gone "This endpoint has been deprecated"
+# /api/scrape-news endpoint has been removed (deprecated in Phase 3)
+# Use /api/news/copper or /api/news/energy instead
 ```
 
 **Expected Response Structure:**
@@ -199,33 +199,10 @@ curl http://localhost:3000/api/scrape-news
 
 ### 7. Performance Monitoring
 
-**Check orchestrator statistics:**
-```bash
-curl http://localhost:3000/api/telemetry/stats
-```
-
-**Expected Response:**
-```json
-{
-  "circuitBreakers": {
-    "tiingo": {
-      "state": "closed",
-      "failures": 0,
-      "successRate": 100
-    },
-    "yahooFinance": {
-      "state": "closed",
-      "failures": 0
-    }
-  },
-  "telemetry": {
-    "requests": 25,
-    "cacheHits": 15,
-    "cacheMisses": 10,
-    "averageResponseTime": 450
-  }
-}
-```
+**Check orchestrator statistics via console logs:**
+- Monitor circuit breaker state in console logs
+- Check cache hit/miss rates in service logs
+- Verify response times in network tab
 
 **Good Metrics:**
 - Circuit breaker state: "closed" ✅
@@ -246,15 +223,14 @@ curl http://localhost:3000/api/news/copper
 # Energy news (should work with RSS feeds - no API key needed)
 curl http://localhost:3000/api/news/energy
 
-# Deprecated scrape-news endpoint
-curl http://localhost:3000/api/scrape-news
-# Expected: 410 Gone with deprecation message
+# Deprecated scrape-news endpoint (removed)
+# Use /api/news/copper or /api/news/energy instead
 ```
 
 **Expected:**
 - ✅ Copper/energy news load from RSS feeds (Yahoo Finance, Google News, Investing.com)
 - ✅ No Finnhub or Brave Search errors in console
-- ✅ `/api/scrape-news` returns 410 Gone
+- ✅ `/api/scrape-news` endpoint removed (deprecated in Phase 3)
 - ✅ News articles have proper title, description, URL, source, publishedAt fields
 
 ---
@@ -318,7 +294,7 @@ npm run dev
 
 **Debug Steps:**
 1. Check API key: `echo $TIINGO_API_KEY`
-2. Check circuit breaker: `/api/telemetry/stats`
+2. Check circuit breaker state in console logs
 3. Try fallback: Set `FEATURE_TIINGO_ENABLED=false`
 4. Check logs for specific provider errors
 
@@ -350,9 +326,7 @@ npm run dev
 - [x] `/api/fundamentals?ticker=AAPL` returns valid JSON
 - [x] `/api/fundamentals?ticker=INVALID` returns 503 with friendly error
 - [x] `/api/fundamentals` (no ticker) returns 400
-- [x] `/api/scrape-news` returns 410 Gone
-- [x] `/api/news/copper` works with Brave Search
-- [x] `/api/telemetry/stats` shows orchestrator metrics
+- [x] `/api/news/copper` works with RSS feeds
 
 ### Error Handling
 - [x] No crashes with invalid input
@@ -381,7 +355,7 @@ npm run dev
 ### If All Tests Pass ✅
 1. Deploy to staging
 2. Monitor production logs
-3. Track metrics in `/api/telemetry/stats`
+3. Track metrics via console logs and service monitoring
 4. Set up alerts for circuit breaker state
 
 ### If Issues Found 🐛

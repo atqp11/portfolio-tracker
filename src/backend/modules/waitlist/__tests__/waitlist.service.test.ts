@@ -26,6 +26,12 @@ const mockDeleteWaitlistEntry = waitlistDao.deleteWaitlistEntry as jest.MockedFu
 const mockUpdateWaitlistNotificationStatus = waitlistDao.updateWaitlistNotificationStatus as jest.MockedFunction<
   typeof waitlistDao.updateWaitlistNotificationStatus
 >;
+const mockFindWaitlistEntryByEmail = waitlistDao.findWaitlistEntryByEmail as jest.MockedFunction<
+  typeof waitlistDao.findWaitlistEntryByEmail
+>;
+const mockCreateWaitlistEntry = waitlistDao.createWaitlistEntry as jest.MockedFunction<
+  typeof waitlistDao.createWaitlistEntry
+>;
 
 const mockEntries = [
   {
@@ -358,6 +364,97 @@ describe('Waitlist Service', () => {
       await expect(waitlistService.getWaitlistStats()).rejects.toThrow(
         'Database error'
       );
+    });
+  });
+
+  describe('createWaitlistEntry', () => {
+    it('should create new waitlist entry when email does not exist', async () => {
+      const newEntry = {
+        id: '3',
+        email: 'newuser@example.com',
+        name: 'New User',
+        notified: false,
+        createdAt: '2024-01-03T00:00:00Z',
+      };
+
+      mockFindWaitlistEntryByEmail.mockResolvedValue(null);
+      mockCreateWaitlistEntry.mockResolvedValue(newEntry);
+
+      const result = await waitlistService.createWaitlistEntry(
+        'newuser@example.com',
+        'New User'
+      );
+
+      expect(mockFindWaitlistEntryByEmail).toHaveBeenCalledWith('newuser@example.com');
+      expect(mockCreateWaitlistEntry).toHaveBeenCalledWith('newuser@example.com', 'New User');
+      expect(result).toEqual({
+        message: 'Thank you for joining our waitlist!',
+        id: '3',
+        alreadyExists: false,
+      });
+    });
+
+    it('should return existing entry when email already exists', async () => {
+      const existingEntry = mockEntries[0];
+
+      mockFindWaitlistEntryByEmail.mockResolvedValue(existingEntry);
+
+      const result = await waitlistService.createWaitlistEntry(
+        'user1@example.com',
+        null
+      );
+
+      expect(mockFindWaitlistEntryByEmail).toHaveBeenCalledWith('user1@example.com');
+      expect(mockCreateWaitlistEntry).not.toHaveBeenCalled();
+      expect(result).toEqual({
+        message: "You're already on the waitlist! We'll notify you when we launch.",
+        id: '1',
+        alreadyExists: true,
+      });
+    });
+
+    it('should handle null name when creating entry', async () => {
+      const newEntry = {
+        id: '4',
+        email: 'noname@example.com',
+        name: null,
+        notified: false,
+        createdAt: '2024-01-04T00:00:00Z',
+      };
+
+      mockFindWaitlistEntryByEmail.mockResolvedValue(null);
+      mockCreateWaitlistEntry.mockResolvedValue(newEntry);
+
+      const result = await waitlistService.createWaitlistEntry(
+        'noname@example.com',
+        null
+      );
+
+      expect(mockCreateWaitlistEntry).toHaveBeenCalledWith('noname@example.com', null);
+      expect(result.alreadyExists).toBe(false);
+    });
+
+    it('should propagate DAO errors when checking existing entry', async () => {
+      mockFindWaitlistEntryByEmail.mockRejectedValue(
+        new Error('Database connection failed')
+      );
+
+      await expect(
+        waitlistService.createWaitlistEntry('test@example.com', null)
+      ).rejects.toThrow('Database connection failed');
+
+      expect(mockCreateWaitlistEntry).not.toHaveBeenCalled();
+    });
+
+    it('should propagate DAO errors when creating entry', async () => {
+      mockFindWaitlistEntryByEmail.mockResolvedValue(null);
+      mockCreateWaitlistEntry.mockRejectedValue(
+        new Error('Failed to create entry')
+      );
+
+      await expect(
+        waitlistService.createWaitlistEntry('test@example.com', 'Test User')
+      ).rejects.toThrow('Failed to create entry');
     });
   });
 });

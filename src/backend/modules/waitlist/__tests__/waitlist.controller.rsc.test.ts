@@ -13,6 +13,9 @@ jest.mock('../service/waitlist.service');
 const mockListWaitlistEntries = waitlistService.listWaitlistEntries as jest.MockedFunction<
   typeof waitlistService.listWaitlistEntries
 >;
+const mockCreateWaitlistEntry = waitlistService.createWaitlistEntry as jest.MockedFunction<
+  typeof waitlistService.createWaitlistEntry
+>;
 
 describe('Waitlist Controller - RSC Methods', () => {
   beforeEach(() => {
@@ -193,6 +196,114 @@ describe('Waitlist Controller - RSC Methods', () => {
         notified: 'all',
         search: 'john@example.com',
       });
+    });
+  });
+
+  describe('createWaitlistEntryData', () => {
+    it('should return waitlist entry creation result with validated data', async () => {
+      const mockResult = {
+        message: 'Thank you for joining our waitlist!',
+        id: '123',
+        alreadyExists: false,
+      };
+
+      mockCreateWaitlistEntry.mockResolvedValue(mockResult);
+
+      const result = await waitlistController.createWaitlistEntryData({
+        email: 'user@example.com',
+        name: 'Test User',
+      });
+
+      expect(result).toEqual(mockResult);
+      expect(mockCreateWaitlistEntry).toHaveBeenCalledWith(
+        'user@example.com',
+        'Test User'
+      );
+    });
+
+    it('should handle optional name field', async () => {
+      const mockResult = {
+        message: 'Thank you for joining our waitlist!',
+        id: '124',
+        alreadyExists: false,
+      };
+
+      mockCreateWaitlistEntry.mockResolvedValue(mockResult);
+
+      const result = await waitlistController.createWaitlistEntryData({
+        email: 'user@example.com',
+      });
+
+      expect(result).toEqual(mockResult);
+      expect(mockCreateWaitlistEntry).toHaveBeenCalledWith(
+        'user@example.com',
+        null
+      );
+    });
+
+    it('should validate email format', async () => {
+      await expect(
+        waitlistController.createWaitlistEntryData({
+          email: 'invalid-email',
+          name: 'Test',
+        })
+      ).rejects.toThrow(ZodError);
+
+      expect(mockCreateWaitlistEntry).not.toHaveBeenCalled();
+    });
+
+    it('should validate email is required', async () => {
+      await expect(
+        waitlistController.createWaitlistEntryData({
+          name: 'Test',
+        } as any)
+      ).rejects.toThrow(ZodError);
+
+      expect(mockCreateWaitlistEntry).not.toHaveBeenCalled();
+    });
+
+    it('should validate name max length', async () => {
+      const longName = 'a'.repeat(101);
+
+      await expect(
+        waitlistController.createWaitlistEntryData({
+          email: 'user@example.com',
+          name: longName,
+        })
+      ).rejects.toThrow(ZodError);
+
+      expect(mockCreateWaitlistEntry).not.toHaveBeenCalled();
+    });
+
+    it('should handle existing entry response', async () => {
+      const mockResult = {
+        message: "You're already on the waitlist! We'll notify you when we launch.",
+        id: '125',
+        alreadyExists: true,
+      };
+
+      mockCreateWaitlistEntry.mockResolvedValue(mockResult);
+
+      const result = await waitlistController.createWaitlistEntryData({
+        email: 'existing@example.com',
+        name: 'Existing User',
+      });
+
+      expect(result).toEqual(mockResult);
+      expect(result.alreadyExists).toBe(true);
+    });
+
+    it('should propagate service errors', async () => {
+      mockCreateWaitlistEntry.mockRejectedValue(
+        new Error('Database connection failed')
+      );
+
+      await expect(
+        waitlistController.createWaitlistEntryData({
+          email: 'user@example.com',
+          name: 'Test',
+        })
+      ).rejects.toThrow('Database connection failed');
     });
   });
 });

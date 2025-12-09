@@ -72,7 +72,7 @@ All complex routes have been refactored to use proper MVC layers:
 | ErrorResponse normalization | ✅ | Risk controller uses `ErrorResponse.*` wrappers |
 | Cache constants deduplication | ✅ | Created `common/constants/cache.constants.ts` |
 | SEC Edgar error normalization | ✅ | Uses `ErrorResponse.*` wrappers |
-| Telemetry admin auth | ✅ | POST `/api/telemetry/ai` requires admin |
+| Telemetry admin auth | ✅ | Telemetry accessed via `/admin/costs` dashboard |
 | Waitlist Zod validation | ✅ | Public route uses Zod + `SuccessResponse`/`ErrorResponse` |
 | Admin waitlist management | ✅ | GET/DELETE/PATCH with pagination, auth, tests |
 
@@ -88,7 +88,7 @@ These routes already follow best practices:
 | `/api/quote` | ✅ Clean | Uses `stockDataService`, normalized responses |
 | `/api/commodities/*` | ✅ Clean | Uses `marketDataService` |
 | `/api/news/portfolio/[id]` | ✅ Clean | Uses `NewsService`, `portfolioController` |
-| `/api/scrape-news` | ✅ Clean | Uses `finnhubService` |
+| `/api/scrape-news` | ✅ Removed | Deprecated endpoint removed (Finnhub service removed in Phase 3) |
 
 ---
 
@@ -100,7 +100,7 @@ These routes are simple CRUD with no complex business logic:
 |-------|--------|-------|
 | `/api/waitlist` | ✅ Clean | Public signup, Zod validation, normalized responses |
 | `/api/admin/waitlist` | ✅ Clean | Admin CRUD, pagination, auth, integration tests |
-| `/api/telemetry/ai` | ✅ Clean | Admin-protected POST, simple read operations |
+| Telemetry | ✅ Clean | Accessed via `/admin/costs` dashboard (RSC pattern) |
 
 **Design Decision:** Simple CRUD routes without complex business logic don't require a service layer. Mobile apps can call these REST endpoints directly.
 

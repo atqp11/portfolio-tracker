@@ -436,8 +436,10 @@ Content-Type: application/json
 
 **API Endpoints**
 - ✅ `/api/user/quota` - Quota checking and tier info
-- ✅ `/api/telemetry/ai` - Telemetry stats retrieval
 - ✅ `/api/ai/chat` - AI chat with routing and telemetry
+
+**Telemetry Dashboard**
+- ✅ `/admin/costs` - Cost tracking dashboard with real-time telemetry metrics
 
 **Documentation**
 - ✅ Complete user tier limits documentation (`USER_TIER_LIMITS.md`)

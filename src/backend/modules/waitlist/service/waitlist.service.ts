@@ -11,6 +11,7 @@ import type {
   ListWaitlistResponseDto,
   DeleteWaitlistResponseDto,
   UpdateWaitlistStatusResponseDto,
+  CreateWaitlistEntryResponseDto,
   PaginationDto,
 } from '../dto/waitlist.dto';
 import { NotFoundError } from '@backend/common/middleware/error-handler.middleware';
@@ -137,5 +138,37 @@ export async function getWaitlistStats(): Promise<{
     total,
     notified,
     pending: total - notified,
+  };
+}
+
+/**
+ * Create a new waitlist entry (public signup)
+ *
+ * @param email - Email address
+ * @param name - Optional name
+ * @returns Creation response with entry ID and status
+ */
+export async function createWaitlistEntry(
+  email: string,
+  name: string | null
+): Promise<CreateWaitlistEntryResponseDto> {
+  // Check if entry already exists
+  const existing = await waitlistDao.findWaitlistEntryByEmail(email);
+
+  if (existing) {
+    return {
+      message: "You're already on the waitlist! We'll notify you when we launch.",
+      id: existing.id,
+      alreadyExists: true,
+    };
+  }
+
+  // Create new entry
+  const entry = await waitlistDao.createWaitlistEntry(email, name);
+
+  return {
+    message: 'Thank you for joining our waitlist!',
+    id: entry.id,
+    alreadyExists: false,
   };
 }

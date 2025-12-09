@@ -152,7 +152,7 @@ describe('TelemetryController', () => {
 
   describe('getStats (HTTP handler)', () => {
     it('should handle HTTP request and return NextResponse', async () => {
-      const mockRequest = new NextRequest('http://localhost:3000/api/telemetry/ai?period=24h');
+      const mockRequest = new NextRequest('http://localhost:3000/api/telemetry?period=24h');
 
       const mockServiceResult = {
         period: '24h' as const,
@@ -189,7 +189,7 @@ describe('TelemetryController', () => {
     });
 
     it('should return 400 for invalid query parameters', async () => {
-      const mockRequest = new NextRequest('http://localhost:3000/api/telemetry/ai?period=invalid');
+      const mockRequest = new NextRequest('http://localhost:3000/api/telemetry?period=invalid');
 
       const zodError = new z.ZodError([
         {
@@ -211,7 +211,7 @@ describe('TelemetryController', () => {
     });
 
     it('should return 500 for unexpected errors', async () => {
-      const mockRequest = new NextRequest('http://localhost:3000/api/telemetry/ai?period=24h');
+      const mockRequest = new NextRequest('http://localhost:3000/api/telemetry?period=24h');
 
       jest.spyOn(controller, 'getTelemetryStats').mockRejectedValue(new Error('Database error'));
 
@@ -224,7 +224,7 @@ describe('TelemetryController', () => {
     });
 
     it('should use default period when query param is missing', async () => {
-      const mockRequest = new NextRequest('http://localhost:3000/api/telemetry/ai');
+      const mockRequest = new NextRequest('http://localhost:3000/api/telemetry');
 
       const mockServiceResult = {
         period: '24h' as const,

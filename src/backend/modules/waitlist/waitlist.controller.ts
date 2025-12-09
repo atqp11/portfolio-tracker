@@ -11,6 +11,7 @@ import type {
   ListWaitlistQuery,
   DeleteWaitlistRequest,
   UpdateWaitlistStatusRequest,
+  CreateWaitlistEntryRequest,
 } from './dto/waitlist.dto';
 import { SuccessResponse } from '@lib/types/base/response.dto';
 
@@ -77,4 +78,20 @@ export async function listWaitlistEntriesData(query: ListWaitlistQuery) {
   );
   
   return await waitlistService.listWaitlistEntries(validated);
+}
+
+/**
+ * Create waitlist entry (for RSC pages and server actions)
+ * Validates input with Zod schema
+ * Returns DTO directly, no NextResponse wrapping
+ */
+export async function createWaitlistEntryData(data: CreateWaitlistEntryRequest) {
+  // Validate input
+  const { createWaitlistEntrySchema } = await import('./dto/waitlist.dto');
+  const validated = createWaitlistEntrySchema.parse(data);
+  
+  return await waitlistService.createWaitlistEntry(
+    validated.email,
+    validated.name || null
+  );
 }

@@ -128,6 +128,34 @@ export async function findWaitlistEntryById(
 }
 
 /**
+ * Find a single waitlist entry by email
+ * Uses admin client (service role) - already configured
+ *
+ * @param email - Email address
+ * @returns Waitlist entry or null if not found
+ */
+export async function findWaitlistEntryByEmail(
+  email: string
+): Promise<WaitlistEntryDto | null> {
+  const supabase = createAdminClient();
+
+  const { data, error } = await supabase
+    .from('waitlist')
+    .select('*')
+    .eq('email', email)
+    .maybeSingle();
+
+  if (error) {
+    if (error.code === 'PGRST116') {
+      return null; // Not found
+    }
+    throw new Error(`Failed to fetch waitlist entry: ${error.message}`);
+  }
+
+  return data ? mapToDto(data) : null;
+}
+
+/**
  * Delete a waitlist entry by ID
  *
  * @param id - Waitlist entry ID
@@ -180,6 +208,53 @@ export async function updateWaitlistNotificationStatus(
   }
 
   return data?.length || 0;
+}
+
+/**
+ * Create a new waitlist entry (public signup)
+ * Uses admin client (service role) - reuses existing SUPABASE_SERVICE_ROLE_KEY
+ * RLS policy allows public inserts, so service role can insert on behalf of public
+ *
+ * @param email - Email address
+ * @param name - Optional name
+ * @returns Created waitlist entry
+ * @throws Error if creation fails
+ */
+export async function createWaitlistEntry(
+  email: string,
+  name: string | null
+): Promise<WaitlistEntryDto> {
+  // Use admin client - reuses existing SUPABASE_SERVICE_ROLE_KEY configuration
+  const supabase = createAdminClient();
+
+  // Create new entry
+  const { data, error } = await supabase
+    .from('waitlist')
+    .insert({
+      email,
+      name: name || null,
+    })
+    .select()
+    .single();
+
+  if (error) {
+    // Handle unique constraint violation
+    if (error.code === '23505') {
+      // Email already exists, fetch and return it
+      const { data: existingEntry } = await supabase
+        .from('waitlist')
+        .select('*')
+        .eq('email', email)
+        .single();
+
+      if (existingEntry) {
+        return mapToDto(existingEntry);
+      }
+    }
+    throw new Error(`Failed to create waitlist entry: ${error.message}`);
+  }
+
+  return mapToDto(data);
 }
 
 // ============================================================================

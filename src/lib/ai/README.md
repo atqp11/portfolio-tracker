@@ -31,8 +31,7 @@ lib/telemetry/
 
 app/api/ai/
 ├── chat/route.ts              # Chat endpoint with confidence routing
-├── generate/route.ts          # Legacy Gemini endpoint (uses old router)
-└── telemetry/ai/route.ts      # Telemetry stats API
+└── generate/route.ts          # Legacy Gemini endpoint (uses old router)
 ```
 
 ---
@@ -263,7 +262,6 @@ function estimateConfidence(response: string, context: string): number {
 - [x] Implement confidence-based router (`lib/ai/confidence-router.ts`)
 - [x] Add telemetry logging (`lib/telemetry/ai-logger.ts`)
 - [x] Create chat API endpoint (`app/api/ai/chat/route.ts`)
-- [x] Create telemetry API endpoint (`app/api/telemetry/ai/route.ts`)
 
 **Phase 2: SEC Filing Ingestion** (Week 2-3)
 - [ ] Implement EDGAR fetcher (`lib/api/secEdgar.ts` - basic exists, needs enhancement)
@@ -325,9 +323,7 @@ curl -X POST http://localhost:3000/api/ai/chat \
 
 **Check telemetry:**
 
-```bash
-curl http://localhost:3000/api/telemetry/ai?period=1h
-```
+Access the Cost Tracking Dashboard at `/admin/costs` to view telemetry statistics. The dashboard displays real-time metrics including costs, performance, and usage statistics.
 
 ---
 

@@ -9,7 +9,7 @@ function ThankYouContent() {
   const email = searchParams.get('email');
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 via-blue-900 to-gray-900 px-4">
+    <div className="min-h-screen flex items-center justify-center bg-[#0a001f] px-4">
       <div className="max-w-2xl w-full">
         {/* Success Animation */}
         <div className="text-center mb-8">
@@ -42,8 +42,8 @@ function ThankYouContent() {
           {/* Confirmation Message */}
           <div className="text-center mb-8">
             {email && (
-              <div className="inline-block px-6 py-3 bg-blue-500/20 border border-blue-400 rounded-lg mb-6">
-                <p className="text-blue-300 font-medium">
+              <div className="inline-block px-6 py-3 bg-indigo-500/20 border border-indigo-400 rounded-lg mb-6">
+                <p className="text-indigo-300 font-medium">
                   Confirmation sent to: <span className="font-bold">{email}</span>
                 </p>
               </div>
@@ -61,7 +61,7 @@ function ThankYouContent() {
           {/* Next Steps */}
           <div className="space-y-4 mb-8">
             <div className="flex items-start gap-4 p-4 bg-gray-700/30 rounded-lg border border-gray-600">
-              <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center flex-shrink-0 mt-1">
+              <div className="w-8 h-8 rounded-full bg-indigo-500 flex items-center justify-center flex-shrink-0 mt-1">
                 <span className="text-white font-bold">1</span>
               </div>
               <div>
@@ -73,7 +73,7 @@ function ThankYouContent() {
             </div>
 
             <div className="flex items-start gap-4 p-4 bg-gray-700/30 rounded-lg border border-gray-600">
-              <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center flex-shrink-0 mt-1">
+              <div className="w-8 h-8 rounded-full bg-indigo-500 flex items-center justify-center flex-shrink-0 mt-1">
                 <span className="text-white font-bold">2</span>
               </div>
               <div>
@@ -85,7 +85,7 @@ function ThankYouContent() {
             </div>
 
             <div className="flex items-start gap-4 p-4 bg-gray-700/30 rounded-lg border border-gray-600">
-              <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center flex-shrink-0 mt-1">
+              <div className="w-8 h-8 rounded-full bg-indigo-500 flex items-center justify-center flex-shrink-0 mt-1">
                 <span className="text-white font-bold">3</span>
               </div>
               <div>
@@ -169,7 +169,7 @@ function ThankYouContent() {
 export default function ThankYouPage() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 via-blue-900 to-gray-900">
+      <div className="min-h-screen flex items-center justify-center bg-[#0a001f]">
         <div className="text-white">Loading...</div>
       </div>
     }>

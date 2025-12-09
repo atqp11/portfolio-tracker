@@ -34,22 +34,20 @@ export default function ComingSoonPage() {
     setLoading(true);
 
     try {
-      const response = await fetch('/api/waitlist', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.trim(), name: name.trim() || null }),
+      const { joinWaitlist } = await import('./actions');
+      const result = await joinWaitlist({ 
+        email: email.trim(), 
+        name: name.trim() || undefined 
       });
 
-      const data = await response.json();
-
-      if (response.ok) {
+      if (result.success) {
         // Redirect to thank you page
         router.push(`/thank-you?email=${encodeURIComponent(email)}`);
       } else {
-        setError(data.error || 'Something went wrong. Please try again.');
+        setError(result.message || 'Something went wrong. Please try again.');
       }
     } catch (err) {
-      setError('Network error. Please check your connection and try again.');
+      setError(err instanceof Error ? err.message : 'Network error. Please check your connection and try again.');
     } finally {
       setLoading(false);
     }

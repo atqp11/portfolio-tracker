@@ -247,7 +247,7 @@ See [Telemetry Integration Guide](../../docs/TELEMETRY_INTEGRATION.md#performanc
 
 **Check:**
 1. Dev server running: `npm run dev`
-2. Telemetry API accessible: `curl localhost:3000/api/telemetry/ai`
+2. Cost dashboard accessible at `/admin/costs`
 3. Browser console for errors
 
 ### No Data Showing

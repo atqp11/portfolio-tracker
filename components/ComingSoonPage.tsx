@@ -214,25 +214,23 @@ const ComingSoonPage: React.FC = () => {
     setLoading(true);
 
     try {
-      const response = await fetch('/api/waitlist', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.trim(), name: name.trim() || null }),
+      const { joinWaitlist } = await import('@/app/(public)/coming-soon/actions');
+      const result = await joinWaitlist({ 
+        email: email.trim(), 
+        name: name.trim() || undefined 
       });
 
-      const data = await response.json();
-
-      if (response.ok) {
+      if (result.success) {
         setSubmitted(true);
         // Redirect to thank you page after a brief delay
         setTimeout(() => {
           router.push(`/thank-you?email=${encodeURIComponent(email)}`);
         }, 1500);
       } else {
-        setError(data.error || 'Something went wrong. Please try again.');
+        setError(result.message || 'Something went wrong. Please try again.');
       }
     } catch (err) {
-      setError('Network error. Please check your connection and try again.');
+      setError(err instanceof Error ? err.message : 'Network error. Please check your connection and try again.');
     } finally {
       setLoading(false);
     }

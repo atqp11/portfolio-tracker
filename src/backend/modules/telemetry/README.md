@@ -112,16 +112,7 @@ async findByDateRange(startDate: Date, endDate: Date): Promise<TelemetryLogRaw[]
 - ✅ No transformation (ultimate source of truth)
 - ✅ Close to DB schema
 
-### 4. API Route → Controller (Optional, for external access)
-
-**File:** `app/api/telemetry/ai/route.ts`
-
-```typescript
-export async function GET(req: NextRequest) {
-  // Controller handles HTTP request/response
-  return telemetryController.getStats(req);
-}
-```
+### 4. Controller HTTP Handler (for API routes if needed)
 
 **File:** `src/backend/modules/telemetry/telemetry.controller.ts`
 
@@ -148,6 +139,8 @@ async getStats(request: NextRequest): Promise<NextResponse> {
 - ✅ Output validation (Zod output guard)
 - ✅ HTTP error handling
 - ✅ Returns NextResponse
+
+**Note:** The controller's `getStats` method can be used by API routes if external access is needed. Currently, the UI uses the service directly via RSC pages.
 
 ## Key Principles
 

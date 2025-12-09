@@ -70,7 +70,7 @@ December 4, 2025
 - FMP and Finnhub imports removed from `provider-adapters.ts`
 - FMP and Finnhub provider classes removed
 - Updated PROVIDER_GROUPS to use Tiingo + Yahoo Finance
-- Deprecated `/api/scrape-news` endpoint (returns 410 Gone)
+- Removed `/api/scrape-news` endpoint (deprecated, Finnhub service removed)
 - Updated news service to use Brave Search as primary
 
 **Environment Files:**
@@ -133,7 +133,7 @@ December 4, 2025
 ### Modified (9 files)
 1. `.env.local.example` - Updated provider configuration
 2. `app/api/fundamentals/route.ts` - Fixed null check bug
-3. `app/api/scrape-news/route.ts` - Deprecated endpoint
+3. `app/api/scrape-news/route.ts` - Removed (deprecated endpoint)
 4. `src/backend/modules/news/service/news.service.ts` - Removed Finnhub
 5. `src/backend/modules/stocks/service/stock-data.service.ts` - Migrated to orchestrator
 6. `src/lib/config/__tests__/providers.test.ts` - Fixed test mocking
@@ -200,9 +200,9 @@ npm test         # ✅ 474/474 tests passing
    - Deploy and monitor
 
 2. **Monitor Metrics**
-   - Check orchestrator stats via `/api/telemetry/stats`
-   - Monitor circuit breaker states
-   - Track cache hit rates by tier
+   - Monitor circuit breaker states via console logs
+   - Track cache hit rates by tier via service logs
+   - Review performance metrics in application monitoring
 
 3. **Documentation Updates**
    - Update `docs/5_Guides/DATA_SOURCE_ORCHESTRATOR.md`
