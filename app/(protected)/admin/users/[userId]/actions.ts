@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { requireUser, getUserProfile } from '@lib/auth/session';
-import * as adminService from '@backend/modules/admin/service/admin.service';
+import { adminController } from '@backend/modules/admin/admin.controller';
 import { z } from 'zod';
 
 // Validation schemas
@@ -20,6 +20,7 @@ const extendTrialSchema = z.object({
 
 /**
  * Server Action: Sync user subscription from Stripe
+ * Uses controller method per guidelines (RSC pages/actions call controllers, not services)
  */
 export async function syncSubscription(userId: string) {
   // Auth check
@@ -33,7 +34,7 @@ export async function syncSubscription(userId: string) {
   const validatedUserId = userIdSchema.parse(userId);
 
   try {
-    await adminService.syncUserSubscription(validatedUserId, admin.id);
+    await adminController.syncSubscriptionData(validatedUserId, admin.id);
     revalidatePath(`/admin/users/${validatedUserId}`);
     return { success: true };
   } catch (error) {
@@ -43,6 +44,7 @@ export async function syncSubscription(userId: string) {
 
 /**
  * Server Action: Cancel user subscription
+ * Uses controller method per guidelines (RSC pages/actions call controllers, not services)
  */
 export async function cancelSubscription(userId: string) {
   // Auth check
@@ -56,7 +58,7 @@ export async function cancelSubscription(userId: string) {
   const validatedUserId = userIdSchema.parse(userId);
 
   try {
-    await adminService.cancelUserSubscription(validatedUserId, admin.id, false);
+    await adminController.cancelSubscriptionData(validatedUserId, admin.id, false);
     revalidatePath(`/admin/users/${validatedUserId}`);
     return { success: true };
   } catch (error) {
@@ -66,6 +68,7 @@ export async function cancelSubscription(userId: string) {
 
 /**
  * Server Action: Change user tier
+ * Uses controller method per guidelines (RSC pages/actions call controllers, not services)
  */
 export async function changeTier(userId: string, tier: string, reason: string) {
   // Auth check
@@ -79,11 +82,11 @@ export async function changeTier(userId: string, tier: string, reason: string) {
   const validated = changeTierSchema.parse({ userId, tier, reason });
 
   try {
-    await adminService.changeUserTier({
-      userId: validated.userId,
-      adminId: admin.id,
-      newTier: validated.tier,
-    });
+    await adminController.changeTierData(
+      validated.userId,
+      admin.id,
+      validated.tier
+    );
     revalidatePath(`/admin/users/${validated.userId}`);
     return { success: true };
   } catch (error) {
@@ -93,6 +96,7 @@ export async function changeTier(userId: string, tier: string, reason: string) {
 
 /**
  * Server Action: Extend user trial
+ * Uses controller method per guidelines (RSC pages/actions call controllers, not services)
  */
 export async function extendTrial(userId: string, days: number) {
   // Auth check
@@ -106,7 +110,7 @@ export async function extendTrial(userId: string, days: number) {
   const validated = extendTrialSchema.parse({ userId, days });
 
   try {
-    await adminService.extendTrial(validated.userId, admin.id, validated.days);
+    await adminController.extendTrialData(validated.userId, admin.id, validated.days);
     revalidatePath(`/admin/users/${validated.userId}`);
     return { success: true };
   } catch (error) {

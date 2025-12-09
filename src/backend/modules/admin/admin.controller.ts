@@ -12,6 +12,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 import { usersService } from '@backend/modules/admin/service/users.service';
 import * as adminService from '@backend/modules/admin/service/admin.service';
 import type { UserProfile } from '@lib/auth/session';
@@ -644,6 +645,61 @@ export class AdminController {
     getUserByIdInputSchema.parse({ userId });
     
     return await adminService.getStripeSubscriptionStatus(userId);
+  }
+
+  // ============================================================================
+  // RSC SERVER ACTION METHODS (Non-HTTP, for server actions)
+  // These methods validate inputs using Zod schemas and call services
+  // ============================================================================
+
+  /**
+   * Sync user subscription from Stripe (for server actions)
+   * Validates input with Zod schema
+   */
+  async syncSubscriptionData(userId: string, adminId: string) {
+    // Validate input
+    getUserByIdInputSchema.parse({ userId });
+    
+    return await adminService.syncUserSubscription(userId, adminId);
+  }
+
+  /**
+   * Cancel user subscription (for server actions)
+   * Validates input with Zod schema
+   */
+  async cancelSubscriptionData(userId: string, adminId: string, immediately: boolean = false) {
+    // Validate input
+    getUserByIdInputSchema.parse({ userId });
+    
+    return await adminService.cancelUserSubscription(userId, adminId, immediately);
+  }
+
+  /**
+   * Change user tier (for server actions)
+   * Validates input with Zod schema
+   */
+  async changeTierData(userId: string, adminId: string, newTier: 'free' | 'basic' | 'premium') {
+    // Validate input
+    getUserByIdInputSchema.parse({ userId });
+    z.enum(['free', 'basic', 'premium']).parse(newTier);
+    
+    return await adminService.changeUserTier({
+      userId,
+      adminId,
+      newTier,
+    });
+  }
+
+  /**
+   * Extend user trial (for server actions)
+   * Validates input with Zod schema
+   */
+  async extendTrialData(userId: string, adminId: string, days: number) {
+    // Validate input
+    getUserByIdInputSchema.parse({ userId });
+    z.number().int().positive().max(365, 'Cannot extend trial more than 365 days').parse(days);
+    
+    return await adminService.extendTrial(userId, adminId, days);
   }
 }
 
