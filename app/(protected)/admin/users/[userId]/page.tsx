@@ -1,5 +1,5 @@
-import { getUserDetails, getUserBillingHistory, getUserTransactions, getStripeSubscriptionStatus } from '@backend/modules/admin/service/admin.service';
-import { requireUser, getUserProfile } from '@lib/auth/session';
+import { adminController } from '@backend/modules/admin/admin.controller';
+import { requireAdmin } from '@lib/auth/session';
 import UserHeader from './components/UserHeader';
 import StateDiagnostics from './components/StateDiagnostics';
 import PlanManagement from './components/PlanManagement';
@@ -20,14 +20,12 @@ interface PageProps {
 }
 
 export default async function AdminUserDetailPage({ params }: PageProps) {
-  await requireUser();
-  const viewerProfile = await getUserProfile();
-  if (!viewerProfile?.is_admin) return redirect('/dashboard');
+  await requireAdmin();
 
   const paramsResolved = await params;
   const { userId } = paramsResolved;
 
-  const user = await getUserDetails(userId);
+  const user = await adminController.getUserDetailsData(userId);
 
   if (!user) {
     notFound();
@@ -35,9 +33,9 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
 
   // Fetch related data in parallel
   const [billingHistoryRaw, transactionsRaw, stripeStatus] = await Promise.all([
-    getUserBillingHistory(userId).catch(() => []),
-    getUserTransactions(userId).catch(() => []),
-    getStripeSubscriptionStatus(userId).catch(() => ({ status: null, lastSync: null })),
+    adminController.getUserBillingHistoryData(userId).catch(() => []),
+    adminController.getUserTransactionsData(userId).catch(() => []),
+    adminController.getStripeSubscriptionStatusData(userId).catch(() => ({ status: null, lastSync: null })),
   ]);
 
   // Transform invoices from Stripe API

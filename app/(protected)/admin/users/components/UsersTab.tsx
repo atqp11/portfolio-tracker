@@ -1,8 +1,9 @@
-import { usersService } from '@backend/modules/admin/service/users.service';
+import { adminController } from '@backend/modules/admin/admin.controller';
 import UserTable from './UserTable';
 import UserFilters from './UserFilters';
 import { getUser } from '@lib/auth/session';
 import ClearCacheButton from '../../components/ClearCacheButton';
+import Pagination from '@/components/shared/Pagination';
 
 interface UsersTabProps {
   searchParams: Promise<URLSearchParams | Record<string, string | string[]>>;
@@ -24,11 +25,14 @@ export default async function UsersTab({ searchParams }: UsersTabProps) {
   const email = getParam(searchParamsResolved, 'email');
   const tier = getParam(searchParamsResolved, 'tier');
   const status = getParam(searchParamsResolved, 'status');
+  const page = parseInt(getParam(searchParamsResolved, 'page') || '1', 10);
+  const limit = parseInt(getParam(searchParamsResolved, 'limit') || '50', 10);
 
   const currentUser = await getUser();
   const currentUserId = currentUser?.id || null;
 
-  const allUsers = await usersService.fetchAllUsersWithUsage();
+  const paginatedResult = await adminController.getUsersPaginated(page, limit);
+  const allUsers = paginatedResult.users;
 
   const usersWithUsage = allUsers.filter((u) => {
     if (email && !u.email?.toLowerCase().includes(String(email).toLowerCase())) return false;
@@ -90,6 +94,19 @@ export default async function UsersTab({ searchParams }: UsersTabProps) {
           </div>
         </div>
       </div>
+
+      {/* Pagination */}
+      {paginatedResult.pagination.total > 0 && (
+        <div className="mt-6">
+          <Pagination
+            currentPage={paginatedResult.pagination.page}
+            totalPages={paginatedResult.pagination.totalPages}
+            totalItems={paginatedResult.pagination.total}
+            itemsPerPage={paginatedResult.pagination.limit}
+            baseUrl="/admin/users"
+          />
+        </div>
+      )}
     </>
   );
 }

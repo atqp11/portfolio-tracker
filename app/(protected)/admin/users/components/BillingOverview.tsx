@@ -1,9 +1,9 @@
-import { getBillingOverview } from '@backend/modules/admin/service/admin.service';
+import { adminController } from '@backend/modules/admin/admin.controller';
 
 export default async function BillingOverview() {
   let overview;
   try {
-    overview = await getBillingOverview();
+    overview = await adminController.getBillingOverviewData();
   } catch (error) {
     return (
       <div className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg p-6 mb-6">

@@ -1,8 +1,28 @@
-import { getWebhookLogs } from '@backend/modules/admin/service/admin.service';
+import { adminController } from '@backend/modules/admin/admin.controller';
 import RetryButton from './RetryButton';
+import Pagination from '@/components/shared/Pagination';
 
-export default async function WebhookLogsTable() {
-  const logs = await getWebhookLogs(100);
+interface WebhookLogsTableProps {
+  searchParams: Promise<URLSearchParams | Record<string, string | string[]>>;
+}
+
+export default async function WebhookLogsTable({ searchParams }: WebhookLogsTableProps) {
+  const searchParamsResolved = await searchParams;
+  
+  // Extract page and limit from search params
+  const getParam = (key: string): string | undefined => {
+    if (typeof (searchParamsResolved as URLSearchParams).get === 'function') {
+      return (searchParamsResolved as URLSearchParams).get(key) ?? undefined;
+    }
+    const v = (searchParamsResolved as Record<string, string | string[]>)[key];
+    return Array.isArray(v) ? v[0] : v;
+  };
+  
+  const page = parseInt(getParam('webhookPage') || '1', 10);
+  const limit = parseInt(getParam('webhookLimit') || '50', 10);
+  
+  const result = await adminController.getWebhookLogsPaginated(page, limit);
+  const logs = result.logs;
 
   const formatLatency = (ms: number | null) => {
     if (ms === null) return '—';
@@ -87,8 +107,24 @@ export default async function WebhookLogsTable() {
           </table>
         </div>
       )}
+      
+      {/* Pagination */}
+      {result.pagination.total > 0 && (
+        <div className="mt-4">
+          <Pagination
+            currentPage={result.pagination.page}
+            totalPages={result.pagination.totalPages}
+            totalItems={result.pagination.total}
+            itemsPerPage={result.pagination.limit}
+            baseUrl="/admin/users"
+            pageParamName="webhookPage"
+          />
+        </div>
+      )}
     </div>
   );
 }
+
+
 
 

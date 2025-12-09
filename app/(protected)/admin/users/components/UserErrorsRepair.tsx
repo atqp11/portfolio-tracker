@@ -1,4 +1,4 @@
-import { getUsers } from '@backend/modules/admin/service/admin.service';
+import { adminController } from '@backend/modules/admin/admin.controller';
 import { createAdminClient } from '@lib/supabase/admin';
 import Link from 'next/link';
 import UserErrorsRepairClient from './UserErrorsRepairClient';
@@ -23,9 +23,9 @@ async function getUsersWithErrors(): Promise<UserError[]> {
   const errors: UserError[] = [];
 
   // Get users with subscription errors
-  const incompleteUsers = await getUsers({ status: 'incomplete' });
-  const incompleteExpiredUsers = await getUsers({ status: 'incomplete_expired' });
-  const pastDueUsers = await getUsers({ status: 'past_due' });
+  const incompleteUsers = await adminController.getUsersData({ status: 'incomplete' });
+  const incompleteExpiredUsers = await adminController.getUsersData({ status: 'incomplete_expired' });
+  const pastDueUsers = await adminController.getUsersData({ status: 'past_due' });
 
   incompleteUsers.users.forEach(user => {
     errors.push({

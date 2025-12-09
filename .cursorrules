@@ -1,0 +1,43 @@
+# Cursor AI Coding Agent Rules
+
+This project follows strict architectural patterns and coding guidelines defined in:
+**docs/0_AI_Coding_Agent_Guide.md**
+
+## Primary Reference Document
+
+All coding decisions, architecture patterns, and implementation details MUST follow the guidelines in:
+- `docs/0_AI_Coding_Agent_Guide.md`
+
+This document contains:
+- Next.js 16+ RSC-first architecture patterns
+- Backend module structure (`src/backend/modules/*`)
+- Layer responsibilities (Controllers, Services, Repositories, Mappers, DTOs)
+- Authentication and authorization patterns
+- Database access rules (Supabase RLS, Prisma for admin)
+- API route architecture (thin wrappers)
+- Caching strategies
+- Error handling patterns
+- Testing requirements
+
+## Quick Reference
+
+When implementing features, always:
+1. Read and follow `docs/0_AI_Coding_Agent_Guide.md` first
+2. Use Server Components by default (RSC-first)
+3. Follow the strict layer separation: Pages → Controllers → Services → Repositories
+4. Use DTOs for all data boundaries
+5. Validate with Zod schemas in controllers
+6. Use mappers for DB ↔ DTO conversion in services
+7. Never use Supabase client in Client Components
+8. Use `authGuard()` in RSC pages, `withAuth` wrappers in API routes
+9. Include `loading.tsx` and `error.tsx` for every route folder
+10. Call `revalidatePath()` after mutations
+
+## Project Context
+
+This is a Next.js 16+ portfolio tracking application with:
+- Multi-tenant architecture with RLS
+- Hybrid database access (Supabase for user-facing, Prisma for admin)
+- Server-first rendering with React Server Components
+- Backend organized under `src/backend/modules/*` with MVC-like structure
+

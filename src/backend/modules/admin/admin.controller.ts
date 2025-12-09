@@ -25,7 +25,19 @@ import type {
   CancelSubscriptionInput,
   UpdateUserInput,
 } from '@lib/validators/admin-schemas';
-import { adminUsersResponseSchema } from '@backend/modules/admin/dto/admin.dto';
+import { adminUsersResponseSchema, type AdminUserDto } from '@backend/modules/admin/dto/admin.dto';
+import {
+  getUsersInputSchema,
+  getUserByIdInputSchema,
+  getWebhookLogsInputSchema,
+  billingOverviewSchema,
+  userDetailsSchema,
+  getUsersResultSchema,
+  type GetUsersInput,
+  type BillingOverviewDto,
+  type UserDetailsDto,
+  type GetUsersResultDto,
+} from '@backend/modules/admin/zod/admin.schemas';
 
 // ============================================================================
 // CONTEXT TYPES
@@ -501,6 +513,137 @@ export class AdminController {
         error instanceof Error ? error.message : 'Unknown error'
       );
     }
+  }
+
+  // ============================================================================
+  // RSC PAGE METHODS (Non-HTTP, return DTOs directly)
+  // These methods validate inputs and outputs using Zod schemas
+  // ============================================================================
+
+  /**
+   * Get all users with usage data (for RSC pages)
+   * Validates output with Zod schema
+   * Returns DTO directly, no NextResponse wrapping
+   */
+  async getAllUsersData(): Promise<AdminUserDto[]> {
+    const users = await usersService.fetchAllUsersWithUsage();
+    
+    // Validate each user against schema
+    users.forEach(user => adminUsersResponseSchema.shape.users.element.parse(user));
+    
+    return users;
+  }
+
+  /**
+   * Get users with pagination (for RSC pages)
+   * @param page - Page number (1-indexed)
+   * @param limit - Items per page
+   */
+  async getUsersPaginated(page: number = 1, limit: number = 50) {
+    const result = await usersService.fetchUsersWithPagination(page, limit);
+    
+    // Validate each user against schema
+    result.users.forEach(user => adminUsersResponseSchema.shape.users.element.parse(user));
+    
+    return result;
+  }
+
+  /**
+   * Get billing overview data (for RSC pages)
+   * Validates output with Zod schema
+   */
+  async getBillingOverviewData(): Promise<BillingOverviewDto> {
+    const overview = await adminService.getBillingOverview();
+    
+    // Validate output
+    return billingOverviewSchema.parse(overview);
+  }
+
+  /**
+   * Get webhook logs (for RSC pages)
+   * Validates input with Zod schema
+   */
+  async getWebhookLogsData(limit: number = 100) {
+    // Validate input
+    const validated = getWebhookLogsInputSchema.parse({ limit });
+    
+    return await adminService.getWebhookLogs(validated.limit);
+  }
+
+  /**
+   * Get webhook logs with pagination (for RSC pages)
+   * @param page - Page number (1-indexed)
+   * @param limit - Items per page
+   */
+  async getWebhookLogsPaginated(page: number = 1, limit: number = 50) {
+    return await adminService.getWebhookLogsPaginated(page, limit);
+  }
+
+  /**
+   * Get sync errors (for RSC pages)
+   * No input validation needed
+   */
+  async getSyncErrorsData() {
+    return await adminService.getSyncErrors();
+  }
+
+  /**
+   * Get users with filters (for RSC pages)
+   * Validates input and output with Zod schemas
+   */
+  async getUsersData(params?: GetUsersInput): Promise<GetUsersResultDto> {
+    // Validate input
+    const validated = getUsersInputSchema.parse(params);
+    
+    const result = await adminService.getUsers(validated || {});
+    
+    // Validate output
+    return getUsersResultSchema.parse(result);
+  }
+
+  /**
+   * Get user details (for RSC pages)
+   * Validates input with Zod schema
+   * Returns raw Profile type (service already returns correct type)
+   */
+  async getUserDetailsData(userId: string) {
+    // Validate input
+    getUserByIdInputSchema.parse({ userId });
+    
+    return await adminService.getUserDetails(userId);
+  }
+
+  /**
+   * Get user billing history (for RSC pages)
+   * Validates input with Zod schema
+   */
+  async getUserBillingHistoryData(userId: string) {
+    // Validate input
+    getUserByIdInputSchema.parse({ userId });
+    
+    return await adminService.getUserBillingHistory(userId);
+  }
+
+  /**
+   * Get user transactions (for RSC pages)
+   * Validates input with Zod schema
+   */
+  async getUserTransactionsData(userId: string) {
+    // Validate input
+    getUserByIdInputSchema.parse({ userId });
+    
+    return await adminService.getUserTransactions(userId);
+  }
+
+  /**
+   * Get Stripe subscription status (for RSC pages)
+   * Validates input with Zod schema
+   */
+  async getStripeSubscriptionStatusData(userId: string) {
+    // Validate input
+    getUserByIdInputSchema.parse({ userId });
+    
+    return await adminService.getStripeSubscriptionStatus(userId);
   }
 }
 

@@ -149,6 +149,26 @@ export async function userHasTier(
 }
 
 /**
+ * Require admin access - redirects if not admin
+ * Use this in admin-only pages
+ *
+ * @example
+ * export default async function AdminPage() {
+ *   const profile = await requireAdmin();
+ *   return <AdminPanel />;
+ * }
+ */
+export async function requireAdmin(): Promise<Profile> {
+  const profile = await requireUserProfile();
+  
+  if (!profile.is_admin) {
+    redirect('/dashboard');
+  }
+
+  return profile;
+}
+
+/**
  * Require a specific tier - redirects to pricing page if user doesn't have access
  *
  * @example

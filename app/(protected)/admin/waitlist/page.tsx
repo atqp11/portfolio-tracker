@@ -1,25 +1,36 @@
 import { Suspense } from 'react';
 import WaitlistClient from './components/WaitlistClient';
-import { listWaitlistEntries } from '@backend/modules/waitlist/service/waitlist.service';
+import { listWaitlistEntriesData } from '@backend/modules/waitlist/waitlist.controller';
 import type { WaitlistEntryDto } from '@backend/modules/waitlist/dto/waitlist.dto';
+import { requireAdmin } from '@lib/auth/session';
 
 // Force dynamic rendering for admin pages
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-async function getWaitlistData(): Promise<WaitlistEntryDto[]> {
+async function getWaitlistData(page: number = 1, limit: number = 50) {
   try {
-    // Call service layer directly (Server Component)
-    const result = await listWaitlistEntries({
-      page: 1,
-      limit: 1000,
+    // Call controller layer (correct pattern for RSC)
+    const result = await listWaitlistEntriesData({
+      page,
+      limit,
       notified: 'all',
     });
 
-    return result.entries;
+    return result;
   } catch (error) {
     console.error('Error fetching waitlist:', error);
-    return [];
+    return {
+      entries: [],
+      pagination: {
+        page: 1,
+        limit: 50,
+        total: 0,
+        totalPages: 0,
+        hasNext: false,
+        hasPrev: false,
+      },
+    };
   }
 }
 
@@ -42,13 +53,38 @@ function LoadingState() {
   );
 }
 
-export default async function WaitlistAdminPage() {
-  // Server-side data fetching
-  const waitlistData = await getWaitlistData();
+interface PageProps {
+  searchParams: Promise<URLSearchParams | Record<string, string | string[]>>;
+}
+
+export default async function WaitlistAdminPage({ searchParams }: PageProps) {
+  // Require admin access
+  await requireAdmin();
+  
+  // Resolve searchParams (Next.js 16+ async pattern)
+  const searchParamsResolved = await searchParams;
+  
+  // Extract page and limit from search params
+  const getParam = (key: string): string | undefined => {
+    if (typeof (searchParamsResolved as URLSearchParams).get === 'function') {
+      return (searchParamsResolved as URLSearchParams).get(key) ?? undefined;
+    }
+    const v = (searchParamsResolved as Record<string, string | string[]>)[key];
+    return Array.isArray(v) ? v[0] : v;
+  };
+  
+  const page = parseInt(getParam('page') || '1', 10);
+  const limit = parseInt(getParam('limit') || '50', 10);
+  
+  // Server-side data fetching with pagination
+  const waitlistData = await getWaitlistData(page, limit);
 
   return (
     <Suspense fallback={<LoadingState />}>
-      <WaitlistClient initialData={waitlistData} />
+      <WaitlistClient 
+        initialData={waitlistData.entries}
+        pagination={waitlistData.pagination}
+      />
     </Suspense>
   );
 }

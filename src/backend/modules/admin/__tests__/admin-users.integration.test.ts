@@ -1,7 +1,7 @@
-import { NextRequest } from 'next/server';
-import { extractJSON, createMockProfile } from '@test/helpers/test-utils';
-import { GET } from '@app/api/admin/users/route';
-import { getAllUsers, getCurrentUserUsage, Profile } from '@lib/supabase/db';
+import { createMockProfile } from '@test/helpers/test-utils';
+import { adminController } from '@backend/modules/admin/admin.controller';
+import { Profile } from '@lib/supabase/db';
+import { usersService } from '@backend/modules/admin/service/users.service';
 
 // Define typed mock functions
 const mockGetUser = jest.fn() as jest.MockedFunction<
@@ -20,12 +20,13 @@ jest.mock('@lib/auth/session', () => ({
   requireUserProfile: jest.fn(),
   requireTier: jest.fn(),
 }));
-jest.mock('@lib/supabase/db');
+jest.mock('@backend/modules/admin/service/users.service');
 
-const mockGetAllUsers = getAllUsers as jest.MockedFunction<typeof getAllUsers>;
-const mockGetCurrentUserUsage = getCurrentUserUsage as jest.MockedFunction<typeof getCurrentUserUsage>;
+const mockFetchAllUsersWithUsage = usersService.fetchAllUsersWithUsage as jest.MockedFunction<
+  typeof usersService.fetchAllUsersWithUsage
+>;
 
-describe('Admin Users Route', () => {
+describe('Admin Users Controller Integration', () => {
   const adminProfile = createMockProfile({
     id: 'admin-1',
     email: 'admin@example.com',
@@ -42,31 +43,39 @@ describe('Admin Users Route', () => {
 
   beforeEach(() => jest.clearAllMocks());
 
-  it('returns users for admin', async () => {
-    mockGetUser.mockResolvedValue({ id: adminProfile.id, email: adminProfile.email });
-    mockGetUserProfile.mockResolvedValue(adminProfile);
-    mockGetAllUsers.mockResolvedValue([{ id: 'u1', email: 'a@example.com' }] as any);
-    mockGetCurrentUserUsage.mockResolvedValue({ daily: { chat_queries: 2 }, monthly: { sec_filings: 1 } } as any);
+  it('returns users with usage data for admin', async () => {
+    const mockUsers = [
+      {
+        id: 'u1',
+        email: 'a@example.com',
+        name: 'User A',
+        tier: 'free',
+        isAdmin: false,
+        isActive: true,
+        createdAt: '2024-01-01',
+        stripeCustomerId: null,
+        subscriptionStatus: null,
+        usage: {
+          daily: { chatQueries: 2, portfolioAnalysis: 0, secFilings: 0 },
+          monthly: { chatQueries: 10, portfolioAnalysis: 0, secFilings: 1 },
+        },
+      },
+    ];
 
-    const req = new NextRequest('http://localhost:3000/api/admin/users', { method: 'GET' });
-    const res = await GET(req);
-    const data = await extractJSON(res as any);
+    mockFetchAllUsersWithUsage.mockResolvedValue(mockUsers as any);
 
-    expect(res.status).toBe(200);
-    expect(data.success).toBe(true);
-    expect(data.data.users.length).toBe(1);
-    expect(data.data.users[0].email).toBe('a@example.com');
+    const result = await adminController.getAllUsersData();
+
+    expect(result.length).toBe(1);
+    expect(result[0].email).toBe('a@example.com');
+    expect(result[0].usage).toBeDefined();
   });
 
-  it('returns auth error when not admin', async () => {
-    mockGetUser.mockResolvedValue({ id: nonAdminProfile.id, email: nonAdminProfile.email });
-    mockGetUserProfile.mockResolvedValue(nonAdminProfile);
+  it('returns empty array when no users exist', async () => {
+    mockFetchAllUsersWithUsage.mockResolvedValue([]);
 
-    const req = new NextRequest('http://localhost:3000/api/admin/users', { method: 'GET' });
-    const res = await GET(req);
-    const data = await extractJSON(res as any);
+    const result = await adminController.getAllUsersData();
 
-    expect(res.status).toBe(403);
-    expect(data.success).toBe(false);
+    expect(result).toEqual([]);
   });
 });

@@ -662,7 +662,7 @@ export async function getChurnEvents(days: number): Promise<number> {
 }
 
 /**
- * Get webhook logs with latency and retry information
+ * Get webhook logs with latency and retry information (without pagination)
  */
 export async function getWebhookLogs(limit = 100) {
   const { createAdminClient } = await import('@lib/supabase/admin');
@@ -705,6 +705,80 @@ export async function getWebhookLogs(limit = 100) {
       errorMessage: transaction.error_message,
     };
   });
+}
+
+/**
+ * Get webhook logs with pagination
+ * @param page - Page number (1-indexed)
+ * @param limit - Items per page
+ */
+export async function getWebhookLogsPaginated(page = 1, limit = 50) {
+  const { createAdminClient } = await import('@lib/supabase/admin');
+  const supabase = createAdminClient();
+
+  // Calculate offset
+  const from = (page - 1) * limit;
+  const to = from + limit - 1;
+
+  // Fetch total count
+  const { count: total } = await supabase
+    .from('stripe_transactions')
+    .select('*', { count: 'exact', head: true });
+
+  // Fetch paginated logs
+  const { data, error } = await supabase
+    .from('stripe_transactions')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .range(from, to);
+
+  if (error) {
+    throw new Error(`Failed to fetch webhook logs: ${error.message}`);
+  }
+
+  const logs = (data || []).map((transaction) => {
+    // Calculate latency
+    let latency: number | null = null;
+    if (transaction.created_at && transaction.processed_at) {
+      const created = new Date(transaction.created_at).getTime();
+      const processed = new Date(transaction.processed_at).getTime();
+      latency = processed - created;
+    }
+
+    // Get retry count from metadata
+    const metadata = (transaction.metadata as Record<string, unknown>) || {};
+    const retryCount = (metadata.retryCount as number) || 0;
+    const recoveryStatus = retryCount > 0 ? 'auto' : 'manual';
+
+    return {
+      id: transaction.id,
+      eventId: transaction.stripe_event_id,
+      eventType: transaction.event_type,
+      status: transaction.status,
+      latency,
+      retryCount,
+      recoveryStatus,
+      createdAt: transaction.created_at,
+      processedAt: transaction.processed_at,
+      errorMessage: transaction.error_message,
+    };
+  });
+
+  // Calculate pagination metadata
+  const totalPages = Math.ceil((total || 0) / limit);
+  const pagination = {
+    page,
+    limit,
+    total: total || 0,
+    totalPages,
+    hasNext: page < totalPages,
+    hasPrev: page > 1,
+  };
+
+  return {
+    logs,
+    pagination,
+  };
 }
 
 /**

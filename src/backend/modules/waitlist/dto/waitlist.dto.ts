@@ -15,7 +15,7 @@ import { z } from 'zod';
  */
 export const listWaitlistQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
-  limit: z.coerce.number().int().min(1).max(100).default(50),
+  limit: z.coerce.number().int().min(1).max(1000).default(50),
   notified: z.enum(['true', 'false', 'all']).optional().default('all'),
   search: z.string().optional(),
 });

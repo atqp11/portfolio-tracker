@@ -155,4 +155,104 @@ describe('UsersService', () => {
       });
     });
   });
+
+  describe('fetchUsersWithPagination', () => {
+    beforeEach(() => {
+      // Mock createAdminClient
+      jest.mock('@lib/supabase/admin', () => ({
+        createAdminClient: jest.fn(() => ({
+          from: jest.fn(() => ({
+            select: jest.fn(() => ({
+              order: jest.fn(() => ({
+                range: jest.fn(() => Promise.resolve({
+                  data: [],
+                  error: null,
+                })),
+              })),
+            })),
+          })),
+        })),
+      }));
+    });
+
+    it('should return paginated users with correct metadata', async () => {
+      const mockUsers = [
+        {
+          id: 'u1',
+          email: 'user1@example.com',
+          name: 'User 1',
+          tier: 'free',
+          is_admin: false,
+          created_at: '2024-01-01',
+          stripe_customer_id: null,
+          subscription_status: 'active',
+        },
+        {
+          id: 'u2',
+          email: 'user2@example.com',
+          name: 'User 2',
+          tier: 'basic',
+          is_admin: false,
+          created_at: '2024-01-02',
+          stripe_customer_id: 'cus_123',
+          subscription_status: 'active',
+        },
+      ];
+
+      // Mock Supabase admin client
+      const mockSupabase = {
+        from: jest.fn(() => ({
+          select: jest.fn((query: string, options?: any) => {
+            if (options?.head) {
+              // Count query
+              return Promise.resolve({ count: 100, error: null });
+            }
+            // Data query
+            return {
+              order: jest.fn(() => ({
+                range: jest.fn(() => Promise.resolve({
+                  data: mockUsers,
+                  error: null,
+                })),
+              })),
+            };
+          }),
+        })),
+      };
+
+      jest.doMock('@lib/supabase/admin', () => ({
+        createAdminClient: () => mockSupabase,
+      }));
+
+      mockGetCurrentUserUsage.mockResolvedValue({
+        daily: { chat_queries: 5, portfolio_analysis: 2, sec_filings: 1 },
+        monthly: { chat_queries: 50, portfolio_analysis: 20, sec_filings: 10 },
+      } as any);
+
+      const result = await usersService.fetchUsersWithPagination(1, 50);
+
+      expect(result).toHaveProperty('users');
+      expect(result).toHaveProperty('pagination');
+      expect(result.pagination).toMatchObject({
+        page: 1,
+        limit: 50,
+        hasNext: expect.any(Boolean),
+        hasPrev: false,
+      });
+    });
+
+    it('should calculate pagination metadata correctly', async () => {
+      // This is a simpler integration-style test that doesn't mock internals
+      // Just verify the structure is correct
+      mockGetAllUsers.mockResolvedValue([]);
+      mockGetCurrentUserUsage.mockResolvedValue(null as any);
+
+      const result = await usersService.fetchUsersWithPagination(2, 25);
+
+      expect(result.pagination.page).toBe(2);
+      expect(result.pagination.limit).toBe(25);
+      expect(result.pagination.hasPrev).toBe(true);
+      expect(result.users).toBeInstanceOf(Array);
+    });
+  });
 });

@@ -60,3 +60,21 @@ export async function updateWaitlistNotificationStatus(
 
   return NextResponse.json(SuccessResponse.create(result));
 }
+
+// ============================================================================
+// RSC PAGE METHODS (Non-HTTP, return DTOs directly)
+// ============================================================================
+
+/**
+ * Get waitlist entries (for RSC pages)
+ * Validates input with Zod schema
+ * Returns DTO directly, no NextResponse wrapping
+ */
+export async function listWaitlistEntriesData(query: ListWaitlistQuery) {
+  // Validate input
+  const validated = await import('./dto/waitlist.dto').then(m => 
+    m.listWaitlistQuerySchema.parse(query)
+  );
+  
+  return await waitlistService.listWaitlistEntries(validated);
+}

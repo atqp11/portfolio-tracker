@@ -1,11 +1,11 @@
-import { getSyncErrors } from '@backend/modules/admin/service/admin.service';
+import { adminController } from '@backend/modules/admin/admin.controller';
 import SyncRetryButton from './SyncRetryButton';
 import { isStripeConfigured } from '@lib/stripe/client';
 
 export default async function SyncErrorsTable() {
   let errors;
   try {
-    errors = await getSyncErrors();
+    errors = await adminController.getSyncErrorsData();
   } catch (error) {
     return (
       <div className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg p-6">

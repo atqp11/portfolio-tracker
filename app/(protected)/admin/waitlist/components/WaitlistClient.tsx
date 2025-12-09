@@ -2,16 +2,18 @@
 
 import { useState, useMemo } from 'react';
 import Link from 'next/link';
-import type { WaitlistEntryDto } from '@backend/modules/waitlist/dto/waitlist.dto';
+import type { WaitlistEntryDto, PaginationDto } from '@backend/modules/waitlist/dto/waitlist.dto';
+import Pagination from '@/components/shared/Pagination';
 
 interface WaitlistClientProps {
   initialData: WaitlistEntryDto[];
+  pagination: PaginationDto;
 }
 
-export default function WaitlistClient({ initialData }: WaitlistClientProps) {
+export default function WaitlistClient({ initialData, pagination }: WaitlistClientProps) {
   const [searchTerm, setSearchTerm] = useState('');
 
-  // Client-side filtering using useMemo for performance
+  // Client-side filtering using useMemo for performance (filters current page only)
   const filteredWaitlist = useMemo(() => {
     if (!searchTerm) return initialData;
     
@@ -22,11 +24,12 @@ export default function WaitlistClient({ initialData }: WaitlistClientProps) {
     );
   }, [initialData, searchTerm]);
 
+  // Stats based on total pagination data
   const stats = useMemo(() => ({
-    total: initialData.length,
+    total: pagination.total,
     notified: initialData.filter(e => e.notified).length,
     pending: initialData.filter(e => !e.notified).length,
-  }), [initialData]);
+  }), [initialData, pagination.total]);
 
   const exportToCSV = () => {
     const headers = ['Email', 'Name', 'Notified', 'Joined Date'];
@@ -192,11 +195,15 @@ export default function WaitlistClient({ initialData }: WaitlistClientProps) {
           )}
         </div>
 
-        {/* Results count */}
-        {filteredWaitlist.length > 0 && (
-          <div className="mt-4 text-center text-sm text-gray-600 dark:text-gray-400">
-            Showing {filteredWaitlist.length} of {stats.total} entries
-          </div>
+        {/* Pagination Controls */}
+        {pagination.total > 0 && (
+          <Pagination
+            currentPage={pagination.page}
+            totalPages={pagination.totalPages}
+            totalItems={pagination.total}
+            itemsPerPage={pagination.limit}
+            baseUrl="/admin/waitlist"
+          />
         )}
       </div>
     </div>

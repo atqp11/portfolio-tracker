@@ -1,4 +1,4 @@
-import { requireUser, getUserProfile } from '@lib/auth/session';
+import { requireAdmin } from '@lib/auth/session';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { telemetryController } from '@backend/modules/telemetry/telemetry.controller';
@@ -25,12 +25,8 @@ function extractPeriod(
 }
 
 export default async function CostTrackingDashboard({ searchParams }: PageProps) {
-  // Auth guard: Require authentication and admin access
-  await requireUser();
-  const viewerProfile = await getUserProfile();
-  if (!viewerProfile?.is_admin) {
-    return redirect('/dashboard');
-  }
+  // Auth guard: Require admin access
+  await requireAdmin();
 
   // Resolve searchParams (Next.js 16+ async pattern)
   const searchParamsResolved = await searchParams;

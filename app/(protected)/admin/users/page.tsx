@@ -28,7 +28,7 @@ export default async function AdminUsersPage({ searchParams }: PageProps) {
 
         <UsersPageClient
           usersTab={<UsersTab searchParams={searchParams} />}
-          billingTab={<BillingAdminTab />}
+          billingTab={<BillingAdminTab searchParams={searchParams} />}
         />
       </div>
     </div>
