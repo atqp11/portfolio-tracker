@@ -48,6 +48,60 @@ export type AdminUserDto = z.infer<typeof adminUserSchema>;
 export type AdminUsersResponseDto = z.infer<typeof adminUsersResponseSchema>;
 
 /**
+ * Charge information schema (for selecting which charge to refund)
+ */
+export const chargeInfoSchema = z.object({
+  id: z.string(),
+  amount: z.number(),
+  amountRefunded: z.number(),
+  refundable: z.number(), // amount - amountRefunded
+  currency: z.string(),
+  status: z.string(),
+  created: z.number(),
+  date: z.string(), // ISO date string for display
+  description: z.string().nullable(),
+  paymentMethod: z.string().nullable(),
+});
+
+export type ChargeInfoDto = z.infer<typeof chargeInfoSchema>;
+
+/**
+ * Refund information schema
+ */
+export const refundInfoSchema = z.object({
+  id: z.string(),
+  amount: z.number(),
+  status: z.string(),
+  reason: z.string().nullable(),
+  created: z.number(),
+  chargeId: z.string().nullable(), // Link to original charge
+  failureReason: z.string().nullable(), // For failed refunds
+});
+
+export const lastPaymentSchema = z.object({
+  amount: z.number(),
+  currency: z.string(),
+  date: z.number(),
+  chargeId: z.string(), // Add charge ID for refund targeting
+});
+
+export const refundStatusSchema = z.object({
+  hasPendingRefunds: z.boolean(),
+  totalPendingAmount: z.number(),
+  currency: z.string(),
+  refunds: z.array(refundInfoSchema),
+  lastPayment: lastPaymentSchema.nullable(),
+  // Enhanced fields for charge selection
+  charges: z.array(chargeInfoSchema).optional(),
+  hasFailedRefunds: z.boolean().optional(),
+  maxRefundable: z.number().optional(), // Max amount that can be refunded across all charges
+});
+
+export type RefundInfoDto = z.infer<typeof refundInfoSchema>;
+export type LastPaymentDto = z.infer<typeof lastPaymentSchema>;
+export type RefundStatusDto = z.infer<typeof refundStatusSchema>;
+
+/**
  * Clear cache response schema
  */
 export const clearCacheResponseSchema = z.object({

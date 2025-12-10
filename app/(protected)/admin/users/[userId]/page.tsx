@@ -32,7 +32,7 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
   }
 
   // Fetch related data in parallel
-  const [billingHistoryRaw, transactionsRaw, stripeStatus] = await Promise.all([
+  const [billingHistoryRaw, transactionsRaw, stripeStatus, refundStatus] = await Promise.all([
     adminController.getUserBillingHistoryData(userId).catch(() => []),
     adminController.getUserTransactionsData(userId).catch(() => []),
     adminController.getStripeSubscriptionStatusData(userId).catch(() => ({ 
@@ -40,6 +40,7 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
       tier: null,
       lastSync: null 
     })),
+    adminController.getRefundStatusData(userId).catch(() => null),
   ]);
 
   // Transform invoices from Stripe API
@@ -83,7 +84,7 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
         </div>
 
         {/* 1. Unified Header: User Profile + Subscription */}
-        <UserHeader user={user} />
+        <UserHeader user={user} refundStatus={refundStatus} />
 
         {/* 2. State Diagnostics */}
         <StateDiagnostics user={user} transactions={transactions} stripeStatus={stripeStatus} />
@@ -92,7 +93,7 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
         <PlanManagement user={user} />
 
         {/* 4. Primary Actions + Danger Zone */}
-        <AdminActionsGrouped user={user} />
+        <AdminActionsGrouped user={user} refundStatus={refundStatus} />
 
         {/* 5. Billing History */}
         <BillingHistory invoices={invoices} userId={userId} user={user} />

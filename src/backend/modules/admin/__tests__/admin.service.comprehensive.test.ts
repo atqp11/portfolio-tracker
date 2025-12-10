@@ -89,6 +89,10 @@ describe('Admin Service - Comprehensive', () => {
       },
       refunds: {
         create: jest.fn(),
+        list: jest.fn(),
+      },
+      charges: {
+        list: jest.fn(),
       },
     } as any;
 
@@ -327,12 +331,52 @@ describe('Admin Service - Comprehensive', () => {
     it('should cancel subscription immediately', async () => {
       mockAdminDao.getUserById.mockResolvedValue(mockUser as any);
       const mockStripeInstance = mockGetStripe() as any;
-      mockStripeInstance.subscriptions.cancel.mockResolvedValue({});
+      
+      // Mock subscription retrieve with period data for refund calculation
+      const now = Math.floor(Date.now() / 1000);
+      mockStripeInstance.subscriptions.retrieve.mockResolvedValue({
+        id: 'sub_123',
+        current_period_start: now - (15 * 24 * 60 * 60), // 15 days ago
+        current_period_end: now + (15 * 24 * 60 * 60),   // 15 days from now
+      });
+      
+      // Mock invoices for refund
+      mockStripeInstance.invoices.list.mockResolvedValue({
+        data: [
+          {
+            id: 'inv_123',
+            amount_paid: 2999,
+            charge: 'ch_123',
+          },
+        ],
+      });
+      
+      // Mock refund creation
+      mockStripeInstance.refunds.create.mockResolvedValue({
+        id: 'ref_123',
+        amount: 1500,
+      });
+      
+      mockStripeInstance.subscriptions.cancel.mockResolvedValue({
+        id: 'sub_123',
+        status: 'canceled',
+      });
+      
+      mockAdminDao.updateUser.mockResolvedValue(undefined);
       mockAdminDao.logAdminAction.mockResolvedValue(undefined);
 
       await adminService.cancelUserSubscription('user-1', 'admin-1', true);
 
+      expect(mockStripeInstance.subscriptions.retrieve).toHaveBeenCalledWith('sub_123');
       expect(mockStripeInstance.subscriptions.cancel).toHaveBeenCalledWith('sub_123');
+      expect(mockStripeInstance.refunds.create).toHaveBeenCalled();
+      expect(mockAdminDao.updateUser).toHaveBeenCalledWith('user-1', expect.objectContaining({
+        subscription_status: 'canceled',
+        subscription_tier: 'free',
+        tier: 'free',
+        stripe_subscription_id: null,
+        cancel_at_period_end: false,
+      }));
     });
 
     it('should throw error when user has no subscription', async () => {
@@ -356,15 +400,18 @@ describe('Admin Service - Comprehensive', () => {
 
   describe('refundUser', () => {
     it('should refund last payment', async () => {
-      const mockPaymentIntent = {
-        id: 'pi_123',
+      const mockCharge = {
+        id: 'ch_123',
         amount: 600,
+        amount_refunded: 0,
+        status: 'succeeded',
+        currency: 'usd',
       };
 
       mockAdminDao.getUserById.mockResolvedValue(mockUser as any);
       const mockStripeInstance = mockGetStripe() as any;
-      mockStripeInstance.paymentIntents.list.mockResolvedValue({
-        data: [mockPaymentIntent],
+      mockStripeInstance.charges.list.mockResolvedValue({
+        data: [mockCharge],
       });
       mockStripeInstance.refunds.create.mockResolvedValue({
         id: 're_123',
@@ -378,7 +425,7 @@ describe('Admin Service - Comprehensive', () => {
       });
 
       expect(mockStripeInstance.refunds.create).toHaveBeenCalledWith({
-        payment_intent: 'pi_123',
+        charge: 'ch_123',
         amount: 600,
         reason: 'requested_by_customer',
         metadata: expect.objectContaining({
@@ -388,15 +435,18 @@ describe('Admin Service - Comprehensive', () => {
     });
 
     it('should refund specific amount', async () => {
-      const mockPaymentIntent = {
-        id: 'pi_123',
+      const mockCharge = {
+        id: 'ch_123',
         amount: 600,
+        amount_refunded: 0,
+        status: 'succeeded',
+        currency: 'usd',
       };
 
       mockAdminDao.getUserById.mockResolvedValue(mockUser as any);
       const mockStripeInstance = mockGetStripe() as any;
-      mockStripeInstance.paymentIntents.list.mockResolvedValue({
-        data: [mockPaymentIntent],
+      mockStripeInstance.charges.list.mockResolvedValue({
+        data: [mockCharge],
       });
       mockStripeInstance.refunds.create.mockResolvedValue({
         id: 're_123',
@@ -421,7 +471,7 @@ describe('Admin Service - Comprehensive', () => {
     it('should throw error when no payment found', async () => {
       mockAdminDao.getUserById.mockResolvedValue(mockUser as any);
       const mockStripeInstance = mockGetStripe() as any;
-      mockStripeInstance.paymentIntents.list.mockResolvedValue({ data: [] });
+      mockStripeInstance.charges.list.mockResolvedValue({ data: [] });
 
       await expect(
         adminService.refundUser({
@@ -792,6 +842,207 @@ describe('Admin Service - Comprehensive', () => {
       mockGetCacheAdapter.mockReturnValueOnce(mockCacheAdapter as any);
 
       await expect(adminService.clearCache()).rejects.toThrow('Cache error');
+    });
+  });
+
+  describe('getRefundStatus', () => {
+    it('should return refund status with pending refunds and last payment', async () => {
+      mockAdminDao.getUserById.mockResolvedValue(mockUser as any);
+
+      const mockStripe = mockGetStripe();
+      mockStripe.charges.list = jest.fn().mockResolvedValue({
+        data: [
+          {
+            id: 'ch_123',
+            amount: 2999,
+            amount_refunded: 0,
+            currency: 'usd',
+            status: 'succeeded',
+            created: 1234567890,
+            description: null,
+            payment_method_details: null,
+            refunds: {
+              data: [
+                {
+                  id: 'ref_pending',
+                  amount: 1000,
+                  status: 'pending',
+                  reason: 'requested_by_customer',
+                  created: 1234567890,
+                  currency: 'usd',
+                  failure_reason: null,
+                },
+                {
+                  id: 'ref_succeeded',
+                  amount: 500,
+                  status: 'succeeded',
+                  reason: 'duplicate',
+                  created: 1234567800,
+                  currency: 'usd',
+                  failure_reason: null,
+                },
+                {
+                  id: 'ref_failed',
+                  amount: 300,
+                  status: 'failed',
+                  reason: null,
+                  created: 1234567700,
+                  currency: 'usd',
+                  failure_reason: 'insufficient_funds',
+                },
+              ],
+            },
+          },
+        ],
+      });
+
+      const result = await adminService.getRefundStatus('user-1');
+
+      expect(result).not.toBeNull();
+      expect(result?.hasPendingRefunds).toBe(true);
+      expect(result?.totalPendingAmount).toBe(1500); // 1000 + 500 (only pending/succeeded)
+      expect(result?.currency).toBe('usd');
+      expect(result?.refunds).toHaveLength(3);
+      expect(result?.lastPayment).toEqual({
+        amount: 2999,
+        currency: 'usd',
+        date: 1234567890,
+        chargeId: 'ch_123',
+      });
+      expect(mockAdminDao.getUserById).toHaveBeenCalledWith('user-1');
+      expect(mockStripe.charges.list).toHaveBeenCalledWith({
+        customer: 'cus_123',
+        limit: 100,
+      });
+    });
+
+    it('should return null for user without Stripe customer ID', async () => {
+      const userWithoutStripe = { ...mockUser, stripe_customer_id: null };
+      mockAdminDao.getUserById.mockResolvedValue(userWithoutStripe as any);
+
+      const result = await adminService.getRefundStatus('user-1');
+
+      expect(result).toBeNull();
+      expect(mockAdminDao.getUserById).toHaveBeenCalledWith('user-1');
+    });
+
+    it('should return null for non-existent user', async () => {
+      mockAdminDao.getUserById.mockResolvedValue(null);
+
+      const result = await adminService.getRefundStatus('nonexistent-user');
+
+      expect(result).toBeNull();
+      expect(mockAdminDao.getUserById).toHaveBeenCalledWith('nonexistent-user');
+    });
+
+    it('should handle no refunds', async () => {
+      mockAdminDao.getUserById.mockResolvedValue(mockUser as any);
+
+      const mockStripe = mockGetStripe();
+      mockStripe.charges.list = jest.fn().mockResolvedValue({
+        data: [
+          {
+            id: 'ch_123',
+            amount: 2999,
+            amount_refunded: 0,
+            currency: 'usd',
+            status: 'succeeded',
+            created: 1234567890,
+            description: null,
+            payment_method_details: null,
+            refunds: { data: [] },
+          },
+        ],
+      });
+
+      const result = await adminService.getRefundStatus('user-1');
+
+      expect(result).not.toBeNull();
+      expect(result?.hasPendingRefunds).toBe(false);
+      expect(result?.totalPendingAmount).toBe(0);
+      expect(result?.currency).toBe('usd');
+      expect(result?.refunds).toHaveLength(0);
+      expect(result?.lastPayment).toEqual({
+        amount: 2999,
+        currency: 'usd',
+        date: 1234567890,
+        chargeId: 'ch_123',
+      });
+    });
+
+    it('should handle no last payment', async () => {
+      mockAdminDao.getUserById.mockResolvedValue(mockUser as any);
+
+      const mockStripe = mockGetStripe();
+      mockStripe.charges.list = jest.fn().mockResolvedValue({ data: [] });
+      // Fallback to refunds.list -> include refund with chargeID pointing to a charge we will retrieve
+      mockStripe.refunds.list = jest.fn().mockResolvedValue({
+        data: [
+          {
+            id: 'ref_123',
+            amount: 1000,
+            status: 'succeeded',
+            reason: 'duplicate',
+            created: 1234567890,
+            currency: 'eur',
+            charge: 'ch_123',
+          },
+        ],
+      });
+      mockStripe.charges.retrieve = jest.fn().mockResolvedValue({
+        id: 'ch_123',
+        amount: 2999,
+        currency: 'eur',
+        created: 1234567890,
+        customer: 'cus_123',
+        refunds: { data: [{ id: 'ref_123', amount: 1000, status: 'succeeded', reason: 'duplicate', created: 1234567890, currency: 'eur' }] },
+      } as any);
+
+      const result = await adminService.getRefundStatus('user-1');
+
+      expect(result).not.toBeNull();
+      expect(result?.hasPendingRefunds).toBe(true);
+      expect(result?.totalPendingAmount).toBe(1000);
+      expect(result?.currency).toBe('eur');
+      expect(result?.lastPayment).toBeNull();
+    });
+
+    it('should only count pending/succeeded refunds in total', async () => {
+      mockAdminDao.getUserById.mockResolvedValue(mockUser as any);
+
+      const mockStripe = mockGetStripe();
+      mockStripe.charges.list = jest.fn().mockResolvedValue({
+        data: [
+          {
+            id: 'ch_123',
+            amount: 0,
+            currency: 'usd',
+            created: 1,
+            refunds: {
+              data: [
+                { id: 'ref_1', amount: 1000, status: 'pending', reason: null, created: 1, currency: 'usd' },
+                { id: 'ref_2', amount: 500, status: 'succeeded', reason: null, created: 2, currency: 'usd' },
+                { id: 'ref_3', amount: 300, status: 'failed', reason: null, created: 3, currency: 'usd' },
+                { id: 'ref_4', amount: 200, status: 'canceled', reason: null, created: 4, currency: 'usd' },
+              ],
+            },
+          },
+        ],
+      });
+
+      const result = await adminService.getRefundStatus('user-1');
+
+      expect(result?.totalPendingAmount).toBe(1500); // Only pending + succeeded
+      expect(result?.hasPendingRefunds).toBe(true);
+    });
+
+    it('should handle Stripe API errors', async () => {
+      mockAdminDao.getUserById.mockResolvedValue(mockUser as any);
+
+      const mockStripe = mockGetStripe();
+      mockStripe.charges.list = jest.fn().mockRejectedValue(new Error('Stripe API error'));
+
+      await expect(adminService.getRefundStatus('user-1')).rejects.toThrow('Stripe API error');
     });
   });
 });

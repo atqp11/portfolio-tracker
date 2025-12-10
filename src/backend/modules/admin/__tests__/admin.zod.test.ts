@@ -366,4 +366,166 @@ describe('Admin Zod Schemas', () => {
       expect(() => getUsersResultSchema.parse(invalidResult)).toThrow(ZodError);
     });
   });
+
+  describe('refundStatusSchema', () => {
+    it('should accept valid refund status with all fields', () => {
+      const { refundStatusSchema } = require('@backend/modules/admin/dto/admin.dto');
+      
+      const validStatus = {
+        hasPendingRefunds: true,
+        totalPendingAmount: 1500,
+        currency: 'usd',
+        refunds: [
+          {
+            id: 'ref_123',
+            amount: 1000,
+            status: 'pending',
+            reason: 'requested_by_customer',
+            created: 1234567890,
+            chargeId: 'ch_123',
+            failureReason: null,
+          },
+          {
+            id: 'ref_456',
+            amount: 500,
+            status: 'succeeded',
+            reason: null,
+            created: 1234567800,
+            chargeId: 'ch_456',
+            failureReason: null,
+          },
+        ],
+        lastPayment: {
+          amount: 2999,
+          currency: 'usd',
+          date: 1234567890,
+          chargeId: 'ch_789',
+        },
+      };
+
+      const result = refundStatusSchema.parse(validStatus);
+      expect(result).toEqual(validStatus);
+    });
+
+    it('should accept null lastPayment', () => {
+      const { refundStatusSchema } = require('@backend/modules/admin/dto/admin.dto');
+      
+      const validStatus = {
+        hasPendingRefunds: false,
+        totalPendingAmount: 0,
+        currency: 'usd',
+        refunds: [],
+        lastPayment: null,
+      };
+
+      const result = refundStatusSchema.parse(validStatus);
+      expect(result).toEqual(validStatus);
+      expect(result.lastPayment).toBeNull();
+    });
+
+    it('should accept empty refunds array', () => {
+      const { refundStatusSchema } = require('@backend/modules/admin/dto/admin.dto');
+      
+      const validStatus = {
+        hasPendingRefunds: false,
+        totalPendingAmount: 0,
+        currency: 'eur',
+        refunds: [],
+        lastPayment: {
+          amount: 1999,
+          currency: 'eur',
+          date: 1234567890,
+          chargeId: 'ch_test',
+        },
+      };
+
+      const result = refundStatusSchema.parse(validStatus);
+      expect(result.refunds).toHaveLength(0);
+    });
+
+    it('should reject missing required fields', () => {
+      const { refundStatusSchema } = require('@backend/modules/admin/dto/admin.dto');
+      
+      const incomplete = {
+        hasPendingRefunds: true,
+        // Missing totalPendingAmount
+        currency: 'usd',
+        refunds: [],
+      };
+
+      expect(() => refundStatusSchema.parse(incomplete)).toThrow(ZodError);
+    });
+
+    it('should reject invalid refund structure', () => {
+      const { refundStatusSchema } = require('@backend/modules/admin/dto/admin.dto');
+      
+      const invalid = {
+        hasPendingRefunds: true,
+        totalPendingAmount: 1000,
+        currency: 'usd',
+        refunds: [
+          {
+            id: 'ref_123',
+            amount: 1000,
+            // Missing status
+            reason: null,
+            created: 1234567890,
+          },
+        ],
+        lastPayment: null,
+      };
+
+      expect(() => refundStatusSchema.parse(invalid)).toThrow(ZodError);
+    });
+
+    it('should reject non-numeric amounts', () => {
+      const { refundStatusSchema } = require('@backend/modules/admin/dto/admin.dto');
+      
+      const invalid = {
+        hasPendingRefunds: true,
+        totalPendingAmount: '1000' as any, // String instead of number
+        currency: 'usd',
+        refunds: [],
+        lastPayment: null,
+      };
+
+      expect(() => refundStatusSchema.parse(invalid)).toThrow(ZodError);
+    });
+
+    it('should reject invalid lastPayment structure', () => {
+      const { refundStatusSchema } = require('@backend/modules/admin/dto/admin.dto');
+      
+      const invalid = {
+        hasPendingRefunds: true,
+        totalPendingAmount: 1000,
+        currency: 'usd',
+        refunds: [],
+        lastPayment: {
+          amount: 2999,
+          // Missing currency
+          date: 1234567890,
+        },
+      };
+
+      expect(() => refundStatusSchema.parse(invalid)).toThrow(ZodError);
+    });
+
+    it('should accept various currency codes', () => {
+      const { refundStatusSchema } = require('@backend/modules/admin/dto/admin.dto');
+      
+      const currencies = ['usd', 'eur', 'gbp', 'jpy', 'cad'];
+      
+      currencies.forEach(currency => {
+        const validStatus = {
+          hasPendingRefunds: false,
+          totalPendingAmount: 0,
+          currency,
+          refunds: [],
+          lastPayment: null,
+        };
+
+        expect(() => refundStatusSchema.parse(validStatus)).not.toThrow();
+      });
+    });
+  });
 });

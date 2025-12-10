@@ -966,4 +966,133 @@ describe('Admin Controller - RSC Methods', () => {
       ).rejects.toThrow('Retry failed');
     });
   });
+
+  describe('getRefundStatusData', () => {
+    const validUserId = '123e4567-e89b-12d3-a456-426614174000';
+
+    beforeEach(() => {
+      jest.clearAllMocks();
+    });
+
+    it('should return refund status DTO when user has Stripe customer', async () => {
+      const mockRefundStatus = {
+        hasPendingRefunds: true,
+        totalPendingAmount: 1500,
+        currency: 'usd',
+        refunds: [
+          {
+            id: 'ref_123',
+            amount: 1000,
+            status: 'pending',
+            reason: 'requested_by_customer',
+            created: 1234567890,
+          },
+          {
+            id: 'ref_456',
+            amount: 500,
+            status: 'succeeded',
+            reason: 'duplicate',
+            created: 1234567800,
+          },
+        ],
+        lastPayment: {
+          amount: 2999,
+          currency: 'usd',
+          date: 1234567890,
+        },
+      };
+
+      mockAdminService.getRefundStatus.mockResolvedValue(mockRefundStatus);
+
+      const result = await controller.getRefundStatusData(validUserId);
+
+      expect(result).toEqual(mockRefundStatus);
+      expect(mockAdminService.getRefundStatus).toHaveBeenCalledWith(validUserId);
+      expect(mockAdminService.getRefundStatus).toHaveBeenCalledTimes(1);
+    });
+
+    it('should return null when user has no Stripe customer ID', async () => {
+      mockAdminService.getRefundStatus.mockResolvedValue(null);
+
+      const result = await controller.getRefundStatusData(validUserId);
+
+      expect(result).toBeNull();
+      expect(mockAdminService.getRefundStatus).toHaveBeenCalledWith(validUserId);
+    });
+
+    it('should return null when user does not exist', async () => {
+      const nonexistentUserId = '00000000-0000-0000-0000-000000000000';
+      mockAdminService.getRefundStatus.mockResolvedValue(null);
+
+      const result = await controller.getRefundStatusData(nonexistentUserId);
+
+      expect(result).toBeNull();
+    });
+
+    it('should throw ZodError for invalid user ID format', async () => {
+      await expect(
+        controller.getRefundStatusData('')
+      ).rejects.toThrow(ZodError);
+
+      await expect(
+        controller.getRefundStatusData('   ')
+      ).rejects.toThrow(ZodError);
+    });
+
+    it('should return refund status without last payment', async () => {
+      const mockRefundStatus = {
+        hasPendingRefunds: true,
+        totalPendingAmount: 1000,
+        currency: 'usd',
+        refunds: [
+          {
+            id: 'ref_123',
+            amount: 1000,
+            status: 'succeeded',
+            reason: 'duplicate',
+            created: 1234567890,
+          },
+        ],
+        lastPayment: null,
+      };
+
+      mockAdminService.getRefundStatus.mockResolvedValue(mockRefundStatus);
+
+      const result = await controller.getRefundStatusData(validUserId);
+
+      expect(result).toEqual(mockRefundStatus);
+      expect(result?.lastPayment).toBeNull();
+    });
+
+    it('should return status with no pending refunds', async () => {
+      const mockRefundStatus = {
+        hasPendingRefunds: false,
+        totalPendingAmount: 0,
+        currency: 'usd',
+        refunds: [],
+        lastPayment: {
+          amount: 2999,
+          currency: 'usd',
+          date: 1234567890,
+        },
+      };
+
+      mockAdminService.getRefundStatus.mockResolvedValue(mockRefundStatus);
+
+      const result = await controller.getRefundStatusData(validUserId);
+
+      expect(result).toEqual(mockRefundStatus);
+      expect(result?.hasPendingRefunds).toBe(false);
+      expect(result?.totalPendingAmount).toBe(0);
+      expect(result?.refunds).toHaveLength(0);
+    });
+
+    it('should handle service layer errors', async () => {
+      mockAdminService.getRefundStatus.mockRejectedValue(new Error('Stripe API error'));
+
+      await expect(
+        controller.getRefundStatusData(validUserId)
+      ).rejects.toThrow('Stripe API error');
+    });
+  });
 });

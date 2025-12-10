@@ -321,6 +321,7 @@ export async function reactivateUser(params: ReactivateUserParams): Promise<Prof
 
 /**
  * Change user's tier
+ * Updates database and syncs with Stripe subscription if user has one
  */
 export async function changeUserTier(params: ChangeTierParams): Promise<Profile> {
   const { userId, adminId, newTier } = params;
@@ -337,7 +338,55 @@ export async function changeUserTier(params: ChangeTierParams): Promise<Profile>
     throw new Error('User not found');
   }
 
-  // Change tier
+  // If user has a Stripe subscription and changing to a paid tier, update Stripe subscription
+  const stripe = getStripe();
+  if (stripe && userBefore.stripe_subscription_id && newTier !== 'free') {
+    try {
+      // Get subscription from Stripe
+      const subscription = await stripe.subscriptions.retrieve(userBefore.stripe_subscription_id);
+      
+      // Get the appropriate price ID for the new tier (use existing billing interval)
+      const currentPriceId = subscription.items.data[0]?.price?.id;
+      const { getStripePriceId, PlanTier, BillingInterval } = await import('@backend/modules/subscriptions/config/plans.config');
+      
+      // Determine current billing interval
+      let interval: any = BillingInterval.MONTHLY;
+      if (currentPriceId) {
+        // Check if current price is annual
+        const price = await stripe.prices.retrieve(currentPriceId);
+        if (price.recurring?.interval === 'year') {
+          interval = BillingInterval.ANNUAL;
+        }
+      }
+      
+      // Get new price ID for the target tier
+      const tierMap: Record<string, any> = {
+        'basic': PlanTier.BASIC,
+        'premium': PlanTier.PREMIUM,
+      };
+      const newPriceId = getStripePriceId(tierMap[newTier], interval);
+      
+      // Update subscription with new price ID
+      await stripe.subscriptions.update(userBefore.stripe_subscription_id, {
+        items: [{
+          id: subscription.items.data[0].id,
+          price: newPriceId,
+        }],
+        proration_behavior: 'create_prorations', // Create prorated charges/credits
+      });
+      
+      console.log(`✅ Updated Stripe subscription to ${newTier} tier (price: ${newPriceId})`);
+    } catch (error) {
+      console.error('Failed to update Stripe subscription:', error);
+      // Continue with database update even if Stripe fails
+      // Webhook will eventually sync when subscription updates
+    }
+  } else if (newTier === 'free' && userBefore.stripe_subscription_id) {
+    // If downgrading to free, cancel the subscription
+    console.warn(`⚠️  Changing to free tier but user has active subscription. Consider canceling subscription first.`);
+  }
+
+  // Change tier in database
   const userAfter = await adminDao.changeUserTier(userId, newTier);
 
   // Log admin action
@@ -347,15 +396,128 @@ export async function changeUserTier(params: ChangeTierParams): Promise<Profile>
     action: 'change_tier',
     entity_type: 'user',
     entity_id: userId,
-    before_state: { tier: userBefore.tier },
-    after_state: { tier: userAfter.tier },
+    before_state: { 
+      tier: userBefore.tier,
+      stripe_subscription_id: userBefore.stripe_subscription_id,
+    },
+    after_state: { 
+      tier: userAfter.tier,
+      stripe_synced: !!userBefore.stripe_subscription_id,
+    },
   });
 
   return userAfter;
 }
 
 /**
+ * Get cancellation preview with refund calculation
+ * Calculates what will happen if subscription is canceled immediately vs at period end
+ */
+export async function getCancellationPreview(userId: string) {
+  const user = await adminDao.getUserById(userId);
+  if (!user) {
+    throw new Error('User not found');
+  }
+
+  if (!user.stripe_subscription_id) {
+    throw new Error('User has no active subscription');
+  }
+
+  const stripe = getStripe();
+  if (!stripe) {
+    throw new Error('Stripe is not configured');
+  }
+
+  // Get subscription from Stripe
+  const subscription = await stripe.subscriptions.retrieve(user.stripe_subscription_id);
+
+  // Note: Stripe SDK types don't include these properties, but they exist at runtime
+  type SubscriptionWithPeriods = {
+    current_period_start?: number;
+    current_period_end?: number;
+  };
+  const subscriptionWithPeriods = subscription as unknown as Stripe.Subscription & SubscriptionWithPeriods;
+
+  // Handle trialing subscriptions - use trial_end as the cancellation point
+  if (subscription.status === 'trialing' && subscription.trial_end) {
+    const now = Math.floor(Date.now() / 1000);
+    const trialEnd = subscription.trial_end;
+    const remainingSeconds = trialEnd - now;
+    const totalDays = Math.round(remainingSeconds / 86400);
+
+    // For trialing subscriptions, no refund is issued on cancellation
+    return {
+      immediate: {
+        refundAmount: 0,
+        refundCurrency: subscription.items.data[0]?.price?.currency || 'usd',
+        unusedDays: totalDays,
+        totalDays,
+        elapsedDays: 0,
+      },
+      periodEnd: {
+        accessUntil: new Date(trialEnd * 1000).toISOString(),
+        noRefund: true,
+        daysRemaining: totalDays,
+      },
+    };
+  }
+
+  // For active subscriptions, use billing period dates
+  const periodStart = subscriptionWithPeriods.current_period_start;
+  const periodEnd = subscriptionWithPeriods.current_period_end;
+
+  if (typeof periodStart !== 'number' || typeof periodEnd !== 'number') {
+    throw new Error('Subscription period information is invalid or missing');
+  }
+
+  if (periodStart <= 0 || periodEnd <= 0) {
+    throw new Error('Invalid subscription period timestamps');
+  }
+
+  const now = Math.floor(Date.now() / 1000);
+  const totalSeconds = periodEnd - periodStart;
+  const elapsedSeconds = now - periodStart;
+  const remainingSeconds = periodEnd - now;
+
+  // Calculate prorated refund for immediate cancellation
+  const priceId = subscription.items.data[0]?.price?.id;
+  const amount = subscription.items.data[0]?.price?.unit_amount || 0;
+  const currency = subscription.items.data[0]?.price?.currency || 'usd';
+
+  // Calculate refund: (unused time / total time) * amount
+  const refundAmount = Math.round((remainingSeconds / totalSeconds) * amount);
+  
+  // Calculate days
+  const totalDays = Math.round(totalSeconds / 86400);
+  const elapsedDays = Math.round(elapsedSeconds / 86400);
+  const unusedDays = Math.round(remainingSeconds / 86400);
+
+  // Safely create date from Unix timestamp
+  const accessUntilDate = new Date(periodEnd * 1000);
+  if (isNaN(accessUntilDate.getTime())) {
+    throw new Error(`Invalid period end date: ${periodEnd}`);
+  }
+
+  return {
+    immediate: {
+      refundAmount,
+      refundCurrency: currency,
+      unusedDays,
+      totalDays,
+      elapsedDays,
+    },
+    periodEnd: {
+      accessUntil: accessUntilDate.toISOString(),
+      noRefund: true,
+      daysRemaining: unusedDays,
+    },
+  };
+}
+
+/**
  * Cancel user's subscription
+ * Cancels in Stripe and immediately updates database to stay in sync
+ * If immediate=true, automatically processes prorated refund
  */
 export async function cancelUserSubscription(
   userId: string,
@@ -376,13 +538,112 @@ export async function cancelUserSubscription(
     throw new Error('Stripe is not configured');
   }
 
+  let updatedSubscription: any;
+  let refundId: string | null = null;
+
   if (immediate) {
-    // Cancel immediately
-    await stripe.subscriptions.cancel(user.stripe_subscription_id);
+    // Get subscription for refund calculation
+    const subscription = await stripe.subscriptions.retrieve(user.stripe_subscription_id);
+    
+    // For trialing subscriptions, no refund is needed - just cancel
+    if (subscription.status === 'trialing') {
+      updatedSubscription = await stripe.subscriptions.cancel(user.stripe_subscription_id);
+      refundId = null; // No refund for trial cancellation
+    } else {
+      // For active subscriptions, calculate prorated refund
+      // Note: Stripe SDK types don't include these properties, but they exist at runtime
+      type SubscriptionWithPeriods = {
+        current_period_start: number;
+        current_period_end: number;
+      };
+      const subscriptionWithPeriods = subscription as unknown as Stripe.Subscription & SubscriptionWithPeriods;
+      
+      const periodStart = subscriptionWithPeriods.current_period_start;
+      const periodEnd = subscriptionWithPeriods.current_period_end;
+
+      if (typeof periodStart !== 'number' || typeof periodEnd !== 'number') {
+        throw new Error('Subscription period information is invalid or missing');
+      }
+
+      if (periodStart <= 0 || periodEnd <= 0) {
+        throw new Error('Invalid subscription period timestamps');
+      }
+
+      const now = Math.floor(Date.now() / 1000);
+      const totalSeconds = periodEnd - periodStart;
+      const remainingSeconds = periodEnd - now;
+
+      // Cancel immediately in Stripe
+      updatedSubscription = await stripe.subscriptions.cancel(user.stripe_subscription_id);
+      
+      // Process automatic prorated refund if there's unused time
+      if (remainingSeconds > 0 && user.stripe_customer_id) {
+        try {
+          // Get latest invoice/payment
+          const invoices = await stripe.invoices.list({
+            customer: user.stripe_customer_id,
+            subscription: user.stripe_subscription_id,
+            limit: 1,
+          });
+
+          if (invoices.data.length > 0) {
+            const invoice = invoices.data[0];
+            const amount = invoice.amount_paid;
+            
+            // Calculate prorated refund
+            const refundAmount = Math.round((remainingSeconds / totalSeconds) * amount);
+            
+            // Type assertion for charge field (exists at runtime but not in type definition)
+            type InvoiceWithCharge = { charge?: string | Stripe.Charge | null };
+            const invoiceWithCharge = invoice as Stripe.Invoice & InvoiceWithCharge;
+            const chargeId = typeof invoiceWithCharge.charge === 'string' 
+              ? invoiceWithCharge.charge 
+              : invoiceWithCharge.charge?.id;
+            
+            if (refundAmount > 0 && chargeId) {
+              // Create refund
+              const refund = await stripe.refunds.create({
+                charge: chargeId,
+                amount: refundAmount,
+                reason: 'requested_by_customer',
+                metadata: {
+                  admin_id: adminId,
+                  reason: 'Prorated refund for immediate cancellation',
+                  unused_days: Math.round(remainingSeconds / 86400).toString(),
+                },
+              });
+              
+              refundId = refund.id;
+              console.log(`✅ Automatic refund processed: ${refundAmount / 100} ${invoice.currency} (Refund ID: ${refundId})`);
+            }
+          }
+        } catch (refundError) {
+          console.error('Failed to process automatic refund:', refundError);
+          // Continue with cancellation even if refund fails
+          // Admin can manually refund later
+        }
+      }
+    }
+
+    // Update database immediately - downgrade to free
+    await adminDao.updateUser(userId, {
+      subscription_status: 'canceled',
+      subscription_tier: 'free',
+      tier: 'free',
+      stripe_subscription_id: null,
+      cancel_at_period_end: false,
+      updated_at: new Date().toISOString(),
+    });
   } else {
-    // Cancel at period end
-    await stripe.subscriptions.update(user.stripe_subscription_id, {
+    // Cancel at period end in Stripe
+    updatedSubscription = await stripe.subscriptions.update(user.stripe_subscription_id, {
       cancel_at_period_end: true,
+    });
+    
+    // Update database immediately to reflect cancel_at_period_end flag
+    await adminDao.updateUser(userId, {
+      cancel_at_period_end: true,
+      updated_at: new Date().toISOString(),
     });
   }
 
@@ -393,14 +654,28 @@ export async function cancelUserSubscription(
     action: immediate ? 'cancel_subscription_immediate' : 'cancel_subscription_period_end',
     entity_type: 'subscription',
     entity_id: user.stripe_subscription_id,
+    after_state: {
+      canceled: true,
+      immediate,
+      cancel_at_period_end: updatedSubscription.cancel_at_period_end,
+      refund_id: refundId,
+      refund_processed: !!refundId,
+    },
   });
 }
 
 /**
  * Process refund for user
+ * Uses charges.list for better reliability (handles multiple payment methods)
+ * Supports charge selection and validates max refundable amount
  */
-export async function refundUser(params: RefundParams): Promise<void> {
-  const { userId, adminId, amount, reason } = params;
+export async function refundUser(params: RefundParams & { chargeId?: string }): Promise<{
+  refundId: string;
+  amountCents: number;
+  currency: string;
+  chargeId: string;
+}> {
+  const { userId, adminId, amount, reason, chargeId } = params;
 
   const user = await adminDao.getUserById(userId);
   if (!user) {
@@ -416,43 +691,89 @@ export async function refundUser(params: RefundParams): Promise<void> {
     throw new Error('Stripe is not configured');
   }
 
-  // Get the latest payment intent
-  const paymentIntents = await stripe.paymentIntents.list({
-    customer: user.stripe_customer_id,
-    limit: 1,
-  });
+  let targetCharge: Stripe.Charge | null = null;
 
-  if (paymentIntents.data.length === 0) {
-    throw new Error('No payment found to refund');
+  if (chargeId) {
+    // Refund specific charge
+    targetCharge = await stripe.charges.retrieve(chargeId);
+    
+    // Verify charge belongs to this customer
+    if (targetCharge.customer !== user.stripe_customer_id) {
+      throw new Error('Charge does not belong to this customer');
+    }
+  } else {
+    // Get the latest succeeded charge
+    const charges = await stripe.charges.list({
+      customer: user.stripe_customer_id,
+      limit: 10,
+    });
+
+    targetCharge = charges.data.find(c => c.status === 'succeeded') || null;
+
+    if (!targetCharge) {
+      throw new Error('No payment found to refund');
+    }
   }
 
-  const paymentIntent = paymentIntents.data[0];
-  const refundAmount = amount || paymentIntent.amount;
+  // Calculate refund amount and validate
+  const refundable = targetCharge.amount - targetCharge.amount_refunded;
+  const refundAmount = amount || refundable;
 
-  // Create refund
+  // Validate max refund amount
+  if (refundAmount > refundable) {
+    const currency = targetCharge.currency.toUpperCase();
+    const maxFormatted = (refundable / 100).toFixed(2);
+    const requestedFormatted = (refundAmount / 100).toFixed(2);
+    throw new Error(
+      `Cannot refund ${currency} ${requestedFormatted}. Maximum refundable amount for this charge is ${currency} ${maxFormatted}.`
+    );
+  }
+
+  if (refundAmount <= 0) {
+    throw new Error('This charge has already been fully refunded');
+  }
+
+  // Create refund using charge ID (more reliable than payment_intent)
   const refund = await stripe.refunds.create({
-    payment_intent: paymentIntent.id,
+    charge: targetCharge.id,
     amount: refundAmount,
     reason: 'requested_by_customer',
     metadata: {
       admin_id: adminId,
       admin_reason: reason || 'Admin refund',
+      user_id: userId,
     },
   });
 
-  // Log admin action
+  // Log admin action with detailed audit info
   await adminDao.logAdminAction({
     admin_id: adminId,
     target_user_id: userId,
     action: 'refund_payment',
-    entity_type: 'payment',
-    entity_id: paymentIntent.id,
+    entity_type: 'refund',
+    entity_id: refund.id,
+    before_state: {
+      charge_id: targetCharge.id,
+      charge_amount: targetCharge.amount,
+      amount_refunded_before: targetCharge.amount_refunded,
+      refundable_before: refundable,
+    },
     after_state: {
       refund_id: refund.id,
-      amount_cents: refundAmount,
-      reason,
+      refund_amount_cents: refundAmount,
+      refund_currency: targetCharge.currency,
+      refund_reason: reason,
+      refund_status: refund.status,
+      amount_refunded_after: targetCharge.amount_refunded + refundAmount,
     },
   });
+
+  return {
+    refundId: refund.id,
+    amountCents: refundAmount,
+    currency: targetCharge.currency,
+    chargeId: targetCharge.id,
+  };
 }
 
 /**
@@ -1043,4 +1364,194 @@ export async function clearCache(): Promise<{
       after: statsAfterRecord,
     },
   };
+}
+
+/**
+ * Get refund status for a user
+ * Fetches pending refunds, payment history, and charge details from Stripe
+ * Returns enhanced DTO with charge selection support, failed refund indicators, and max refundable amount
+ */
+export async function getRefundStatus(userId: string): Promise<import('@backend/modules/admin/dto/admin.dto').RefundStatusDto | null> {
+  // Get user to find stripe_customer_id
+  const user = await adminDao.getUserById(userId);
+
+  if (!user || !user.stripe_customer_id) {
+    return null;
+  }
+
+  // Fetch refunds from Stripe
+  const stripe = getStripe();
+  if (!stripe) {
+    return null; // Return null if Stripe not configured
+  }
+
+  // Get charges for the customer first
+  const chargesResponse = await stripe.charges.list({
+    customer: user.stripe_customer_id,
+    limit: 100,
+  });
+
+  const chargesData = chargesResponse.data;
+
+  // Build charge info array for UI selection
+  const charges: Array<{
+    id: string;
+    amount: number;
+    amountRefunded: number;
+    refundable: number;
+    currency: string;
+    status: string;
+    created: number;
+    date: string;
+    description: string | null;
+    paymentMethod: string | null;
+  }> = [];
+
+  // Collect all refunds from the charges
+  const allRefunds: Array<{
+    id: string;
+    amount: number;
+    status: string;
+    reason: string | null;
+    created: number;
+    currency: string;
+    chargeId: string | null;
+    failureReason: string | null;
+  }> = [];
+
+  let hasFailedRefunds = false;
+  let maxRefundable = 0;
+
+  for (const charge of chargesData) {
+    // Only include succeeded charges
+    if (charge.status === 'succeeded') {
+      const refundable = charge.amount - charge.amount_refunded;
+      maxRefundable += refundable;
+      
+      charges.push({
+        id: charge.id,
+        amount: charge.amount,
+        amountRefunded: charge.amount_refunded,
+        refundable,
+        currency: charge.currency,
+        status: charge.status,
+        created: charge.created,
+        date: new Date(charge.created * 1000).toISOString(),
+        description: charge.description,
+        paymentMethod: charge.payment_method_details?.type || null,
+      });
+    }
+
+    // Extract refunds from charge
+    if (charge.refunds && charge.refunds.data.length > 0) {
+      for (const refund of charge.refunds.data) {
+        const isFailed = refund.status === 'failed' || refund.status === 'canceled';
+        if (isFailed) hasFailedRefunds = true;
+
+        allRefunds.push({
+          id: refund.id,
+          amount: refund.amount,
+          status: refund.status || 'unknown',
+          reason: refund.reason,
+          created: refund.created,
+          currency: refund.currency || charge.currency,
+          chargeId: charge.id,
+          failureReason: refund.failure_reason || null,
+        });
+      }
+    }
+  }
+
+  // Fallback to refunds.list if no charges found
+  if (chargesData.length === 0) {
+    const refundsList = await stripe.refunds.list({ limit: 100 });
+    for (const refund of refundsList.data) {
+      let currency = refund.currency || 'usd';
+      let chargeId: string | null = null;
+      try {
+        if (refund.charge) {
+          const charge = await stripe.charges.retrieve(refund.charge as string);
+          if ((charge.customer as string) !== user.stripe_customer_id) {
+            continue;
+          }
+          currency = charge.currency || currency;
+          chargeId = charge.id;
+        }
+      } catch {
+        continue;
+      }
+      
+      const isFailed = refund.status === 'failed' || refund.status === 'canceled';
+      if (isFailed) hasFailedRefunds = true;
+
+      allRefunds.push({
+        id: refund.id,
+        amount: refund.amount,
+        status: refund.status || 'unknown',
+        reason: refund.reason,
+        created: refund.created,
+        currency,
+        chargeId,
+        failureReason: refund.failure_reason || null,
+      });
+    }
+  }
+
+  // Get last payment information (most recent succeeded charge)
+  const lastSucceededCharge = chargesData.find(c => c.status === 'succeeded');
+  const lastPayment = lastSucceededCharge ? {
+    amount: lastSucceededCharge.amount,
+    currency: lastSucceededCharge.currency,
+    date: lastSucceededCharge.created,
+    chargeId: lastSucceededCharge.id,
+  } : null;
+
+  // Calculate totals - only include pending/succeeded refunds
+  const pendingRefunds = allRefunds.filter(
+    r => r.status === 'pending' || r.status === 'succeeded'
+  );
+  const totalPendingAmount = pendingRefunds.reduce((sum, r) => sum + r.amount, 0);
+
+  // Return enhanced DTO
+  return {
+    hasPendingRefunds: pendingRefunds.length > 0,
+    totalPendingAmount,
+    currency: lastPayment?.currency || allRefunds[0]?.currency || 'usd',
+    refunds: allRefunds.map(r => ({
+      id: r.id,
+      amount: r.amount,
+      status: r.status,
+      reason: r.reason,
+      created: r.created,
+      chargeId: r.chargeId,
+      failureReason: r.failureReason,
+    })),
+    lastPayment,
+    charges,
+    hasFailedRefunds,
+    maxRefundable,
+  };
+}
+
+/**
+ * Create Stripe customer portal session for a user (admin use)
+ * Returns the portal URL for managing subscriptions
+ */
+export async function createUserPortalSession(userId: string, returnUrl: string): Promise<string> {
+  // Get user profile to find stripe_customer_id
+  const user = await adminDao.getUserById(userId);
+
+  if (!user) {
+    throw new Error('User not found');
+  }
+
+  if (!user.stripe_customer_id) {
+    throw new Error('User does not have a Stripe customer ID');
+  }
+
+  // Create portal session using Stripe client
+  const { createCustomerPortalSession } = await import('@lib/stripe/client');
+  const portalUrl = await createCustomerPortalSession(user.stripe_customer_id, returnUrl);
+
+  return portalUrl;
 }

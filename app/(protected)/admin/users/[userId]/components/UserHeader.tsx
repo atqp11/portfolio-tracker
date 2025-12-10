@@ -1,7 +1,9 @@
 import type { Profile } from '@lib/supabase/db';
+import type { RefundStatusDto } from '@backend/modules/admin/dto/admin.dto';
 
 interface UserHeaderProps {
   user: Profile;
+  refundStatus?: RefundStatusDto | null;
 }
 
 function getStatusBadge(status: string | null) {
@@ -25,14 +27,52 @@ function getStatusBadge(status: string | null) {
   return { label: status, color: 'bg-orange-500' };
 }
 
-export default function UserHeader({ user }: UserHeaderProps) {
+export default function UserHeader({ user, refundStatus }: UserHeaderProps) {
   const statusBadge = getStatusBadge(user.subscription_status || null);
   const accountStatusBadge = user.is_active 
     ? { label: 'Active', color: 'bg-green-500' }
     : { label: 'Deactivated', color: 'bg-red-500' };
 
+  const formatCurrency = (amount: number, currency: string) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: currency.toUpperCase(),
+    }).format(amount / 100);
+  };
+
   return (
     <div className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg p-6">
+      {/* Refund Status Banner - Prominent */}
+      {refundStatus && refundStatus.hasPendingRefunds && (
+        <div className="mb-6 p-4 bg-yellow-50 dark:bg-yellow-900/30 border-2 border-yellow-400 dark:border-yellow-600 rounded-lg shadow-md">
+          <div className="flex items-start gap-3">
+            <svg className="w-6 h-6 text-yellow-600 dark:text-yellow-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <div className="flex-1">
+              <h3 className="text-lg font-bold text-yellow-800 dark:text-yellow-200">
+                Pending Refunds: {formatCurrency(refundStatus.totalPendingAmount, refundStatus.currency)}
+              </h3>
+              <p className="text-sm text-yellow-700 dark:text-yellow-300 mt-1">
+                {refundStatus.refunds.length} refund{refundStatus.refunds.length !== 1 ? 's' : ''} pending processing
+              </p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {refundStatus.refunds.slice(0, 3).map((refund) => (
+                  <span key={refund.id} className="inline-flex items-center px-2 py-1 bg-yellow-100 dark:bg-yellow-900/50 text-yellow-800 dark:text-yellow-200 text-xs font-medium rounded">
+                    {formatCurrency(refund.amount, refundStatus.currency)} - {refund.status}
+                  </span>
+                ))}
+                {refundStatus.refunds.length > 3 && (
+                  <span className="inline-flex items-center px-2 py-1 bg-yellow-100 dark:bg-yellow-900/50 text-yellow-800 dark:text-yellow-200 text-xs font-medium rounded">
+                    +{refundStatus.refunds.length - 3} more
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Left: User Profile */}
         <div>

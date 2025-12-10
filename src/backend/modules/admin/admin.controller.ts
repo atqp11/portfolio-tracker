@@ -869,27 +869,33 @@ export class AdminController {
   /**
    * Refund user payment (for server actions)
    * Validates input with Zod schema
+   * Supports optional charge selection for multi-payment users
    */
   async refundUserData(
     userId: string,
     adminId: string,
     amountCents: number,
     reason: string,
-    note?: string
+    note?: string,
+    chargeId?: string
   ) {
     // Validate input
     getUserByIdInputSchema.parse({ userId });
     z.number().int().positive().parse(amountCents);
     z.string().min(1, 'Reason is required').parse(reason);
+    if (chargeId) {
+      z.string().min(1).parse(chargeId);
+    }
     
-    await adminService.refundUser({
+    const result = await adminService.refundUser({
       userId,
       adminId,
       amount: amountCents,
       reason,
+      chargeId,
     });
 
-    return { success: true, userId };
+    return { success: true, userId, ...result };
   }
 
   /**
@@ -937,6 +943,48 @@ export class AdminController {
     });
 
     return result;
+  }
+
+  /**
+   * Create Stripe customer portal session for a specific user (admin use)
+   * Allows admin to manage user subscriptions via Stripe Customer Portal
+   */
+  async createUserPortalSessionData(userId: string, returnUrl: string): Promise<{ url: string }> {
+    // Validate input
+    getUserByIdInputSchema.parse({ userId });
+    z.string().url().parse(returnUrl);
+
+    // Delegate to service layer
+    const portalUrl = await adminService.createUserPortalSession(userId, returnUrl);
+
+    return { url: portalUrl };
+  }
+
+  /**
+   * Get cancellation preview with refund calculation
+   * Shows what will happen if subscription is canceled immediately vs at period end
+   */
+  async getCancellationPreviewData(userId: string) {
+    // Validate input
+    getUserByIdInputSchema.parse({ userId });
+
+    const preview = await adminService.getCancellationPreview(userId);
+    return preview;
+  }
+
+  /**
+   * Get refund status for a user
+   * Shows pending refunds and last payment information
+   * Controller validates input and delegates to service layer
+   */
+  async getRefundStatusData(userId: string) {
+    // Validate input with Zod
+    getUserByIdInputSchema.parse({ userId });
+
+    // Delegate to service layer - service returns DTO or null
+    const refundStatus = await adminService.getRefundStatus(userId);
+    
+    return refundStatus;
   }
 }
 

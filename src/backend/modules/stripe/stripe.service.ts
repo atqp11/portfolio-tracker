@@ -21,6 +21,8 @@ import {
   handleInvoicePaymentSucceeded,
   handleInvoicePaymentFailed,
   handleCheckoutCompleted,
+  handleChargeRefunded,
+  handleRefundUpdated,
 } from '@backend/modules/stripe/webhook-handlers';
 import * as stripeDao from '@backend/modules/stripe/dao/stripe.dao';
 
@@ -219,6 +221,12 @@ export async function processStripeWebhook(
         break;
       case 'invoice.payment_failed':
         await handleInvoicePaymentFailed(event.data.object as Stripe.Invoice, context);
+        break;
+      case 'charge.refunded':
+        await handleChargeRefunded(event.data.object as Stripe.Charge, context);
+        break;
+      case 'charge.refund.updated':
+        await handleRefundUpdated(event.data.object as Stripe.Refund, context);
         break;
       default:
         console.log(`Unhandled event type: ${event.type}`);

@@ -354,6 +354,158 @@ export async function handleSubscriptionDeleted(
 }
 
 // ============================================================================
+// CHARGE REFUNDED
+// ============================================================================
+
+/**
+ * Handle charge.refunded webhook event
+ * Logs refund activity and syncs state when refunds happen outside admin panel
+ * (e.g., directly in Stripe dashboard, customer dispute, etc.)
+ */
+export async function handleChargeRefunded(
+  charge: Stripe.Charge,
+  ctx: WebhookContext
+): Promise<void> {
+  const supabase = createAdminClient();
+  
+  console.log(`💸 Charge refunded: ${charge.id}`);
+  console.log(`   Customer: ${charge.customer}`);
+  console.log(`   Amount: ${charge.amount}`);
+  console.log(`   Amount refunded: ${charge.amount_refunded}`);
+
+  if (!charge.customer) {
+    console.log('⏭️  Skipping: No customer on charge');
+    return;
+  }
+
+  // Find user by customer ID
+  const { data: user, error: userError } = await supabase
+    .from('profiles')
+    .select('id, email, tier')
+    .eq('stripe_customer_id', charge.customer as string)
+    .single();
+
+  if (userError || !user) {
+    console.warn('⚠️  User not found for refunded charge:', charge.customer);
+    // Still log the transaction even if user not found
+    await logTransaction(ctx, {
+      stripe_customer_id: charge.customer as string,
+      event_type: 'charge.refunded',
+      amount_cents: charge.amount_refunded,
+      currency: charge.currency,
+      status: 'completed',
+    });
+    return;
+  }
+
+  // Get refund details from the charge
+  const latestRefund = charge.refunds?.data?.[0];
+  const refundReason = latestRefund?.reason || 'unknown';
+  const refundStatus = latestRefund?.status || 'unknown';
+
+  // Log transaction with refund details
+  await logTransaction(ctx, {
+    user_id: user.id,
+    stripe_customer_id: charge.customer as string,
+    event_type: 'charge.refunded',
+    amount_cents: charge.amount_refunded,
+    currency: charge.currency,
+    status: 'completed',
+    metadata: {
+      charge_id: charge.id,
+      refund_id: latestRefund?.id,
+      refund_reason: refundReason,
+      refund_status: refundStatus,
+      amount_refunded_cents: charge.amount_refunded,
+      fully_refunded: charge.refunded,
+    },
+  });
+
+  // If fully refunded and user had a subscription, we might want to check subscription status
+  // This is informational - Stripe handles subscription cancellation separately
+  if (charge.refunded) {
+    console.log(`📌 Charge ${charge.id} fully refunded for user ${user.id}`);
+  }
+
+  console.log(`✅ Refund processed: User ${user.id}, ${charge.amount_refunded / 100} ${charge.currency.toUpperCase()}`);
+}
+
+// ============================================================================
+// REFUND UPDATED
+// ============================================================================
+
+/**
+ * Handle charge.refund.updated webhook event
+ * Tracks refund status changes (e.g., pending → succeeded, failed, canceled)
+ */
+export async function handleRefundUpdated(
+  refund: Stripe.Refund,
+  ctx: WebhookContext
+): Promise<void> {
+  const supabase = createAdminClient();
+  
+  console.log(`🔄 Refund updated: ${refund.id}`);
+  console.log(`   Status: ${refund.status}`);
+  console.log(`   Amount: ${refund.amount}`);
+  console.log(`   Failure reason: ${refund.failure_reason || 'none'}`);
+
+  // Get charge to find customer
+  let customerId: string | null = null;
+  let chargeId: string | null = null;
+
+  if (refund.charge) {
+    chargeId = typeof refund.charge === 'string' ? refund.charge : refund.charge.id;
+    const stripe = getStripe();
+    if (stripe) {
+      try {
+        const charge = await stripe.charges.retrieve(chargeId);
+        customerId = charge.customer as string;
+      } catch (err) {
+        console.warn('Failed to retrieve charge for refund:', err);
+      }
+    }
+  }
+
+  // Find user by customer ID
+  let userId: string | undefined;
+  if (customerId) {
+    const { data: user } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('stripe_customer_id', customerId)
+      .single();
+    
+    userId = user?.id;
+  }
+
+  // Log transaction
+  await logTransaction(ctx, {
+    user_id: userId,
+    stripe_customer_id: customerId || undefined,
+    event_type: 'charge.refund.updated',
+    amount_cents: refund.amount,
+    currency: refund.currency,
+    status: refund.status === 'failed' ? 'failed' : 'completed',
+    error_message: refund.failure_reason || undefined,
+    metadata: {
+      refund_id: refund.id,
+      charge_id: chargeId,
+      refund_status: refund.status,
+      failure_reason: refund.failure_reason,
+    },
+  });
+
+  // Log failed refunds prominently for admin attention
+  if (refund.status === 'failed') {
+    console.error(`❌ Refund ${refund.id} FAILED: ${refund.failure_reason}`);
+    console.error(`   User ID: ${userId || 'unknown'}`);
+    console.error(`   Amount: ${refund.amount / 100} ${refund.currency.toUpperCase()}`);
+  } else {
+    console.log(`✅ Refund ${refund.id} status: ${refund.status}`);
+  }
+}
+
+// ============================================================================
 // HELPERS
 // ============================================================================
 
@@ -379,5 +531,6 @@ async function logTransaction(
     tier_after: data.tier_after as string | undefined,
     error_message: data.error_message as string | undefined,
     processed_at: new Date().toISOString(),
+    metadata: data.metadata as Record<string, unknown> | undefined,
   });
 }
