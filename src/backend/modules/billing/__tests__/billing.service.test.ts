@@ -39,6 +39,13 @@ describe('BillingService', () => {
 
       mockBillingDao.getUserSubscriptionInfo.mockResolvedValue(mockSubscriptionInfo);
 
+      const mockStripe = {
+        subscriptions: {
+          list: jest.fn().mockResolvedValue({ data: [] }),
+        },
+      };
+      mockGetStripe.mockReturnValue(mockStripe as any);
+
       const result = await billingService.getSubscriptionInfo(mockUserId);
 
       expect(result).toEqual({
@@ -53,7 +60,8 @@ describe('BillingService', () => {
       });
 
       expect(mockBillingDao.getUserSubscriptionInfo).toHaveBeenCalledWith(mockUserId);
-      expect(mockGetStripe).not.toHaveBeenCalled();
+      expect(mockGetStripe).toHaveBeenCalled();
+      expect(mockStripe.subscriptions.list).toHaveBeenCalled();
     });
 
     it('should return detailed info for user with active subscription', async () => {
@@ -145,6 +153,7 @@ describe('BillingService', () => {
       const mockStripe = {
         subscriptions: {
           retrieve: jest.fn().mockRejectedValue(new Error('Subscription not found')),
+          list: jest.fn().mockResolvedValue({ data: [] }), // Metadata lookup returns empty
         },
       };
       mockGetStripe.mockReturnValue(mockStripe as any);
@@ -153,17 +162,17 @@ describe('BillingService', () => {
 
       const result = await billingService.getSubscriptionInfo(mockUserId);
 
-      expect(result.hasSubscription).toBe(true);
+      expect(result.hasSubscription).toBe(false); // Changed: no subscription found after both lookups
       expect(result.subscription).toBeNull();
       expect(consoleWarnSpy).toHaveBeenCalledWith(
-        'Subscription not found in Stripe:',
+        'Subscription not found by ID, will try metadata lookup:',
         expect.any(Error)
       );
 
       consoleWarnSpy.mockRestore();
     });
 
-    it('should throw error if Stripe is not configured', async () => {
+    it('should return basic info when Stripe is not configured', async () => {
       const mockSubscriptionInfo: SubscriptionInfo = {
         hasSubscription: true,
         tier: 'basic',
@@ -179,9 +188,18 @@ describe('BillingService', () => {
       mockBillingDao.getUserSubscriptionInfo.mockResolvedValue(mockSubscriptionInfo);
       mockGetStripe.mockReturnValue(null);
 
-      await expect(billingService.getSubscriptionInfo(mockUserId))
-        .rejects
-        .toThrow('Stripe is not configured');
+      const result = await billingService.getSubscriptionInfo(mockUserId);
+
+      expect(result).toEqual({
+        hasSubscription: true,
+        tier: 'basic',
+        subscriptionStatus: 'active',
+        currentPeriodStart: '2025-01-01T00:00:00Z',
+        currentPeriodEnd: '2025-02-01T00:00:00Z',
+        cancelAtPeriodEnd: false,
+        trialEndsAt: null,
+        subscription: null, // No Stripe details available
+      });
     });
 
     it('should handle subscription with trial period', async () => {
@@ -330,16 +348,16 @@ describe('BillingService', () => {
       expect(mockGetStripe).not.toHaveBeenCalled();
     });
 
-    it('should throw error if Stripe is not configured', async () => {
+    it('should return empty array when Stripe is not configured', async () => {
       mockBillingDao.getStripeCustomerId.mockResolvedValue('cus_123');
       mockGetStripe.mockReturnValue(null);
 
-      await expect(billingService.getBillingHistory(mockUserId))
-        .rejects
-        .toThrow('Stripe is not configured');
+      const result = await billingService.getBillingHistory(mockUserId);
+
+      expect(result).toEqual([]);
     });
 
-    it('should handle Stripe API errors', async () => {
+    it('should handle Stripe API errors gracefully', async () => {
       mockBillingDao.getStripeCustomerId.mockResolvedValue('cus_123');
       
       const mockStripe = {
@@ -349,9 +367,9 @@ describe('BillingService', () => {
       };
       mockGetStripe.mockReturnValue(mockStripe as any);
 
-      await expect(billingService.getBillingHistory(mockUserId))
-        .rejects
-        .toThrow('Stripe API error');
+      const result = await billingService.getBillingHistory(mockUserId);
+
+      expect(result).toEqual([]);
     });
   });
 });

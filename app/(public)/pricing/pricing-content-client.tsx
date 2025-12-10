@@ -2,8 +2,10 @@
 
 import { useState, useEffect, useTransition } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { PRICING_TIERS } from '@/src/lib/pricing/tiers';
+import { getAllPlanMetadata } from '@/src/backend/modules/subscriptions/config/plans.config';
 import { PricingCard } from '@/components/pricing/PricingCard';
+
+const PRICING_TIERS = getAllPlanMetadata();
 import { BillingToggle } from '@/components/pricing/BillingToggle';
 import { createCheckoutSession } from './actions';
 

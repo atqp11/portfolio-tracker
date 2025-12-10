@@ -101,7 +101,7 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
         <WebhookEventsLog transactions={transactions} />
 
         {/* 7. Errors & Mismatches */}
-        <ErrorsMismatches user={user} transactions={transactions} />
+        <ErrorsMismatches user={user} transactions={transactions} stripeStatus={stripeStatus} />
 
         {/* 8. Debug Tools */}
         <DebugTools user={user} />

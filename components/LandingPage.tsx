@@ -9,8 +9,10 @@ import {
   type LucideIcon
 } from 'lucide-react';
 
-import { PRICING_TIERS } from '@/src/lib/pricing/tiers';
+import { getAllPlanMetadata } from '@/src/backend/modules/subscriptions/config/plans.config';
 import { PricingCard } from '@/components/pricing/PricingCard';
+
+const PRICING_TIERS = getAllPlanMetadata();
 
 // --- CSS for High-End Visuals & 3D Effects ---
 const styles = `

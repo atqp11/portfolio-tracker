@@ -177,15 +177,15 @@ describe('BillingDao', () => {
       expect(result).toBeNull();
     });
 
-    it('should throw NotFoundError if profile not found', async () => {
+    it('should return null if profile not found', async () => {
       mockSupabaseClient.single.mockResolvedValue({
         data: null,
         error: { message: 'Profile not found' },
       });
 
-      await expect(billingDao.getStripeCustomerId(mockUserId))
-        .rejects
-        .toThrow(NotFoundError);
+      const result = await billingDao.getStripeCustomerId(mockUserId);
+
+      expect(result).toBeNull();
     });
   });
 });

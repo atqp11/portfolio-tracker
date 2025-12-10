@@ -21,6 +21,10 @@ const mockCheckoutSessionsCreate = jest.fn() as jest.MockedFunction<
   (params: Stripe.Checkout.SessionCreateParams) => Promise<{ id: string; url: string }>
 >;
 
+const mockPricesRetrieve = jest.fn() as jest.MockedFunction<
+  (id: string) => Promise<Stripe.Price>
+>;
+
 const mockWebhooksConstructEvent = jest.fn() as jest.MockedFunction<
   (payload: string | Buffer, header: string | Buffer, secret: string) => Stripe.Event
 >;
@@ -35,6 +39,9 @@ jest.mock('stripe', () => {
       sessions: {
         create: mockCheckoutSessionsCreate,
       },
+    },
+    prices: {
+      retrieve: mockPricesRetrieve,
     },
     webhooks: {
       constructEvent: mockWebhooksConstructEvent,
@@ -89,7 +96,7 @@ describe('Stripe Client', () => {
       process.env.STRIPE_PRICE_PREMIUM_ANNUAL = 'price_premium_annual_456';
       
       jest.resetModules();
-      const { getTierFromPriceId } = await import('@lib/stripe/client');
+      const { getTierFromPriceId } = await import('@backend/modules/subscriptions/config/plans.config');
       
       expect(getTierFromPriceId('price_basic_monthly_123')).toBe('basic');
       expect(getTierFromPriceId('price_basic_annual_123')).toBe('basic');
@@ -98,7 +105,7 @@ describe('Stripe Client', () => {
     });
 
     it('should return null for unknown price ID', async () => {
-      const { getTierFromPriceId } = await import('@lib/stripe/client');
+      const { getTierFromPriceId } = await import('@backend/modules/subscriptions/config/plans.config');
       expect(getTierFromPriceId('price_unknown')).toBeNull();
     });
   });
@@ -136,10 +143,118 @@ describe('Stripe Client', () => {
     });
   });
 
+  describe('validatePriceId', () => {
+    it('should return valid for active recurring price', async () => {
+      mockPricesRetrieve.mockResolvedValue({
+        id: 'price_test',
+        object: 'price',
+        active: true,
+        currency: 'usd',
+        unit_amount: 599,
+        recurring: {
+          interval: 'month',
+          interval_count: 1,
+        },
+      } as Stripe.Price);
+
+      const { validatePriceId } = await import('@lib/stripe/client');
+      const result = await validatePriceId('price_test');
+      
+      expect(result).toEqual({ valid: true });
+      expect(mockPricesRetrieve).toHaveBeenCalledWith('price_test');
+    });
+
+    it('should return invalid for inactive price', async () => {
+      mockPricesRetrieve.mockResolvedValue({
+        id: 'price_test',
+        object: 'price',
+        active: false,
+        currency: 'usd',
+        unit_amount: 599,
+        recurring: {
+          interval: 'month',
+          interval_count: 1,
+        },
+      } as Stripe.Price);
+
+      const { validatePriceId } = await import('@lib/stripe/client');
+      const result = await validatePriceId('price_test');
+      
+      expect(result).toEqual({
+        valid: false,
+        error: 'Price ID price_test is not active',
+      });
+    });
+
+    it('should return invalid for non-recurring price', async () => {
+      mockPricesRetrieve.mockResolvedValue({
+        id: 'price_test',
+        object: 'price',
+        active: true,
+        currency: 'usd',
+        unit_amount: 599,
+        recurring: null,
+      } as Stripe.Price);
+
+      const { validatePriceId } = await import('@lib/stripe/client');
+      const result = await validatePriceId('price_test');
+      
+      expect(result).toEqual({
+        valid: false,
+        error: 'Price ID price_test is not a recurring subscription price',
+      });
+    });
+
+    it('should return invalid if price not found', async () => {
+      mockPricesRetrieve.mockRejectedValue(new Error('No such price'));
+
+      const { validatePriceId } = await import('@lib/stripe/client');
+      const result = await validatePriceId('price_invalid');
+      
+      expect(result).toEqual({
+        valid: false,
+        error: 'Price ID price_invalid not found: No such price',
+      });
+    });
+
+    it('should return invalid if Stripe is not configured', async () => {
+      const originalKey = process.env.STRIPE_SECRET_KEY;
+      delete process.env.STRIPE_SECRET_KEY;
+      jest.resetModules();
+
+      const { validatePriceId } = await import('@lib/stripe/client');
+      const result = await validatePriceId('price_test');
+      
+      expect(result).toEqual({
+        valid: false,
+        error: 'Stripe is not configured',
+      });
+
+      // Restore for other tests
+      if (originalKey) {
+        process.env.STRIPE_SECRET_KEY = originalKey;
+      }
+      jest.resetModules();
+    });
+  });
+
   describe('createCheckoutSession', () => {
     it('should create checkout session with correct parameters', async () => {
       const mockSessionId = 'cs_test_123';
       const mockUrl = 'https://checkout.stripe.com/test';
+      
+      // Mock price validation - price exists and is active
+      mockPricesRetrieve.mockResolvedValue({
+        id: 'price_basic',
+        object: 'price',
+        active: true,
+        currency: 'usd',
+        unit_amount: 599,
+        recurring: {
+          interval: 'month',
+          interval_count: 1,
+        },
+      } as Stripe.Price);
       
       mockCheckoutSessionsCreate.mockResolvedValue({
         id: mockSessionId,
@@ -154,6 +269,7 @@ describe('Stripe Client', () => {
         'https://example.com/cancel'
       );
       
+      expect(mockPricesRetrieve).toHaveBeenCalledWith('price_basic');
       expect(result).toEqual({
         sessionId: mockSessionId,
         url: mockUrl,
@@ -161,6 +277,19 @@ describe('Stripe Client', () => {
     });
 
     it('should include trial period if provided', async () => {
+      // Mock price validation - price exists and is active
+      mockPricesRetrieve.mockResolvedValue({
+        id: 'price_basic',
+        object: 'price',
+        active: true,
+        currency: 'usd',
+        unit_amount: 599,
+        recurring: {
+          interval: 'month',
+          interval_count: 1,
+        },
+      } as Stripe.Price);
+      
       mockCheckoutSessionsCreate.mockResolvedValue({
         id: 'cs_test',
         url: 'https://checkout.stripe.com/test',
@@ -176,11 +305,13 @@ describe('Stripe Client', () => {
         undefined
       );
       
+      expect(mockPricesRetrieve).toHaveBeenCalledWith('price_basic');
       expect(mockCheckoutSessionsCreate).toHaveBeenCalledWith(
         expect.objectContaining({
-          subscription_data: {
+          subscription_data: expect.objectContaining({
             trial_period_days: 7,
-          },
+            metadata: {},
+          }),
         }),
         expect.any(Object)
       );

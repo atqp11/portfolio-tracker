@@ -51,8 +51,14 @@ export class BillingDao {
       .eq('id', userId)
       .single();
 
-    if (error || !profile) {
-      throw new NotFoundError('User profile not found');
+    if (error) {
+      console.error('[billingDao.getStripeCustomerId] Error fetching customer ID:', error);
+      return null;
+    }
+
+    if (!profile) {
+      console.warn('[billingDao.getStripeCustomerId] No profile found for user:', userId);
+      return null;
     }
 
     return profile.stripe_customer_id;

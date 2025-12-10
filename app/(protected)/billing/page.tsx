@@ -37,7 +37,7 @@ export default async function BillingPage(): Promise<React.JSX.Element> {
     // Fetch billing history directly from service layer
     invoices = await billingService.getBillingHistory(profile.id);
   } catch (error) {
-    console.error('Error fetching billing data:', error);
+    console.error('[BillingPage] Error fetching billing data:', error);
     // Continue rendering with empty data rather than crashing
   }
 

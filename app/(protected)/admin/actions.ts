@@ -85,3 +85,109 @@ export async function retryWebhook(eventId: string) {
   }
 }
 
+/**
+ * Server Action: Detect subscription mismatches
+ * Admin-only operation to detect all subscription mismatches between Stripe and Supabase
+ */
+export async function detectSubscriptionMismatches() {
+  try {
+    // Auth check
+    await requireUser();
+    const admin = await getUserProfile();
+    if (!admin?.is_admin) {
+      throw new Error('Unauthorized');
+    }
+
+    // Import controller
+    const { billingController } = await import('@backend/modules/billing/controller/billing.controller');
+
+    // Call controller
+    const mismatches = await billingController.detectAllMismatches();
+
+    return {
+      success: true,
+      data: {
+        totalMismatches: mismatches.length,
+        mismatches,
+      },
+    };
+  } catch (error) {
+    throw new Error(error instanceof Error ? error.message : 'Failed to detect subscription mismatches');
+  }
+}
+
+/**
+ * Server Action: Sync subscription for specific user
+ * Admin-only operation to sync a user's subscription from Stripe to Supabase
+ */
+export async function syncUserSubscription(userId: string) {
+  try {
+    // Auth check
+    await requireUser();
+    const admin = await getUserProfile();
+    if (!admin?.is_admin) {
+      throw new Error('Unauthorized');
+    }
+
+    // Validate input
+    const userIdSchema = z.string().uuid('Invalid user ID');
+    const result = userIdSchema.safeParse(userId);
+    if (!result.success) {
+      throw new Error(formatValidationError(result.error));
+    }
+
+    // Import controller
+    const { billingController } = await import('@backend/modules/billing/controller/billing.controller');
+
+    // Call controller
+    await billingController.syncMissingSubscription(result.data);
+
+    // Revalidate paths
+    revalidatePath('/admin/users');
+    revalidatePath(`/admin/users/${userId}`);
+    revalidatePath('/billing');
+
+    return {
+      success: true,
+      message: `Successfully synced subscription for user ${userId}`,
+    };
+  } catch (error) {
+    throw new Error(error instanceof Error ? error.message : 'Failed to sync user subscription');
+  }
+}
+
+/**
+ * Server Action: Sync all missing subscriptions
+ * Admin-only operation to sync all mismatched subscriptions from Stripe to Supabase
+ */
+export async function syncAllMissingSubscriptions() {
+  try {
+    // Auth check
+    await requireUser();
+    const admin = await getUserProfile();
+    if (!admin?.is_admin) {
+      throw new Error('Unauthorized');
+    }
+
+    // Import controller
+    const { billingController } = await import('@backend/modules/billing/controller/billing.controller');
+
+    // Call controller
+    const result = await billingController.syncAllMissingSubscriptions();
+
+    // Revalidate paths
+    revalidatePath('/admin/users');
+    revalidatePath('/billing');
+
+    return {
+      success: true,
+      data: {
+        message: 'Sync operation completed',
+        ...result,
+      },
+    };
+  } catch (error) {
+    throw new Error(error instanceof Error ? error.message : 'Failed to sync subscriptions');
+  }
+}
+

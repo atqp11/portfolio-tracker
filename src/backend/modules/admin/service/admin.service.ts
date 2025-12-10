@@ -119,6 +119,7 @@ export async function getStripeSubscriptionStatus(userId: string): Promise<{
   status: string | null; 
   tier: string | null;
   lastSync: string | null;
+  subscriptionId?: string | null;
   hasMismatch?: boolean;
   mismatchDetails?: {
     statusMismatch?: boolean;
@@ -128,36 +129,79 @@ export async function getStripeSubscriptionStatus(userId: string): Promise<{
   };
 }> {
   const user = await adminDao.getUserById(userId);
-  if (!user?.stripe_subscription_id) {
-    return { status: null, tier: null, lastSync: null };
-  }
-
+  
   const stripe = getStripe();
   if (!stripe) {
     return { status: null, tier: null, lastSync: null }; // Stripe not configured
   }
 
+  let subscription: Stripe.Subscription | null = null;
+
+  // Try to get subscription from DB stripe_subscription_id
+  if (user?.stripe_subscription_id) {
+    try {
+      subscription = await stripe.subscriptions.retrieve(user.stripe_subscription_id);
+    } catch (error) {
+      console.warn('Subscription not found by ID, will try metadata lookup:', error);
+    }
+  }
+
+  // If no DB subscription_id or retrieval failed, try metadata-based lookup
+  if (!subscription) {
+    try {
+      const subscriptions = await stripe.subscriptions.list({
+        limit: 100,
+        expand: ['data.customer'],
+      });
+      
+      console.log(`[getStripeSubscriptionStatus] Searching for user ${userId} in ${subscriptions.data.length} Stripe subscriptions`);
+      
+      // Check both userid (lowercase) and userId (camelCase) for backwards compatibility
+      subscription = subscriptions.data.find(
+        (sub) => sub.metadata?.userid === userId || sub.metadata?.userId === userId
+      ) || null;
+      
+      if (subscription) {
+        console.log(`[getStripeSubscriptionStatus] Found subscription via metadata: ${subscription.id}`);
+      } else {
+        console.log(`[getStripeSubscriptionStatus] No subscription found with metadata.userid/userId = ${userId}`);
+        // Log all subscriptions with metadata for debugging
+        const subsWithMetadata = subscriptions.data.filter(sub => sub.metadata?.userid || sub.metadata?.userId);
+        console.log(`[getStripeSubscriptionStatus] Subscriptions with userid metadata:`, 
+          subsWithMetadata.map(s => ({ id: s.id, userid: s.metadata?.userid, userId: s.metadata?.userId }))
+        );
+      }
+    } catch (error) {
+      console.error('Error listing Stripe subscriptions:', error);
+    }
+  }
+
+  // If still no subscription found, return null values
+  if (!subscription) {
+    return { status: null, tier: null, lastSync: null, subscriptionId: null };
+  }
+
   try {
-    const subscription = await stripe.subscriptions.retrieve(user.stripe_subscription_id);
     
     // Get tier from subscription's price ID
     const priceId = subscription.items.data[0]?.price?.id;
-    const { getTierFromPriceId } = await import('@lib/stripe/client');
+    const { getTierFromPriceId } = await import('@backend/modules/subscriptions/config/plans.config');
     const expectedTier = getTierFromPriceId(priceId) || 'free';
     const isActive = subscription.status === 'active' || subscription.status === 'trialing';
     const expectedFinalTier = isActive ? expectedTier : 'free';
     
-    // Check for mismatches
-    const dbStatus = user.subscription_status || null;
+    // Check for mismatches (only if user exists in DB)
+    const dbStatus = user?.subscription_status || null;
     const stripeStatus = subscription.status;
     const statusMismatch = dbStatus !== stripeStatus;
-    const tierMismatch = user.tier !== expectedFinalTier;
+    const tierMismatch = user?.tier !== expectedFinalTier;
     const hasMismatch = statusMismatch || tierMismatch;
     
     return {
       status: stripeStatus,
       tier: expectedFinalTier,
-      lastSync: user.updated_at || null,
+      lastSync: user?.updated_at || null,
+      subscriptionId: subscription.id,
       hasMismatch,
       mismatchDetails: hasMismatch ? {
         statusMismatch,
@@ -453,6 +497,7 @@ export async function extendTrial(
 /**
  * Sync user's subscription from Stripe
  * This includes syncing subscription status AND tier based on the subscription's price ID
+ * Now supports metadata-based lookup for subscriptions without DB record
  */
 export async function syncUserSubscription(
   userId: string,
@@ -463,16 +508,38 @@ export async function syncUserSubscription(
     throw new Error('User not found');
   }
 
-  if (!user.stripe_subscription_id) {
-    throw new Error('User has no subscription to sync');
-  }
-
   const stripe = getStripe();
   if (!stripe) {
     throw new Error('Stripe is not configured');
   }
-  
-  const subscriptionResponse = await stripe.subscriptions.retrieve(user.stripe_subscription_id);
+
+  let subscription: Stripe.Subscription;
+
+  // Try to sync from existing DB subscription ID first
+  if (user.stripe_subscription_id) {
+    const subscriptionResponse = await stripe.subscriptions.retrieve(user.stripe_subscription_id);
+    subscription = subscriptionResponse as Stripe.Subscription;
+  } else {
+    // No DB subscription - use metadata-based lookup (for legacy subscriptions)
+    console.log(`No DB subscription for user ${userId}, checking Stripe metadata...`);
+    
+    const subscriptions = await stripe.subscriptions.list({
+      limit: 100,
+      expand: ['data.customer'],
+    });
+
+    // Check both userid (lowercase) and userId (camelCase) for backwards compatibility
+    const userSub = subscriptions.data.find(
+      (sub) => sub.metadata?.userid === userId || sub.metadata?.userId === userId
+    );
+
+    if (!userSub) {
+      throw new Error('No active subscription found in Stripe. User may need to subscribe first, or subscription metadata is missing.');
+    }
+
+    subscription = userSub;
+    console.log(`Found subscription ${subscription.id} via metadata for user ${userId}`);
+  }
   
   // Stripe SDK returns Response<Subscription> wrapper, extract the subscription
   // The period fields exist at runtime but aren't in the type definition
@@ -480,24 +547,30 @@ export async function syncUserSubscription(
     current_period_start: number;
     current_period_end: number;
   };
-  const subscription = subscriptionResponse as unknown as Stripe.Subscription & SubscriptionWithPeriods;
+  const subscriptionWithPeriods = subscription as unknown as Stripe.Subscription & SubscriptionWithPeriods;
 
-  // Get tier from subscription's price ID
+  // Get tier from subscription's price ID (using correct import)
   const priceId = subscription.items.data[0]?.price?.id;
-  const { getTierFromPriceId } = await import('@lib/stripe/client');
+  const { getTierFromPriceId } = await import('@backend/modules/subscriptions/config/plans.config');
   const tier = getTierFromPriceId(priceId) || 'free';
 
   // Determine if subscription is active (for tier assignment)
   const isActive = subscription.status === 'active' || subscription.status === 'trialing';
   const finalTier = isActive ? tier : 'free';
 
-  // Update user with Stripe data including tier
+  // Update user with Stripe data including tier and subscription IDs
   const userAfter = await adminDao.updateUser(userId, {
+    stripe_customer_id: subscription.customer as string, // Add customer ID if missing
+    stripe_subscription_id: subscription.id, // Add/update subscription ID
     subscription_status: subscription.status,
     subscription_tier: tier, // Store the tier from subscription
     tier: finalTier, // Update the tier field used by quota system (free if not active)
-    current_period_start: new Date(subscription.current_period_start * 1000).toISOString(),
-    current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
+    current_period_start: subscriptionWithPeriods.current_period_start 
+      ? new Date(subscriptionWithPeriods.current_period_start * 1000).toISOString()
+      : null,
+    current_period_end: subscriptionWithPeriods.current_period_end 
+      ? new Date(subscriptionWithPeriods.current_period_end * 1000).toISOString()
+      : null,
     cancel_at_period_end: subscription.cancel_at_period_end,
     trial_ends_at: subscription.trial_end 
       ? new Date(subscription.trial_end * 1000).toISOString() 
@@ -510,12 +583,14 @@ export async function syncUserSubscription(
     target_user_id: userId,
     action: 'sync_subscription',
     entity_type: 'subscription',
-    entity_id: user.stripe_subscription_id,
+    entity_id: subscription.id,
     before_state: {
+      subscription_id: user.stripe_subscription_id || null,
       status: user.subscription_status,
       tier: user.tier,
     },
     after_state: {
+      subscription_id: subscription.id,
       status: subscription.status,
       tier: finalTier,
       cancel_at_period_end: subscription.cancel_at_period_end,

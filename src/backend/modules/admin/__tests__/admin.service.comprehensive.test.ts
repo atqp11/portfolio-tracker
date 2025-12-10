@@ -513,13 +513,79 @@ describe('Admin Service - Comprehensive', () => {
       expect(mockAdminDao.updateUser).toHaveBeenCalled();
     });
 
-    it('should throw error when user has no subscription', async () => {
+    it('should throw error when user has no subscription in Stripe (metadata lookup)', async () => {
       const userWithoutSubscription = { ...mockUser, stripe_subscription_id: null };
       mockAdminDao.getUserById.mockResolvedValue(userWithoutSubscription as any);
+      
+      const mockStripeInstance = mockGetStripe() as any;
+      // Mock the metadata-based lookup returning no subscriptions
+      mockStripeInstance.subscriptions = {
+        list: jest.fn().mockResolvedValue({
+          data: [], // No subscriptions found with matching userid metadata
+        }),
+      };
 
       await expect(
         adminService.syncUserSubscription('user-1', 'admin-1')
-      ).rejects.toThrow('User has no subscription to sync');
+      ).rejects.toThrow('No active subscription found in Stripe');
+    });
+
+    it('should sync subscription using metadata lookup when no DB subscription_id', async () => {
+      const userWithoutSubscription = { ...mockUser, stripe_subscription_id: null };
+      const mockSubscription = {
+        id: 'sub_456',
+        customer: 'cus_123',
+        status: 'active',
+        cancel_at_period_end: false,
+        current_period_start: Math.floor(Date.now() / 1000),
+        current_period_end: Math.floor(Date.now() / 1000) + 2592000,
+        metadata: {
+          userid: 'user-1',
+        },
+        items: {
+          data: [{
+            price: {
+              id: 'price_basic_monthly',
+            },
+          }],
+        },
+        trial_end: null,
+      };
+
+      mockAdminDao.getUserById.mockResolvedValue(userWithoutSubscription as any);
+      const mockStripeInstance = mockGetStripe() as any;
+      
+      // Mock the metadata-based lookup
+      mockStripeInstance.subscriptions = {
+        list: jest.fn().mockResolvedValue({
+          data: [mockSubscription], // Found subscription via metadata
+        }),
+      };
+      
+      mockAdminDao.updateUser.mockResolvedValue({
+        ...userWithoutSubscription,
+        stripe_subscription_id: 'sub_456',
+        stripe_customer_id: 'cus_123',
+        subscription_status: 'active',
+      } as any);
+      mockAdminDao.logAdminAction.mockResolvedValue(undefined);
+
+      const result = await adminService.syncUserSubscription('user-1', 'admin-1');
+
+      expect(result.subscription_status).toBe('active');
+      expect(result.stripe_subscription_id).toBe('sub_456');
+      expect(mockStripeInstance.subscriptions.list).toHaveBeenCalledWith({
+        limit: 100,
+        expand: ['data.customer'],
+      });
+      expect(mockAdminDao.updateUser).toHaveBeenCalledWith(
+        'user-1',
+        expect.objectContaining({
+          stripe_subscription_id: 'sub_456',
+          stripe_customer_id: 'cus_123',
+          subscription_status: 'active',
+        })
+      );
     });
   });
 

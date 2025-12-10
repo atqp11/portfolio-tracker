@@ -1,7 +1,8 @@
 
 import Stripe from 'stripe';
 import { createAdminClient } from '@lib/supabase/admin';
-import { getStripe, getTierFromPriceId } from '@lib/stripe/client';
+import { getStripe } from '@lib/stripe/client';
+import { getTierFromPriceId } from '@backend/modules/subscriptions/config/plans.config';
 import * as stripeDao from '@backend/modules/stripe/dao/stripe.dao';
 
 interface WebhookContext {
@@ -16,13 +17,26 @@ export async function handleCheckoutCompleted(
   session: Stripe.Checkout.Session,
   ctx: WebhookContext
 ): Promise<void> {
+  console.log(`📥 Checkout session completed: ${session.id}`);
+  console.log(`   Mode: ${session.mode}`);
+  console.log(`   Customer: ${session.customer}`);
+  console.log(`   Subscription: ${session.subscription}`);
+  console.log(`   Metadata:`, session.metadata);
+
   const supabase = createAdminClient();
   
   const customerId = session.customer as string;
   const subscriptionId = session.subscription as string;
   const userId = session.metadata?.userId;
 
+  // Skip if no subscription (one-time payment mode)
+  if (!subscriptionId) {
+    console.log('⏭️  Skipping: No subscription (one-time payment mode)');
+    return;
+  }
+
   if (!userId) {
+    console.error('❌ No userId in checkout session metadata');
     throw new Error('No userId in checkout session metadata');
   }
 
@@ -36,7 +50,19 @@ export async function handleCheckoutCompleted(
   // Extract subscription data (Stripe Response wrapper adds headers)
   const subscription = subscriptionResponse as Stripe.Subscription;
   const priceId = subscription.items.data[0]?.price?.id;
-  const tier = getTierFromPriceId(priceId) || 'free';
+  
+  if (!priceId) {
+    throw new Error('No price ID found in subscription');
+  }
+  
+  const tier = getTierFromPriceId(priceId);
+  
+  if (!tier) {
+    console.error(`❌ Unknown price ID: ${priceId}`);
+    throw new Error(`Unable to determine tier from price ID: ${priceId}`);
+  }
+  
+  console.log(`🔍 Checkout: priceId=${priceId}, tier=${tier}, userId=${userId}`);
 
   // Access subscription period dates
   // Note: Stripe SDK types don't include these properties, but they exist at runtime
@@ -107,7 +133,20 @@ export async function handleSubscriptionUpdated(
   }
 
   const priceId = subscription.items.data[0]?.price?.id;
-  const newTier = getTierFromPriceId(priceId) || 'free';
+  
+  if (!priceId) {
+    console.error('No price ID found in subscription update');
+    return;
+  }
+  
+  const newTier = getTierFromPriceId(priceId);
+  
+  if (!newTier) {
+    console.error(`❌ Unknown price ID in subscription update: ${priceId}`);
+    return;
+  }
+  
+  console.log(`🔍 Subscription update: priceId=${priceId}, tier=${newTier}, userId=${user.id}`);
 
   // Access subscription period dates
   // Note: Stripe SDK types don't include these properties, but they exist at runtime

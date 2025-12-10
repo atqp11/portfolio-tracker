@@ -13,6 +13,7 @@
     "test": "jest --runInBand",
     "check:env": "node ./scripts/verify-env.js",
     "check:stripe": "node ./scripts/verify-stripe-env.js",
+    "check:stripe:checkout": "node ./scripts/verify-stripe-checkout.js",
     "test:all": "jest --runInBand",
     "test:db": "SET SKIP_DB_TESTS=false&& jest --runInBand database-cache.adapter.test",
     "test:load": "node ./load-tests/run.js",

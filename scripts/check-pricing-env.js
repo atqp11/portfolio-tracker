@@ -1,8 +1,7 @@
 #!/usr/bin/env node
 // Prebuild check: ensure required server Stripe price env vars are set.
+// Note: FREE tier does not have Stripe prices (no payment required)
 const required = [
-  'STRIPE_PRICE_FREE_MONTHLY',
-  'STRIPE_PRICE_FREE_ANNUAL',
   'STRIPE_PRICE_BASIC_MONTHLY',
   'STRIPE_PRICE_BASIC_ANNUAL',
   'STRIPE_PRICE_PREMIUM_MONTHLY',

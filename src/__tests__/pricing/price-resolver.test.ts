@@ -7,7 +7,7 @@ describe('price resolver and pricing tiers', () => {
     // Import after resetting modules
     // Use relative paths to avoid TS path alias issues in tests
     // eslint-disable-next-line @typescript-eslint/no-var-requires
-    return require('../../lib/pricing/tiers');
+    return require('../../backend/modules/subscriptions/config/plans.config');
   };
 
   afterEach(() => {
@@ -24,55 +24,49 @@ describe('price resolver and pricing tiers', () => {
   it('resolves price ID from server env STRIPE_PRICE_*', () => {
     process.env.STRIPE_PRICE_BASIC_MONTHLY = 'price_basic_monthly_test';
     const mod = resetAndImport();
-    const { resolvePriceId } = mod;
-    expect(resolvePriceId('basic', 'monthly')).toBe('price_basic_monthly_test');
+    const { getStripePriceId } = mod;
+    expect(getStripePriceId('basic', 'monthly')).toBe('price_basic_monthly_test');
   });
 
-  it('returns empty string when server env missing (no fallbacks)', () => {
+  it('throws error when server env missing (no fallbacks)', () => {
     // No server env set
     const mod = resetAndImport();
-    const { resolvePriceId } = mod;
-    expect(resolvePriceId('basic', 'monthly')).toBe('');
+    const { getStripePriceId } = mod;
+    expect(() => getStripePriceId('basic', 'monthly')).toThrow('No Stripe Price ID configured for plan: basic (monthly)');
   });
 
   it('resolves all tiers (free, basic, premium) correctly', () => {
-    process.env.STRIPE_PRICE_FREE_MONTHLY = 'price_free_monthly';
     process.env.STRIPE_PRICE_BASIC_ANNUAL = 'price_basic_annual';
     process.env.STRIPE_PRICE_PREMIUM_MONTHLY = 'price_premium_monthly';
     const mod = resetAndImport();
-    const { resolvePriceId } = mod;
-    expect(resolvePriceId('free', 'monthly')).toBe('price_free_monthly');
-    expect(resolvePriceId('basic', 'annual')).toBe('price_basic_annual');
-    expect(resolvePriceId('premium', 'monthly')).toBe('price_premium_monthly');
+    const { getStripePriceId } = mod;
+    // FREE tier throws error
+    expect(() => getStripePriceId('free', 'monthly')).toThrow('Free tier does not have a Stripe Price ID');
+    // Paid tiers return Price IDs
+    expect(getStripePriceId('basic', 'annual')).toBe('price_basic_annual');
+    expect(getStripePriceId('premium', 'monthly')).toBe('price_premium_monthly');
   });
 
-  it('handles case-insensitive billing parameter', () => {
+  it('handles lowercase billing parameter', () => {
     process.env.STRIPE_PRICE_BASIC_MONTHLY = 'price_basic_monthly';
     const mod = resetAndImport();
-    const { resolvePriceId } = mod;
-    // Both should work and map to same env var
-    expect(resolvePriceId('basic', 'monthly')).toBe('price_basic_monthly');
-    expect(resolvePriceId('basic', 'MONTHLY' as any)).toBe('price_basic_monthly');
+    const { getStripePriceId } = mod;
+    // Should work with lowercase 'monthly'
+    expect(getStripePriceId('basic', 'monthly')).toBe('price_basic_monthly');
   });
 
-  it('uses cfg.annualPrice when present for displayed annual price', () => {
+  it('uses annualPrice from PLAN_METADATA', () => {
     // Set all required env vars to avoid errors during import
-    process.env.STRIPE_PRICE_FREE_MONTHLY = 'price_free_monthly';
-    process.env.STRIPE_PRICE_FREE_ANNUAL = 'price_free_annual';
     process.env.STRIPE_PRICE_BASIC_MONTHLY = 'price_basic_monthly';
     process.env.STRIPE_PRICE_BASIC_ANNUAL = 'price_basic_annual';
     process.env.STRIPE_PRICE_PREMIUM_MONTHLY = 'price_premium_monthly';
     process.env.STRIPE_PRICE_PREMIUM_ANNUAL = 'price_premium_annual';
     
     const mod = resetAndImport();
-    const { PRICING_TIERS } = mod;
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const cfg = require('../../lib/tiers/config').TIER_CONFIG;
+    const { PLAN_METADATA } = mod;
     
-    const basicTier = PRICING_TIERS.find((t: any) => t.id === 'basic');
-    expect(basicTier.price.annual).toBe(cfg.basic.annualPrice);
-    
-    const premiumTier = PRICING_TIERS.find((t: any) => t.id === 'premium');
-    expect(premiumTier.price.annual).toBe(cfg.premium.annualPrice);
+    expect(PLAN_METADATA.basic.annualPrice).toBe(59.99);
+    expect(PLAN_METADATA.premium.annualPrice).toBe(159.99);
+    expect(PLAN_METADATA.free.annualPrice).toBe(null); // FREE has no price
   });
 });

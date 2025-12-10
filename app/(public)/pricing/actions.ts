@@ -5,7 +5,7 @@ import { revalidatePath } from 'next/cache';
 import { requireUser, getUserProfile } from '@lib/auth/session';
 import { stripeController } from '@backend/modules/stripe/stripe.controller';
 import { checkoutRequestSchema } from '@lib/stripe/validation';
-import { resolvePriceId } from '@lib/pricing/tiers';
+import { getStripePriceId, PlanTier, BillingInterval } from '@backend/modules/subscriptions/config/plans.config';
 
 /**
  * Helper to format Zod validation errors into user-friendly messages
@@ -49,10 +49,10 @@ export async function createCheckoutSession(data: unknown) {
     const { tier, billingPeriod, successUrl, cancelUrl, trialDays } = result.data;
 
     // 3. Resolve price ID server-side (security: don't trust client-provided priceId)
-    const priceId = resolvePriceId(tier, billingPeriod);
-    if (!priceId) {
-      throw new Error(`Price ID not configured for ${tier} tier (${billingPeriod})`);
-    }
+    const priceId = getStripePriceId(
+      tier as PlanTier,
+      billingPeriod as BillingInterval
+    );
 
     // 4. Call controller (per guidelines: Server Actions call controllers, not services)
     const checkoutResult = await stripeController.createCheckoutSessionData(profile, {

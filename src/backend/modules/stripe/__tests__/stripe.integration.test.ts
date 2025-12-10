@@ -13,6 +13,16 @@ jest.mock('@lib/stripe/client');
 jest.mock('@backend/modules/stripe/dao/stripe.dao');
 jest.mock('@lib/supabase/admin');
 
+// Mock getTierFromPriceId from plans.config
+jest.mock('@backend/modules/subscriptions/config/plans.config', () => ({
+  getTierFromPriceId: (priceId: string) => {
+    if (priceId === 'price_basic') return 'basic';
+    if (priceId === 'price_basic_monthly') return 'basic';
+    if (priceId === 'price_premium') return 'premium';
+    return null;
+  },
+}));
+
 const mockStripeClient = stripeClient as jest.Mocked<typeof stripeClient>;
 const mockStripeDao = stripeDao as jest.Mocked<typeof stripeDao>;
 
@@ -53,7 +63,6 @@ describe('Stripe Integration - Checkout Flow', () => {
       },
     };
     mockStripeClient.getStripe.mockReturnValue(mockStripe as any);
-    mockStripeClient.getTierFromPriceId.mockReturnValue('basic');
 
     // Mock Supabase admin client
     const { createAdminClient } = require('@lib/supabase/admin');
@@ -428,10 +437,18 @@ describe('Stripe Integration - Checkout Flow', () => {
 
   describe('Error Handling', () => {
     it('should handle webhook processing errors gracefully', async () => {
+      // Create an event that will cause getTierFromPriceId to return null (invalid tier)
       const event = {
         id: 'evt_error',
         type: 'checkout.session.completed',
-        data: { object: {} },
+        data: { 
+          object: {
+            id: 'cs_error',
+            customer: 'cus_123',
+            subscription: 'sub_123',
+            metadata: { userId: 'user-1' },
+          } 
+        },
       } as any;
 
       mockStripeClient.constructWebhookEvent.mockReturnValue(event);
@@ -443,10 +460,23 @@ describe('Stripe Integration - Checkout Flow', () => {
       } as any);
       mockStripeDao.updateTransactionByEventId.mockResolvedValue(undefined);
 
-      // Mock handler to throw error
-      jest.doMock('@backend/modules/stripe/webhook-handlers', () => ({
-        handleCheckoutCompleted: jest.fn().mockRejectedValue(new Error('Handler error')),
-      }));
+      // Mock subscription retrieval to return invalid price ID
+      const mockStripe = {
+        subscriptions: {
+          retrieve: jest.fn().mockResolvedValue({
+            id: 'sub_123',
+            status: 'active',
+            items: {
+              data: [{
+                price: { id: 'price_invalid_unknown' }, // Will cause getTierFromPriceId to return null
+              }],
+            },
+            current_period_start: Math.floor(Date.now() / 1000),
+            current_period_end: Math.floor(Date.now() / 1000) + 2592000,
+          }),
+        },
+      };
+      mockStripeClient.getStripe.mockReturnValue(mockStripe as any);
 
       await expect(
         stripeService.processStripeWebhook({
@@ -454,7 +484,7 @@ describe('Stripe Integration - Checkout Flow', () => {
           signature: 'sig_123',
           webhookSecret: 'whsec_test',
         })
-      ).rejects.toThrow();
+      ).rejects.toThrow('Unable to determine tier from price ID');
 
       expect(mockStripeDao.updateTransactionByEventId).toHaveBeenCalledWith(
         'evt_error',
@@ -471,6 +501,7 @@ describe('Stripe Integration - Checkout Flow', () => {
         type: 'checkout.session.completed',
         data: { 
           object: {
+            id: 'cs_log_error',
             metadata: { userId: 'user-1' },
             customer: 'cus_123',
             subscription: 'sub_123',
@@ -482,6 +513,24 @@ describe('Stripe Integration - Checkout Flow', () => {
       mockStripeDao.findTransactionByEventId.mockResolvedValue(null);
       mockStripeDao.createTransaction.mockRejectedValue(new Error('Logging failed'));
       mockStripeDao.updateTransactionByEventId.mockResolvedValue(undefined);
+
+      // Mock subscription with valid price
+      const mockStripe = {
+        subscriptions: {
+          retrieve: jest.fn().mockResolvedValue({
+            id: 'sub_123',
+            status: 'active',
+            items: {
+              data: [{
+                price: { id: 'price_basic' }, // Valid price that getTierFromPriceId recognizes
+              }],
+            },
+            current_period_start: Math.floor(Date.now() / 1000),
+            current_period_end: Math.floor(Date.now() / 1000) + 2592000,
+          }),
+        },
+      };
+      mockStripeClient.getStripe.mockReturnValue(mockStripe as any);
 
       // Should not throw, just log error and continue
       await expect(

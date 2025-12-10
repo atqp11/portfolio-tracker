@@ -44,31 +44,6 @@ export const stripe = new Proxy({} as any, {
   },
 });
 
-/**
- * Get tier from price ID
- * 
- * Checks all configured price IDs (monthly and annual) to determine tier.
- * Uses server-only env vars: STRIPE_PRICE_{TIER}_{BILLING}
- */
-export function getTierFromPriceId(priceId: string): StripeTier | null {
-  if (!priceId) return null;
-
-  // Check all possible tier/billing combinations
-  const tiers: StripeTier[] = ['free', 'basic', 'premium'];
-  const billings = ['monthly', 'annual'];
-
-  for (const tier of tiers) {
-    for (const billing of billings) {
-      const envVarName = `STRIPE_PRICE_${tier.toUpperCase()}_${billing.toUpperCase()}`;
-      const configuredPriceId = process.env[envVarName];
-      if (configuredPriceId === priceId) {
-        return tier;
-      }
-    }
-  }
-
-  return null;
-}
 
 /**
  * Create or retrieve a Stripe customer
@@ -102,6 +77,36 @@ export async function createOrRetrieveCustomer(
 }
 
 /**
+ * Validate that a price ID exists and is active in Stripe
+ * This helps catch configuration errors before creating checkout sessions
+ */
+export async function validatePriceId(priceId: string): Promise<{ valid: boolean; error?: string }> {
+  const stripe = getStripe();
+  if (!stripe) {
+    return { valid: false, error: 'Stripe is not configured' };
+  }
+
+  try {
+    const price = await stripe.prices.retrieve(priceId);
+    
+    if (!price.active) {
+      return { valid: false, error: `Price ID ${priceId} is not active` };
+    }
+
+    if (!price.recurring) {
+      return { valid: false, error: `Price ID ${priceId} is not a recurring subscription price` };
+    }
+
+    return { valid: true };
+  } catch (error) {
+    if (error instanceof Error) {
+      return { valid: false, error: `Price ID ${priceId} not found: ${error.message}` };
+    }
+    return { valid: false, error: `Price ID ${priceId} validation failed` };
+  }
+}
+
+/**
  * Create a checkout session
  */
 export async function createCheckoutSession(
@@ -113,6 +118,12 @@ export async function createCheckoutSession(
   idempotencyKey?: string,
   metadata?: Record<string, string>
 ): Promise<{ sessionId: string; url: string | null }> {
+  // Validate price ID before creating checkout session
+  const validation = await validatePriceId(priceId);
+  if (!validation.valid) {
+    throw new Error(`Invalid price ID: ${validation.error}`);
+  }
+
   const sessionParams: Stripe.Checkout.SessionCreateParams = {
     customer: customerId,
     mode: 'subscription',
@@ -126,14 +137,15 @@ export async function createCheckoutSession(
     success_url: successUrl,
     cancel_url: cancelUrl,
     billing_address_collection: 'auto',
-    metadata: metadata || {},
+    metadata: metadata || {}, // Metadata on the checkout session
+    subscription_data: {
+      metadata: metadata || {}, // IMPORTANT: Also add metadata to the subscription itself
+    },
   };
 
   // Add trial period if provided
   if (trialDays && trialDays > 0) {
-    sessionParams.subscription_data = {
-      trial_period_days: trialDays,
-    };
+    sessionParams.subscription_data!.trial_period_days = trialDays;
   }
 
   const stripe = getStripe();

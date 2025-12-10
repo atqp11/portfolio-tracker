@@ -1,11 +1,11 @@
 'use client';
 
-import { PricingTier } from '@/src/lib/pricing/tiers';
+import { type PlanMetadata } from '@/src/backend/modules/subscriptions/config/plans.config';
 import { Check, X } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
 
 interface PricingCardProps {
-  tier: PricingTier;
+  tier: PlanMetadata;
   billingPeriod: 'monthly' | 'annual';
   loading?: boolean;
   onSelect: () => void;
@@ -17,8 +17,8 @@ export function PricingCard({
   loading,
   onSelect,
 }: PricingCardProps) {
-  const price = tier.price[billingPeriod];
-  const monthlyEquivalent = billingPeriod === 'annual' 
+  const price = billingPeriod === 'monthly' ? tier.monthlyPrice : tier.annualPrice;
+  const monthlyEquivalent = billingPeriod === 'annual' && price !== null
     ? (price / 12).toFixed(2) 
     : price;
 
@@ -50,16 +50,16 @@ export function PricingCard({
       <div className="text-center mb-8">
         <div className="flex items-baseline justify-center">
           <span className="text-5xl font-bold text-white">
-            ${price === 0 ? '0' : monthlyEquivalent}
+            ${price === null || price === 0 ? '0' : monthlyEquivalent}
           </span>
           <span className="text-gray-400 ml-2">/month</span>
         </div>
-        {billingPeriod === 'annual' && price > 0 && (
+        {billingPeriod === 'annual' && price !== null && price > 0 && (
           <p className="text-sm text-gray-400 mt-2">
             Billed ${price}/year (save 17%)
           </p>
         )}
-        {tier.trialDays && (
+        {tier.trialDays > 0 && (
           <p className="text-sm text-indigo-400 mt-2">
             {tier.trialDays}-day free trial included
           </p>

@@ -8,9 +8,9 @@ import {
   createOrRetrieveCustomer, 
   createCheckoutSession, 
   createCustomerPortalSession,
-  constructWebhookEvent,
-  getTierFromPriceId
+  constructWebhookEvent
 } from '@lib/stripe/client';
+import { getTierFromPriceId } from '@backend/modules/subscriptions/config/plans.config';
 import { updateUserTier } from '@lib/supabase/db';
 import type { StripeTier } from '@lib/stripe/types';
 import type Stripe from 'stripe';
