@@ -32,7 +32,7 @@
     "node": ">=18.17"
   },
   "dependencies": {
-    "@google/genai": "^1.29.1",
+    "@google/genai": "^1.31.0",
     "@prisma/client": "^6.19.0",
     "@stripe/stripe-js": "^8.5.3",
     "@supabase/ssr": "^0.7.0",
