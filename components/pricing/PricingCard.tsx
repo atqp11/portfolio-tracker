@@ -48,6 +48,13 @@ export function PricingCard({
 
       {/* Price */}
       <div className="text-center mb-8">
+        {billingPeriod === 'annual' && price !== null && price > 0 && (
+          <div className="mb-2">
+            <span className="inline-block px-3 py-1 bg-green-500/10 border border-green-500/30 rounded-full text-green-400 text-xs font-semibold">
+              💰 Save 17% with Annual
+            </span>
+          </div>
+        )}
         <div className="flex items-baseline justify-center">
           <span className="text-5xl font-bold text-white">
             ${price === null || price === 0 ? '0' : monthlyEquivalent}
@@ -56,7 +63,7 @@ export function PricingCard({
         </div>
         {billingPeriod === 'annual' && price !== null && price > 0 && (
           <p className="text-sm text-gray-400 mt-2">
-            Billed ${price}/year (save 17%)
+            Billed ${price.toFixed(2)}/year
           </p>
         )}
         {tier.trialDays > 0 && (

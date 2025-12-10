@@ -12,10 +12,10 @@ const PricingSection = () => {
     const [billingPeriod, setBillingPeriod] = useState<'monthly' | 'annual'>('monthly');
 
     return (
-        <section id="pricing" className="py-20 bg-gray-900">
+        <section id="pricing" className="py-24 relative z-10">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div className="text-center mb-16">
-                    <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
+                    <h2 className="text-4xl md:text-5xl font-bold mb-6 bg-clip-text text-transparent bg-gradient-to-r from-white via-indigo-100 to-indigo-300">
                         Start Free, Upgrade When Ready
                     </h2>
                     <p className="text-xl text-gray-400 max-w-2xl mx-auto">
@@ -23,6 +23,7 @@ const PricingSection = () => {
                     </p>
                 </div>
 
+                {/* Billing Toggle */}
                 <div className="flex justify-center mb-12">
                     <BillingToggle
                         value={billingPeriod}
