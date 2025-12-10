@@ -14,7 +14,7 @@ export default function SubscriptionCard({ user }: SubscriptionCardProps) {
         <strong className="text-gray-200">Tier:</strong> {user.tier}
       </div>
       <div className="text-gray-300">
-        <strong className="text-gray-200">Status:</strong> {user.subscription_status}
+        <strong className="text-gray-200">Status:</strong> {user.tier === 'free' ? 'N/A' : (user.subscription_status || 'N/A')}
       </div>
       <div className="text-gray-300">
         <strong className="text-gray-200">Stripe Customer ID:</strong> {user.stripe_customer_id}

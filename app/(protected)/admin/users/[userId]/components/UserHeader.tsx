@@ -6,10 +6,22 @@ interface UserHeaderProps {
   refundStatus?: RefundStatusDto | null;
 }
 
-function getStatusBadge(status: string | null) {
-  if (!status) return { label: 'Unknown', color: 'bg-gray-500' };
+function getStatusBadge(status: string | null, tier?: string) {
+  // Normalize status - treat null, undefined, and empty string as "no status"
+  const hasStatus = status && status.trim().length > 0;
   
-  const statusLower = status.toLowerCase();
+  // For free tier users, subscription status is N/A
+  if (tier === 'free') return { label: 'N/A', color: 'bg-gray-500' };
+  
+  // For paid tier users without a subscription status
+  if (!hasStatus && (tier === 'basic' || tier === 'premium')) {
+    return { label: 'No Subscription', color: 'bg-red-500' };
+  }
+  
+  // For other cases with no status
+  if (!hasStatus) return { label: 'N/A', color: 'bg-gray-500' };
+  
+  const statusLower = status!.toLowerCase().trim();
   
   if (statusLower === 'active') {
     return { label: 'Active', color: 'bg-green-500' };
@@ -18,17 +30,21 @@ function getStatusBadge(status: string | null) {
     return { label: 'Trialing', color: 'bg-orange-500' };
   }
   if (statusLower === 'past_due' || statusLower === 'incomplete' || statusLower === 'incomplete_expired') {
-    return { label: status.replace('_', ' '), color: 'bg-red-500' };
+    return { label: status!.replace(/_/g, ' '), color: 'bg-red-500' };
   }
   if (statusLower === 'canceled') {
     return { label: 'Canceled', color: 'bg-red-600' };
   }
+  if (statusLower === 'unpaid') {
+    return { label: 'Unpaid', color: 'bg-red-500' };
+  }
   
-  return { label: status, color: 'bg-orange-500' };
+  // For any other status value, capitalize and display it
+  return { label: status!.charAt(0).toUpperCase() + status!.slice(1).replace(/_/g, ' '), color: 'bg-blue-500' };
 }
 
 export default function UserHeader({ user, refundStatus }: UserHeaderProps) {
-  const statusBadge = getStatusBadge(user.subscription_status || null);
+  const statusBadge = getStatusBadge(user.subscription_status || null, user.tier);
   const accountStatusBadge = user.is_active 
     ? { label: 'Active', color: 'bg-green-500' }
     : { label: 'Deactivated', color: 'bg-red-500' };

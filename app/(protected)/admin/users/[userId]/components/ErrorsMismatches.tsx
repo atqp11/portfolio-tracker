@@ -83,8 +83,9 @@ export default function ErrorsMismatches({ user, transactions, stripeStatus }: E
     });
   }
 
-  // Missing subscription for paid tier
-  if (!hasDbSubscription && (user.tier === 'basic' || user.tier === 'premium')) {
+  // Missing subscription for paid tier - only if they SHOULD have one
+  // (i.e., if there's evidence from Stripe that they have/had a subscription)
+  if (!hasDbSubscription && (user.tier === 'basic' || user.tier === 'premium') && hasStripeSubscription) {
     errors.push({
       type: 'error',
       message: `Missing subscription for paid tier (${user.tier}). Check Stripe for subscription with userid metadata.`,

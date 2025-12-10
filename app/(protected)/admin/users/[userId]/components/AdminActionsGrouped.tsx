@@ -303,10 +303,10 @@ export default function AdminActionsGrouped({ user, refundStatus }: AdminActions
           </div>
         </div>
 
-        {/* Danger Zone */}
-        <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
-          <h3 className="text-sm font-semibold text-red-600 dark:text-red-400 mb-3">Danger Zone</h3>
-          {user.subscription_status !== 'canceled' && user.stripe_subscription_id && (
+        {/* Danger Zone - only show if there are actions to display */}
+        {user.subscription_status !== 'canceled' && user.stripe_subscription_id && (
+          <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
+            <h3 className="text-sm font-semibold text-red-600 dark:text-red-400 mb-3">Danger Zone</h3>
             <button
               onClick={handleCancelSubscriptionClick}
               disabled={loading}
@@ -314,11 +314,11 @@ export default function AdminActionsGrouped({ user, refundStatus }: AdminActions
             >
               Cancel Subscription
             </button>
-          )}
-          {user.subscription_status === 'canceled' && (
-            <p className="text-sm text-gray-500 dark:text-gray-400">Subscription is already canceled</p>
-          )}
-        </div>
+          </div>
+        )}
+        {user.subscription_status === 'canceled' && (
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-4">Subscription is already canceled</p>
+        )}
       </div>
 
       <ConfirmModal
