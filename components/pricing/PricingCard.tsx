@@ -18,7 +18,7 @@ export function PricingCard({
   onSelect,
 }: PricingCardProps) {
   const price = billingPeriod === 'monthly' ? tier.monthlyPrice : tier.annualPrice;
-  const monthlyEquivalent = billingPeriod === 'annual' && price !== null
+  const monthlyEquivalent = billingPeriod === 'annual' && price !== null && price > 0
     ? (price / 12).toFixed(2) 
     : price;
 
@@ -72,9 +72,9 @@ export function PricingCard({
         disabled={loading}
         className={cn(
           'w-full py-3 px-6 rounded-lg font-semibold transition-all',
-          tier.cta.variant === 'outline' && 'border border-gray-700 text-white hover:bg-gray-800',
-          tier.cta.variant === 'default' && 'bg-indigo-600 text-white hover:bg-indigo-700',
-          tier.cta.variant === 'premium' && 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:from-indigo-700 hover:to-purple-700',
+          tier.cta.variant === 'outline' && 'btn-liquid-secondary',
+          tier.cta.variant === 'default' && 'btn-liquid-primary',
+          tier.cta.variant === 'premium' && 'btn-liquid-primary',
           loading && 'opacity-50 cursor-not-allowed'
         )}
       >

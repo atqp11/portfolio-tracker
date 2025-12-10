@@ -37,8 +37,12 @@ interface UserProfile {
   is_admin: boolean;
 }
 
-export default function Sidebar() {
-  const [isCollapsed, setIsCollapsed] = useState(false);
+interface SidebarProps {
+  isCollapsed: boolean;
+  setIsCollapsed: (collapsed: boolean) => void;
+}
+
+export default function Sidebar({ isCollapsed, setIsCollapsed }: SidebarProps) {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const pathname = usePathname();

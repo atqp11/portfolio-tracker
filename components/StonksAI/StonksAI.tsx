@@ -309,7 +309,7 @@ function getRateLimitMessage(response: any): string {
         );
     };
 
-    const StonksAI = ({ tickers = [], onSidebarToggle }: { tickers?: string[]; onSidebarToggle?: (collapsed: boolean) => void }) => {
+    const StonksAI = ({ tickers = [], portfolioName, onSidebarToggle }: { tickers?: string[]; portfolioName?: string; onSidebarToggle?: (collapsed: boolean) => void }) => {
     const [messages, setMessages] = useState<Message[]>([]);
         const [isLoading, setIsLoading] = useState(false);
         const [inputValue, setInputValue] = useState('');
@@ -745,6 +745,25 @@ function getRateLimitMessage(response: any): string {
             return (
                 <div className="container">
                 <aside className={`sidebar ${isSidebarCollapsed ? 'collapsed' : ''}`}>
+                    {portfolioName && (
+                        <div style={{ padding: '20px 20px 0 20px' }}>
+                             <div style={{ 
+                                display: 'flex', 
+                                alignItems: 'center', 
+                                gap: '8px', 
+                                backgroundColor: '#7c3aed', 
+                                color: 'white', 
+                                padding: '8px 12px', 
+                                borderRadius: '8px',
+                                fontSize: '13px',
+                                fontWeight: 500,
+                                boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                            }}>
+                                <span>📊</span>
+                                <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{portfolioName}</span>
+                            </div>
+                        </div>
+                    )}
                     <div className="sidebar-section">
                         <h2>Portfolio Holdings</h2>
                         <p>Click a ticker to begin your analysis.</p>

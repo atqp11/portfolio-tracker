@@ -9,6 +9,7 @@ import { get } from '@lib/utils/idbStorage';
 
 interface TopNavProps {
   title?: string;
+  onMenuClick?: () => void;
 }
 
 interface UserData {
@@ -54,7 +55,7 @@ const getPageTitle = (pathname: string): string => {
   return titles[pathname] || 'Portfolio Tracker';
 };
 
-export default function TopNav({ title }: TopNavProps) {
+export default function TopNav({ title, onMenuClick }: TopNavProps) {
   const pathname = usePathname();
   const router = useRouter();
   const pageTitle = title || getPageTitle(pathname);
@@ -201,9 +202,22 @@ export default function TopNav({ title }: TopNavProps) {
     <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4">
       <div className="flex items-center justify-between">
         {/* Page Title */}
-        <div className="flex-1">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{pageTitle}</h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{currentDate}</p>
+        <div className="flex-1 flex items-center gap-4">
+          {/* Mobile Menu Button */}
+          <button
+            onClick={onMenuClick}
+            className="lg:hidden p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+            aria-label="Toggle menu"
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          </button>
+          
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{pageTitle}</h1>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{currentDate}</p>
+          </div>
         </div>
 
         {/* Right Section - Actions & User Info */}

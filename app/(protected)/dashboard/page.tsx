@@ -598,15 +598,10 @@ export default function Home() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
-            {!isAiInternalSidebarCollapsed && selectedPortfolio && (
-              <div className="absolute top-4 left-4 z-[60] px-3 py-1.5 bg-purple-600 text-white text-sm font-medium rounded-lg flex items-center gap-2 transition-opacity duration-300">
-                <span>📊</span>
-                <span>{selectedPortfolio.name}</span>
-              </div>
-            )}
             <div className="h-full w-full">
               <StonksAI
                 tickers={currentPortfolioTickers}
+                portfolioName={selectedPortfolio?.name}
                 onSidebarToggle={setIsAiInternalSidebarCollapsed}
               />
             </div>

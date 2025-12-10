@@ -9,8 +9,17 @@ export const metadata: Metadata = {
 
 export default async function PricingPage() {
   // Check authentication status (non-blocking for public page)
-  const user = await getUser();
-  const isAuthenticated = !!user;
+  // Wrapped in try-catch to prevent Supabase source map warnings
+  let isAuthenticated = false;
+  
+  try {
+    const user = await getUser();
+    isAuthenticated = !!user;
+  } catch (error) {
+    // Silent fail for public page - assume not authenticated
+    // Source map warnings from Supabase auth-js are logged but non-critical
+    isAuthenticated = false;
+  }
 
   return <PricingContentClient isAuthenticated={isAuthenticated} />;
 }

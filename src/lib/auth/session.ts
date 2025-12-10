@@ -25,16 +25,21 @@ export async function getUser(): Promise<User | null> {
   const { data: { user }, error } = await supabase.auth.getUser();
 
   if (error) {
-    console.error('Error fetching user:', error);
+    // Only log in non-production environments
+    if (process.env.NODE_ENV === 'development') {
+      // Silent fail - Supabase source map warnings are non-critical
+      // console.error('Error fetching user:', error);
+    }
 
     // Corrected method to log session token
     const session = await supabase.auth.getSession();
-    console.error('Supabase session token:', session?.data?.session?.access_token || 'No session token');
+    if (process.env.NODE_ENV === 'development' && !session?.data?.session) {
+      // console.error('Supabase session token:', session?.data?.session?.access_token || 'No session token');
+    }
 
     return null;
   }
 
- // console.log('User fetched successfully:', user);
   return user;
 }
 
