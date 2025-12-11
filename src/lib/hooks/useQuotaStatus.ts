@@ -1,18 +1,20 @@
 /**
  * useQuotaStatus Hook
- * 
+ *
  * Provides real-time quota status for displaying user-friendly
  * banners and warnings in the AI chat interface.
- * 
+ *
  * Features:
- * - Fetches usage data from /api/user/usage
+ * - Fetches usage data via Server Actions
  * - Calculates warning thresholds
  * - Provides upgrade URLs and tier info
- * - Caches data to minimize API calls
+ * - Caches data to minimize server calls
  */
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getNextTier, getTierConfig, type TierName } from '@lib/tiers';
+import { fetchUsageStats } from '@/app/(protected)/usage/actions';
+import type { UsageStats as UsageStatsDTO } from '@backend/modules/user/dto/usage.dto';
 
 // ============================================================================
 // TYPES
@@ -24,30 +26,9 @@ export interface UsageMetric {
   remaining: number;
 }
 
-export interface UsageStats {
+// Re-export the DTO type with proper TierName typing for hook usage
+export type UsageStats = UsageStatsDTO & {
   tier: TierName;
-  usage: {
-    daily: {
-      chatQueries: UsageMetric;
-      portfolioAnalysis: UsageMetric;
-      portfolioChanges?: UsageMetric;
-    };
-    monthly: {
-      secFilings: UsageMetric;
-    };
-  };
-  percentages: {
-    chatQueries: number;
-    portfolioAnalysis: number;
-    portfolioChanges?: number;
-    secFilings: number;
-  };
-  warnings: {
-    chatQueries: boolean;
-    portfolioAnalysis: boolean;
-    portfolioChanges?: boolean;
-    secFilings: boolean;
-  };
 }
 
 export type QuotaLevel = 
@@ -105,14 +86,10 @@ export function useQuotaStatus(): QuotaStatus {
   const { data, isLoading, error } = useQuery({
     queryKey: ['user', 'usage'],
     queryFn: async (): Promise<UsageStats> => {
-      const response = await fetch('/api/user/usage');
-      
-      if (!response.ok) {
-        throw new Error('Failed to fetch usage data');
-      }
-      
-      const result = await response.json();
-      return result.stats;
+      // Use Server Action instead of API route
+      const stats = await fetchUsageStats();
+      // Cast tier to TierName for type safety
+      return stats as UsageStats;
     },
     staleTime: 30 * 1000, // 30 seconds - refresh frequently for accurate counts
     gcTime: 5 * 60 * 1000, // 5 minutes

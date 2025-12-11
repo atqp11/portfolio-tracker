@@ -7,6 +7,7 @@ import PortfolioModal from '@/components/PortfolioModal';
 import RiskMetricsPanel from '@/components/RiskMetricsPanel';
 import type { RiskMetrics } from '@lib/calculator';
 import { getPortfolioTheme } from '@lib/utils/portfolioTheme';
+import { calculateRiskMetrics } from '@/app/(protected)/tests/ui/risk-metrics/actions';
 
 export default function RiskPage() {
   // Portfolio state
@@ -65,24 +66,15 @@ export default function RiskPage() {
           return;
         }
 
-        const response = await fetch('/api/risk-metrics', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            portfolioReturns: historyData.portfolioReturns,
-            marketReturns: historyData.marketReturns,
-            riskFreeRate: 0.045,
-            portfolioReturn: historyData.portfolioReturn,
-            marketReturn: historyData.marketReturn,
-          }),
+        // Use Server Action instead of API route
+        const data = await calculateRiskMetrics({
+          portfolioReturns: historyData.portfolioReturns,
+          marketReturns: historyData.marketReturns,
+          riskFreeRate: 0.045,
+          portfolioReturn: historyData.portfolioReturn,
+          marketReturn: historyData.marketReturn,
         });
 
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || 'Failed to calculate risk metrics');
-        }
-
-        const data = await response.json();
         setRiskMetrics(data);
       } catch (error) {
         console.error('Error fetching risk metrics:', error);

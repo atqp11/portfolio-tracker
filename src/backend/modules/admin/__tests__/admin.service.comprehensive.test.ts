@@ -362,7 +362,15 @@ describe('Admin Service - Comprehensive', () => {
         status: 'canceled',
       });
       
-      mockAdminDao.updateUser.mockResolvedValue(undefined);
+      mockAdminDao.updateUser.mockResolvedValue({
+        id: 'user-1',
+        tier: 'free',
+        status: 'active',
+        stripe_customer_id: 'cus_123',
+        stripe_subscription_id: null,
+        created_at: '2024-01-01T00:00:00Z',
+        updated_at: '2024-01-01T00:00:00Z',
+      } as any);
       mockAdminDao.logAdminAction.mockResolvedValue(undefined);
 
       await adminService.cancelUserSubscription('user-1', 'admin-1', true);
@@ -849,7 +857,7 @@ describe('Admin Service - Comprehensive', () => {
     it('should return refund status with pending refunds and last payment', async () => {
       mockAdminDao.getUserById.mockResolvedValue(mockUser as any);
 
-      const mockStripe = mockGetStripe();
+      const mockStripe = mockGetStripe()!;
       mockStripe.charges.list = jest.fn().mockResolvedValue({
         data: [
           {
@@ -938,7 +946,7 @@ describe('Admin Service - Comprehensive', () => {
     it('should handle no refunds', async () => {
       mockAdminDao.getUserById.mockResolvedValue(mockUser as any);
 
-      const mockStripe = mockGetStripe();
+      const mockStripe = mockGetStripe()!;
       mockStripe.charges.list = jest.fn().mockResolvedValue({
         data: [
           {
@@ -973,7 +981,7 @@ describe('Admin Service - Comprehensive', () => {
     it('should handle no last payment', async () => {
       mockAdminDao.getUserById.mockResolvedValue(mockUser as any);
 
-      const mockStripe = mockGetStripe();
+      const mockStripe = mockGetStripe()!;
       mockStripe.charges.list = jest.fn().mockResolvedValue({ data: [] });
       // Fallback to refunds.list -> include refund with chargeID pointing to a charge we will retrieve
       mockStripe.refunds.list = jest.fn().mockResolvedValue({
@@ -1010,7 +1018,7 @@ describe('Admin Service - Comprehensive', () => {
     it('should only count pending/succeeded refunds in total', async () => {
       mockAdminDao.getUserById.mockResolvedValue(mockUser as any);
 
-      const mockStripe = mockGetStripe();
+      const mockStripe = mockGetStripe()!;
       mockStripe.charges.list = jest.fn().mockResolvedValue({
         data: [
           {
@@ -1039,7 +1047,7 @@ describe('Admin Service - Comprehensive', () => {
     it('should handle Stripe API errors', async () => {
       mockAdminDao.getUserById.mockResolvedValue(mockUser as any);
 
-      const mockStripe = mockGetStripe();
+      const mockStripe = mockGetStripe()!;
       mockStripe.charges.list = jest.fn().mockRejectedValue(new Error('Stripe API error'));
 
       await expect(adminService.getRefundStatus('user-1')).rejects.toThrow('Stripe API error');

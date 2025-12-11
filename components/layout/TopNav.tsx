@@ -6,6 +6,7 @@ import { createClient } from '@lib/supabase/client';
 import TierBadge from '@/components/shared/TierBadge';
 import { type TierName } from '@lib/tiers';
 import { get } from '@lib/utils/idbStorage';
+import { fetchUsageStats } from '@/app/(protected)/usage/actions';
 
 interface TopNavProps {
   title?: string;
@@ -129,27 +130,22 @@ export default function TopNav({ title, onMenuClick }: TopNavProps) {
 
   // Fetch usage stats for warnings
   useEffect(() => {
-    async function fetchUsageStats() {
+    async function loadUsageStats() {
       try {
-        const response = await fetch('/api/user/usage');
-        if (response.ok) {
-          const data = await response.json();
-          if (data.success && data.stats) {
-            setUsageStats({
-              percentages: data.stats.percentages,
-              warnings: data.stats.warnings,
-            });
-          }
-        }
+        const stats = await fetchUsageStats();
+        setUsageStats({
+          percentages: stats.percentages,
+          warnings: stats.warnings,
+        });
       } catch (error) {
         console.error('Error fetching usage stats:', error);
       }
     }
 
-    fetchUsageStats();
+    loadUsageStats();
 
     // Poll for usage updates every 30 seconds
-    const interval = setInterval(fetchUsageStats, 30000);
+    const interval = setInterval(loadUsageStats, 30000);
     return () => clearInterval(interval);
   }, []);
 

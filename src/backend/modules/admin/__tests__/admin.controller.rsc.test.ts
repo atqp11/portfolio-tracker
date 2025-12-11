@@ -362,6 +362,7 @@ describe('Admin Controller - RSC Methods', () => {
     it('should return subscription status for valid UUID', async () => {
       const mockStatus = {
         status: 'active',
+        tier: 'basic',
         lastSync: '2024-01-01T00:00:00Z',
       };
 
@@ -388,6 +389,7 @@ describe('Admin Controller - RSC Methods', () => {
     it('should handle null status', async () => {
       mockAdminService.getStripeSubscriptionStatus.mockResolvedValue({
         status: null,
+        tier: null,
         lastSync: null,
       });
 
@@ -395,7 +397,7 @@ describe('Admin Controller - RSC Methods', () => {
         'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'
       );
 
-      expect(result).toEqual({ status: null, lastSync: null });
+      expect(result).toEqual({ status: null, tier: null, lastSync: null });
     });
   });
 
@@ -842,7 +844,12 @@ describe('Admin Controller - RSC Methods', () => {
     const validAdminId = 'b1ffcd00-ad1c-5fg9-cc7e-7cc0ce491b22';
 
     it('should process refund successfully', async () => {
-      mockAdminService.refundUser.mockResolvedValue(undefined);
+      mockAdminService.refundUser.mockResolvedValue({
+        refundId: 're_123',
+        amountCents: 1000,
+        currency: 'usd',
+        chargeId: 'ch_123',
+      });
 
       const result = await controller.refundUserData(
         validUserId,
@@ -986,6 +993,8 @@ describe('Admin Controller - RSC Methods', () => {
             status: 'pending',
             reason: 'requested_by_customer',
             created: 1234567890,
+            chargeId: 'ch_123',
+            failureReason: null,
           },
           {
             id: 'ref_456',
@@ -993,12 +1002,15 @@ describe('Admin Controller - RSC Methods', () => {
             status: 'succeeded',
             reason: 'duplicate',
             created: 1234567800,
+            chargeId: 'ch_456',
+            failureReason: null,
           },
         ],
         lastPayment: {
           amount: 2999,
           currency: 'usd',
           date: 1234567890,
+          chargeId: 'ch_789',
         },
       };
 
@@ -1051,6 +1063,8 @@ describe('Admin Controller - RSC Methods', () => {
             status: 'succeeded',
             reason: 'duplicate',
             created: 1234567890,
+            chargeId: 'ch_123',
+            failureReason: null,
           },
         ],
         lastPayment: null,
@@ -1074,6 +1088,7 @@ describe('Admin Controller - RSC Methods', () => {
           amount: 2999,
           currency: 'usd',
           date: 1234567890,
+          chargeId: 'ch_789',
         },
       };
 

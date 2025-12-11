@@ -226,15 +226,35 @@ export function useStocks(portfolioId: string | undefined) {
 
 /**
  * Hook to fetch investment theses for a portfolio
+ *
+ * @deprecated This hook is deprecated as of the RSC migration.
+ *
+ * For new code:
+ * - RSC pages: Use fetchThesesForPortfolio() Server Action from app/(protected)/thesis/actions.ts
+ * - Client Components: Receive data as props from parent RSC
+ *
+ * Migration example:
+ * ```typescript
+ * // OLD (Client Component with hook):
+ * 'use client';
+ * const { data: theses } = useTheses(portfolioId);
+ *
+ * // NEW (Server Component with Server Action):
+ * import { fetchThesesForPortfolio } from './actions';
+ * const theses = await fetchThesesForPortfolio('energy');
+ * return <ThesisClient theses={theses} />;
+ * ```
+ *
+ * This hook will be removed in a future version once all usages are migrated.
  */
 export function useTheses(portfolioId: string | undefined) {
   return useQuery({
     queryKey: ['theses', portfolioId],
     queryFn: async () => {
       if (!portfolioId) return [];
-      const response = await fetch(`/api/thesis?portfolioId=${portfolioId}`);
-      if (!response.ok) throw new Error('Failed to fetch theses');
-      return await response.json();
+      // Note: This will fail after API routes are removed
+      // Migrate to Server Actions instead
+      throw new Error('useTheses is deprecated. Use Server Actions from app/(protected)/thesis/actions.ts instead.');
     },
     enabled: !!portfolioId,
   });
@@ -242,16 +262,35 @@ export function useTheses(portfolioId: string | undefined) {
 
 /**
  * Hook to fetch today's checklist for a portfolio
+ *
+ * @deprecated This hook is deprecated as of the RSC migration.
+ *
+ * For new code:
+ * - RSC pages: Use fetchChecklistForPortfolio() Server Action from app/(protected)/checklist/actions.ts
+ * - Client Components: Receive data as props from parent RSC
+ *
+ * Migration example:
+ * ```typescript
+ * // OLD (Client Component with hook):
+ * 'use client';
+ * const { data: checklist } = useChecklist(portfolioId);
+ *
+ * // NEW (Server Component with Server Action):
+ * import { fetchChecklistForPortfolio } from './actions';
+ * const checklist = await fetchChecklistForPortfolio('energy');
+ * return <ChecklistClient checklist={checklist} />;
+ * ```
+ *
+ * This hook will be removed in a future version once all usages are migrated.
  */
 export function useChecklist(portfolioId: string | undefined) {
   return useQuery({
     queryKey: ['checklist', portfolioId],
     queryFn: async () => {
       if (!portfolioId) return null;
-      const today = new Date().toISOString().split('T')[0];
-      const response = await fetch(`/api/checklist?portfolioId=${portfolioId}&date=${today}`);
-      if (!response.ok) throw new Error('Failed to fetch checklist');
-      return await response.json();
+      // Note: This will fail after API routes are removed
+      // Migrate to Server Actions instead
+      throw new Error('useChecklist is deprecated. Use Server Actions from app/(protected)/checklist/actions.ts instead.');
     },
     enabled: !!portfolioId,
   });
