@@ -19,11 +19,55 @@ export default function ChecklistClient({
   const [active, setActive] = useState<'energy' | 'copper'>(initialPortfolio);
   const [isPending, startTransition] = useTransition();
 
-  const checklist = active === 'energy' ? energyChecklist : copperChecklist;
+  // Local state for generated checklists (not persisted to DB)
+  const [localEnergyChecklist, setLocalEnergyChecklist] = useState(energyChecklist);
+  const [localCopperChecklist, setLocalCopperChecklist] = useState(copperChecklist);
+
+  // Use local state for display
+  const checklist = active === 'energy' ? localEnergyChecklist : localCopperChecklist;
 
   const handleToggleTask = async (taskId: string) => {
     if (!checklist) return;
 
+    // Check if this is a generated checklist (not saved to DB)
+    const isGeneratedChecklist = checklist.id.startsWith('checklist_');
+
+    if (isGeneratedChecklist) {
+      // For generated checklists, update local state only
+      const updateTaskInCategory = (tasks: any[]) =>
+        tasks.map(task =>
+          task.id === taskId ? { ...task, completed: !task.completed } : task
+        );
+
+      const updatedChecklist = {
+        ...checklist,
+        morningRoutine: updateTaskInCategory(checklist.morningRoutine || []),
+        marketHours: updateTaskInCategory(checklist.marketHours || []),
+        eveningReview: updateTaskInCategory(checklist.eveningReview || []),
+        eventDriven: updateTaskInCategory(checklist.eventDriven || []),
+      };
+
+      // Update completion stats
+      const allTasks = [
+        ...updatedChecklist.morningRoutine,
+        ...updatedChecklist.marketHours,
+        ...updatedChecklist.eveningReview,
+        ...updatedChecklist.eventDriven,
+      ];
+      const completedCount = allTasks.filter(t => t.completed).length;
+      updatedChecklist.completedTasks = completedCount;
+      updatedChecklist.completionPercentage = (completedCount / allTasks.length) * 100;
+
+      // Update local state
+      if (active === 'energy') {
+        setLocalEnergyChecklist(updatedChecklist);
+      } else {
+        setLocalCopperChecklist(updatedChecklist);
+      }
+      return;
+    }
+
+    // For DB-persisted checklists, save to server
     startTransition(async () => {
       try {
         const task = [

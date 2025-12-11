@@ -71,9 +71,33 @@ export async function fetchChecklistForPortfolio(portfolioType: 'energy' | 'copp
   }
 }
 
+/**
+ * Server Action to fetch portfolio data for a portfolio type
+ * Used to calculate checklist metrics
+ */
+export async function fetchPortfolioData(portfolioType: 'energy' | 'copper') {
+  try {
+    // 1. Auth check
+    await requireUser();
+
+    // 2. Fetch portfolio via service
+    const portfolios = await portfolioService.findAll();
+    const portfolio = portfolios.find((p: any) => p.type === portfolioType);
+
+    if (!portfolio) {
+      return null;
+    }
+
+    return portfolio;
+  } catch (error) {
+    console.error(`Error fetching portfolio data for ${portfolioType}:`, error);
+    return null;
+  }
+}
+
 // Schema for updating a task completion state
 const updateTaskSchema = z.object({
-  checklistId: z.string().uuid(),
+  checklistId: z.string().min(1), // Accept any string, not just UUID (for generated checklists)
   taskId: z.string(),
   completed: z.boolean(),
 });
